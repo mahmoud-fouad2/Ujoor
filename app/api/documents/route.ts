@@ -8,7 +8,50 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { r2Client, R2_BUCKET_NAME } from "@/lib/r2";
 import { PutObjectCommand } from "@aws-sdk/client-s3";
-import { DocumentCategory } from "@prisma/client";
+type PrismaDocumentCategory =
+  | "PERSONAL"
+  | "EMPLOYMENT"
+  | "EDUCATIONAL"
+  | "MEDICAL"
+  | "FINANCIAL"
+  | "LEGAL"
+  | "OTHER";
+
+function normalizeDocumentCategory(value: string): PrismaDocumentCategory | null {
+  const upper = value.trim().toUpperCase();
+  // Allow Prisma enum values directly
+  if (
+    upper === "PERSONAL" ||
+    upper === "EMPLOYMENT" ||
+    upper === "EDUCATIONAL" ||
+    upper === "MEDICAL" ||
+    upper === "FINANCIAL" ||
+    upper === "LEGAL" ||
+    upper === "OTHER"
+  ) {
+    return upper as PrismaDocumentCategory;
+  }
+
+  // Map UI lowercase values
+  switch (value.trim().toLowerCase()) {
+    case "personal":
+      return "PERSONAL";
+    case "employment":
+      return "EMPLOYMENT";
+    case "education":
+      return "EDUCATIONAL";
+    case "medical":
+      return "MEDICAL";
+    case "financial":
+      return "FINANCIAL";
+    case "legal":
+      return "LEGAL";
+    case "other":
+      return "OTHER";
+    default:
+      return null;
+  }
+}
 
 function generateId(): string {
   return Math.random().toString(36).substring(2) + Date.now().toString(36);
@@ -38,7 +81,14 @@ export async function GET(request: NextRequest) {
     }
     
     if (category) {
-      where.category = category;
+      const normalized = normalizeDocumentCategory(category);
+      if (!normalized) {
+        return NextResponse.json(
+          { error: "Invalid category" },
+          { status: 400 }
+        );
+      }
+      where.category = normalized;
     }
 
     const documents = await prisma.document.findMany({
@@ -86,9 +136,11 @@ export async function POST(request: NextRequest) {
     const employeeId = formData.get("employeeId") as string;
     const title = formData.get("title") as string;
     const titleAr = formData.get("titleAr") as string | null;
-    const category = formData.get("category") as DocumentCategory;
+    const categoryRaw = formData.get("category") as string;
     const description = formData.get("description") as string | null;
     const expiryDate = formData.get("expiryDate") as string | null;
+
+    const category = categoryRaw ? normalizeDocumentCategory(categoryRaw) : null;
 
     if (!file || !employeeId || !title || !category) {
       return NextResponse.json(
