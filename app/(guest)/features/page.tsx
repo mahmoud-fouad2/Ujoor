@@ -6,6 +6,7 @@ import { Building2, Clock, CreditCard, Globe, Shield, Users } from "lucide-react
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { marketingMetadata } from "@/lib/marketing/seo";
+import { getAppLocale } from "@/lib/i18n/locale";
 
 export async function generateMetadata(): Promise<Metadata> {
   return marketingMetadata({
@@ -76,21 +77,27 @@ const featureSections = [
   },
 ];
 
-export default function FeaturesPage() {
+export default async function FeaturesPage() {
+  const locale = await getAppLocale();
+  const isAr = locale === "ar";
+  const p = locale === "en" ? "/en" : "";
+
   return (
     <main className="bg-background">
       <section className="container mx-auto px-4 py-14">
         <div className="mx-auto max-w-3xl text-center">
-          <h1 className="text-3xl font-bold sm:text-4xl">مميزات أجور</h1>
+          <h1 className="text-3xl font-bold sm:text-4xl">{isAr ? "مميزات أجور" : "Ujoors Features"}</h1>
           <p className="mt-3 text-muted-foreground">
-            كل ما تحتاجه لإدارة الموارد البشرية والرواتب والحضور في منصة واحدة.
+            {isAr
+              ? "كل ما تحتاجه لإدارة الموارد البشرية والرواتب والحضور في منصة واحدة."
+              : "Everything you need to run HR, payroll and attendance in one platform."}
           </p>
           <div className="mt-6 flex justify-center gap-3">
-            <Link href="/pricing">
-              <Button>عرض الأسعار</Button>
+            <Link href={`${p}/pricing`}>
+              <Button>{isAr ? "عرض الأسعار" : "View pricing"}</Button>
             </Link>
-            <Link href="/request-demo">
-              <Button variant="outline">طلب عرض</Button>
+            <Link href={`${p}/request-demo`}>
+              <Button variant="outline">{isAr ? "طلب عرض" : "Request a demo"}</Button>
             </Link>
           </div>
         </div>
@@ -100,8 +107,8 @@ export default function FeaturesPage() {
         <section key={section.titleEn} className="border-t py-14">
           <div className="container mx-auto px-4">
             <div className="mb-8">
-              <h2 className="text-2xl font-bold">{section.titleAr}</h2>
-              <p className="text-sm text-muted-foreground">{section.titleEn}</p>
+              <h2 className="text-2xl font-bold">{isAr ? section.titleAr : section.titleEn}</h2>
+              <p className="text-sm text-muted-foreground">{isAr ? section.titleEn : section.titleAr}</p>
             </div>
             <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
               {section.items.map((item) => (
@@ -110,11 +117,11 @@ export default function FeaturesPage() {
                     <div className="mb-2 inline-flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
                       <item.icon className="h-5 w-5 text-primary" />
                     </div>
-                    <CardTitle>{item.titleAr}</CardTitle>
-                    <CardDescription>{item.titleEn}</CardDescription>
+                    <CardTitle>{isAr ? item.titleAr : item.titleEn}</CardTitle>
+                    <CardDescription>{isAr ? item.titleEn : item.titleAr}</CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <p className="text-muted-foreground">{item.descAr}</p>
+                    <p className="text-muted-foreground">{isAr ? item.descAr : item.descEn}</p>
                   </CardContent>
                 </Card>
               ))}
@@ -126,11 +133,13 @@ export default function FeaturesPage() {
       <section className="border-t bg-muted/30 py-14">
         <div className="container mx-auto px-4">
           <div className="mx-auto max-w-3xl text-center">
-            <h2 className="text-2xl font-bold">جاهز تبدأ؟</h2>
-            <p className="mt-2 text-muted-foreground">خلّينا نعمل Demo ونظبطها حسب شركتك.</p>
+            <h2 className="text-2xl font-bold">{isAr ? "جاهز تبدأ؟" : "Ready to get started?"}</h2>
+            <p className="mt-2 text-muted-foreground">
+              {isAr ? "خلّينا نعمل Demo ونظبطها حسب شركتك." : "Let’s schedule a demo and tailor it to your company."}
+            </p>
             <div className="mt-6">
-              <Link href="/request-demo">
-                <Button size="lg">طلب عرض تجريبي</Button>
+              <Link href={`${p}/request-demo`}>
+                <Button size="lg">{isAr ? "طلب عرض تجريبي" : "Request a demo"}</Button>
               </Link>
             </div>
           </div>

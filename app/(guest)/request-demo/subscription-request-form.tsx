@@ -5,7 +5,7 @@
  * نموذج طلب الاشتراك
  */
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -22,21 +22,34 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-const requestSchema = z.object({
-  companyName: z.string().min(2, "اسم الشركة مطلوب"),
-  companyNameAr: z.string().optional(),
-  contactName: z.string().min(2, "اسم المسؤول مطلوب"),
-  contactEmail: z.string().email("البريد الإلكتروني غير صحيح"),
-  contactPhone: z.string().optional(),
-  employeesCount: z.string().min(1, "اختر عدد الموظفين"),
-  message: z.string().optional(),
-});
+function getLocaleFromCookie(): "ar" | "en" {
+  if (typeof document === "undefined") return "ar";
+  const match = document.cookie.match(/(?:^|; )ujoors_locale=([^;]+)/);
+  return match?.[1] === "en" ? "en" : "ar";
+}
 
-type RequestInput = z.infer<typeof requestSchema>;
+function createRequestSchema(isAr: boolean) {
+  return z.object({
+    companyName: z.string().min(2, isAr ? "اسم الشركة مطلوب" : "Company name is required"),
+    companyNameAr: z.string().optional(),
+    contactName: z.string().min(2, isAr ? "اسم المسؤول مطلوب" : "Contact name is required"),
+    contactEmail: z.string().email(isAr ? "البريد الإلكتروني غير صحيح" : "Invalid email address"),
+    contactPhone: z.string().optional(),
+    employeesCount: z.string().min(1, isAr ? "اختر عدد الموظفين" : "Select employee count"),
+    message: z.string().optional(),
+  });
+}
+
+type RequestInput = z.infer<ReturnType<typeof createRequestSchema>>;
 
 export function SubscriptionRequestForm() {
   const [isLoading, setIsLoading] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
+  const [locale] = useState<"ar" | "en">(() => getLocaleFromCookie());
+  const isAr = locale === "ar";
+  const prefix = locale === "en" ? "/en" : "";
+
+  const requestSchema = useMemo(() => createRequestSchema(isAr), [isAr]);
 
   const {
     register,
@@ -66,12 +79,16 @@ export function SubscriptionRequestForm() {
         <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
           <CheckCircle2 className="h-8 w-8 text-primary" />
         </div>
-        <h3 className="mb-2 text-xl font-semibold">تم استلام طلبك بنجاح!</h3>
+        <h3 className="mb-2 text-xl font-semibold">
+          {isAr ? "تم استلام طلبك بنجاح!" : "Request received successfully!"}
+        </h3>
         <p className="mb-6 text-muted-foreground">
-          شكرًا لاهتمامك بمنصة أجور. سيتواصل معك فريقنا خلال 24 ساعة.
+          {isAr
+            ? "شكرًا لاهتمامك بمنصة أجور. سيتواصل معك فريقنا خلال 24 ساعة."
+            : "Thanks for your interest in Ujoors. Our team will contact you within 24 hours."}
         </p>
-        <Button variant="outline" onClick={() => window.location.href = "/"}>
-          العودة للرئيسية
+        <Button variant="outline" onClick={() => (window.location.href = prefix || "/") }>
+          {isAr ? "العودة للرئيسية" : "Back to home"}
         </Button>
       </div>
     );
@@ -82,10 +99,10 @@ export function SubscriptionRequestForm() {
       {/* Company Info */}
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-2">
-          <Label htmlFor="companyName">اسم الشركة (بالإنجليزية) *</Label>
+          <Label htmlFor="companyName">{isAr ? "اسم الشركة (بالإنجليزية) *" : "Company name (English) *"}</Label>
           <Input
             id="companyName"
-            placeholder="Company Name"
+            placeholder={isAr ? "Company Name" : "Company Name"}
             {...register("companyName")}
           />
           {errors.companyName && (
@@ -94,10 +111,10 @@ export function SubscriptionRequestForm() {
         </div>
         
         <div className="space-y-2">
-          <Label htmlFor="companyNameAr">اسم الشركة (بالعربية)</Label>
+          <Label htmlFor="companyNameAr">{isAr ? "اسم الشركة (بالعربية)" : "Company name (Arabic)"}</Label>
           <Input
             id="companyNameAr"
-            placeholder="اسم الشركة"
+            placeholder={isAr ? "اسم الشركة" : "اسم الشركة"}
             {...register("companyNameAr")}
           />
         </div>
@@ -106,10 +123,10 @@ export function SubscriptionRequestForm() {
       {/* Contact Info */}
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-2">
-          <Label htmlFor="contactName">اسم المسؤول *</Label>
+          <Label htmlFor="contactName">{isAr ? "اسم المسؤول *" : "Contact name *"}</Label>
           <Input
             id="contactName"
-            placeholder="أحمد محمد"
+            placeholder={isAr ? "أحمد محمد" : "John Smith"}
             {...register("contactName")}
           />
           {errors.contactName && (
@@ -118,7 +135,7 @@ export function SubscriptionRequestForm() {
         </div>
         
         <div className="space-y-2">
-          <Label htmlFor="contactEmail">البريد الإلكتروني *</Label>
+          <Label htmlFor="contactEmail">{isAr ? "البريد الإلكتروني *" : "Email *"}</Label>
           <Input
             id="contactEmail"
             type="email"
@@ -133,7 +150,7 @@ export function SubscriptionRequestForm() {
 
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-2">
-          <Label htmlFor="contactPhone">رقم الهاتف</Label>
+          <Label htmlFor="contactPhone">{isAr ? "رقم الهاتف" : "Phone"}</Label>
           <Input
             id="contactPhone"
             placeholder="+966501234567"
@@ -142,16 +159,16 @@ export function SubscriptionRequestForm() {
         </div>
         
         <div className="space-y-2">
-          <Label>عدد الموظفين *</Label>
+          <Label>{isAr ? "عدد الموظفين *" : "Employee count *"}</Label>
           <Select onValueChange={(value) => setValue("employeesCount", value)}>
             <SelectTrigger>
-              <SelectValue placeholder="اختر" />
+              <SelectValue placeholder={isAr ? "اختر" : "Select"} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="1-10">1 - 10 موظفين</SelectItem>
-              <SelectItem value="11-50">11 - 50 موظف</SelectItem>
-              <SelectItem value="51-200">51 - 200 موظف</SelectItem>
-              <SelectItem value="200+">أكثر من 200 موظف</SelectItem>
+              <SelectItem value="1-10">{isAr ? "1 - 10 موظفين" : "1 - 10 employees"}</SelectItem>
+              <SelectItem value="11-50">{isAr ? "11 - 50 موظف" : "11 - 50 employees"}</SelectItem>
+              <SelectItem value="51-200">{isAr ? "51 - 200 موظف" : "51 - 200 employees"}</SelectItem>
+              <SelectItem value="200+">{isAr ? "أكثر من 200 موظف" : "200+ employees"}</SelectItem>
             </SelectContent>
           </Select>
           {errors.employeesCount && (
@@ -162,10 +179,10 @@ export function SubscriptionRequestForm() {
 
       {/* Message */}
       <div className="space-y-2">
-        <Label htmlFor="message">رسالة أو ملاحظات</Label>
+        <Label htmlFor="message">{isAr ? "رسالة أو ملاحظات" : "Message / notes"}</Label>
         <Textarea
           id="message"
-          placeholder="أخبرنا المزيد عن احتياجاتك..."
+          placeholder={isAr ? "أخبرنا المزيد عن احتياجاتك..." : "Tell us about your needs..."}
           rows={4}
           {...register("message")}
         />
@@ -174,17 +191,17 @@ export function SubscriptionRequestForm() {
       {/* Submit */}
       <Button type="submit" className="w-full" disabled={isLoading}>
         {isLoading && <Loader2 className="me-2 h-4 w-4 animate-spin" />}
-        إرسال الطلب
+        {isLoading ? (isAr ? "جاري الإرسال..." : "Submitting..." ) : isAr ? "إرسال الطلب" : "Submit request"}
       </Button>
 
       <p className="text-center text-xs text-muted-foreground">
-        بإرسال هذا النموذج، أنت توافق على{" "}
-        <a href="#" className="text-primary hover:underline">
-          سياسة الخصوصية
+        {isAr ? "بإرسال هذا النموذج، أنت توافق على " : "By submitting this form, you agree to the "}
+        <a href={`${prefix}/privacy`} className="text-primary hover:underline">
+          {isAr ? "سياسة الخصوصية" : "Privacy Policy"}
         </a>{" "}
-        و{" "}
-        <a href="#" className="text-primary hover:underline">
-          شروط الاستخدام
+        {isAr ? "و" : "and "}
+        <a href={`${prefix}/terms`} className="text-primary hover:underline">
+          {isAr ? "شروط الاستخدام" : "Terms"}
         </a>
       </p>
     </form>

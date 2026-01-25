@@ -1,28 +1,20 @@
 import Image from "next/image";
 import Link from "next/link";
 
-export function MarketingFooter() {
+import { getAppLocale } from "@/lib/i18n/locale";
+
+export async function MarketingFooter() {
   const year = new Date().getFullYear();
+  const locale = await getAppLocale();
+  const isAr = locale === "ar";
+  const p = locale === "en" ? "/en" : "";
 
   return (
     <footer className="border-t">
       <div className="container mx-auto px-4 py-12">
-        <div className="flex flex-col items-center justify-between gap-6 sm:flex-row sm:items-end rtl:sm:flex-row-reverse">
-          <div className="text-center sm:text-start">
-            <p className="text-sm text-muted-foreground">© {year} أجور (Ujoors). جميع الحقوق محفوظة.</p>
-            <p className="mt-1 text-xs text-muted-foreground">HR • Payroll • Attendance • Saudi Compliance</p>
-            <div className="mt-3 flex flex-wrap justify-center gap-x-4 gap-y-2 text-xs text-muted-foreground sm:justify-start rtl:sm:justify-end">
-              <Link href="/privacy" className="hover:text-foreground">
-                سياسة الخصوصية
-              </Link>
-              <span className="opacity-40">•</span>
-              <Link href="/terms" className="hover:text-foreground">
-                الشروط والأحكام
-              </Link>
-            </div>
-          </div>
-
-          <div className="w-full sm:w-auto">
+        <div className="grid gap-6 sm:grid-cols-3 sm:items-center">
+          {/* Developer (always left on desktop) */}
+          <div className="order-3 flex justify-center sm:order-1 sm:justify-start">
             <Link
               href="https://ma-fo.info"
               className="inline-flex items-center gap-3 opacity-90 hover:opacity-100"
@@ -32,14 +24,43 @@ export function MarketingFooter() {
               <span className="inline-flex items-center rounded-md bg-white/95 px-2 py-1 ring-1 ring-black/10">
                 <Image
                   src="https://ma-fo.info/logo2.png"
-                  alt="Developer logo"
+                  alt={isAr ? "شعار المطور" : "Developer logo"}
                   width={120}
                   height={36}
                   className="h-7 w-auto"
                 />
               </span>
-              <span className="text-sm text-muted-foreground">Developed by ma-fo.info</span>
+              <span className="text-sm text-muted-foreground">
+                {isAr ? "تطوير: ma-fo.info" : "Developed by ma-fo.info"}
+              </span>
             </Link>
+          </div>
+
+          {/* Footer nav (center) */}
+          <div className="order-2 text-center">
+            <div className="flex flex-wrap justify-center gap-x-5 gap-y-2 text-xs text-muted-foreground">
+              <Link href={`${p}/privacy`} className="hover:text-foreground">
+                {isAr ? "سياسة الخصوصية" : "Privacy"}
+              </Link>
+              <span className="opacity-40">•</span>
+              <Link href={`${p}/terms`} className="hover:text-foreground">
+                {isAr ? "الشروط والأحكام" : "Terms"}
+              </Link>
+              <span className="opacity-40">•</span>
+              <Link href={`${p}/support`} className="hover:text-foreground">
+                {isAr ? "الدعم" : "Support"}
+              </Link>
+            </div>
+          </div>
+
+          {/* Copyright (right) */}
+          <div className="order-1 text-center sm:order-3 sm:text-end">
+            <p className="text-sm text-muted-foreground">
+              © {year} {isAr ? "أجور (Ujoors). جميع الحقوق محفوظة." : "Ujoors. All rights reserved."}
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {isAr ? "موارد بشرية • رواتب • حضور • امتثال سعودي" : "HR • Payroll • Attendance • Saudi Compliance"}
+            </p>
           </div>
         </div>
       </div>

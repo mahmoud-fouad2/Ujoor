@@ -1,19 +1,18 @@
 import Providers from "@/components/providers";
 import { MarketingFooter } from "@/components/marketing/marketing-footer";
 import { MarketingHeader } from "@/components/marketing/marketing-header";
-import { cookies } from "next/headers";
 
 import { JsonLd } from "@/components/marketing/json-ld";
-import { getMarketingLocaleFromCookie, getSiteUrl } from "@/lib/marketing/site";
+import { getSiteUrl } from "@/lib/marketing/site";
 import { organizationSchema, softwareAppSchema, websiteSchema } from "@/lib/marketing/schema";
+import { getAppLocale } from "@/lib/i18n/locale";
 
 export default async function GuestLayout({
   children
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const cookieStore = await cookies();
-  const locale = getMarketingLocaleFromCookie(cookieStore.get("ujoors_locale")?.value);
+  const locale = await getAppLocale();
   const base = getSiteUrl();
 
   const ratingValue = Number(process.env.NEXT_PUBLIC_RATING_VALUE);

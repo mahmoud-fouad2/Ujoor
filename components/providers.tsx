@@ -5,6 +5,7 @@ import { ThemeProvider } from "next-themes";
 import { useEffect, useMemo, useState } from "react";
 import { Toaster } from "./ui/sonner";
 import { LocaleTransitionOverlay } from "./locale-transition";
+import { RouteProgress } from "./route-progress";
 
 function getCookieValue(cookieName: string): string | undefined {
   if (typeof document === "undefined") return undefined;
@@ -36,6 +37,7 @@ export default function Providers({ children }: { children: React.ReactNode }) {
         theme={{}}
       >
         {children}
+        <RouteProgress />
         <LocaleTransitionOverlay />
         <Toaster />
       </MantineProvider>
