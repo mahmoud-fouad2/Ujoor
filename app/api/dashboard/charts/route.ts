@@ -101,8 +101,9 @@ export async function GET(request: NextRequest) {
     });
 
     // Get leave type names
+    type LeavesByTypeRow = typeof leavesByType[number];
     const leaveTypes = await prisma.leaveType.findMany({
-      where: { id: { in: leavesByType.map((l) => l.leaveTypeId) } },
+      where: { id: { in: leavesByType.map((l: LeavesByTypeRow) => l.leaveTypeId) } },
     });
 
     const leaveData = leavesByType.map((item) => {
