@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import prisma from "@/lib/db";
-import { requireMobileAuth } from "@/lib/mobile/auth";
+import { requireMobileAuthWithDevice } from "@/lib/mobile/auth";
 
 function getTodayDate() {
   const now = new Date();
@@ -9,7 +9,7 @@ function getTodayDate() {
 }
 
 export async function GET(request: NextRequest) {
-  const payloadOrRes = await requireMobileAuth(request);
+  const payloadOrRes = await requireMobileAuthWithDevice(request);
   if (payloadOrRes instanceof NextResponse) return payloadOrRes;
 
   if (!payloadOrRes.tenantId) {

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyMobileAccessToken, type MobileTokenPayload } from "@/lib/mobile/jwt";
+import { getMobileDeviceHeaders } from "@/lib/mobile/device";
 
 export async function getMobileAuthPayload(request: NextRequest): Promise<MobileTokenPayload | null> {
   const header = request.headers.get("authorization") ?? request.headers.get("Authorization");
@@ -21,4 +22,24 @@ export async function requireMobileAuth(request: NextRequest): Promise<MobileTok
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   return payload;
+}
+
+export async function requireMobileAuthWithDevice(
+  request: NextRequest
+): Promise<(MobileTokenPayload & { deviceId: string }) | NextResponse> {
+  const payloadOrRes = await requireMobileAuth(request);
+  if (payloadOrRes instanceof NextResponse) return payloadOrRes;
+
+  let headerDeviceId: string;
+  try {
+    headerDeviceId = getMobileDeviceHeaders(request).deviceId;
+  } catch {
+    return NextResponse.json({ error: "Missing device" }, { status: 400 });
+  }
+
+  if (payloadOrRes.deviceId !== headerDeviceId) {
+    return NextResponse.json({ error: "Device mismatch" }, { status: 401 });
+  }
+
+  return payloadOrRes;
 }

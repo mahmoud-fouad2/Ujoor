@@ -3,11 +3,25 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { BrandLogo } from "@/components/brand-logo";
 import { useAuth } from "@/components/auth-provider";
 import { useAppSettings } from "@/components/app-settings-provider";
-import { t } from "@/lib/i18n";
+import { humanizeApiError, t } from "@/lib/i18n";
+import { useState } from "react";
 
 export default function SettingsScreen() {
-  const { user, signOut } = useAuth();
+  const { user, signOut, accessToken, authFetch } = useAuth();
   const { language, setLanguage } = useAppSettings();
+  const [message, setMessage] = useState<string | null>(null);
+
+  const signOutAll = async () => {
+    setMessage(null);
+    try {
+      if (accessToken) {
+        await authFetch("/api/mobile/auth/logout-all", { method: "POST" });
+      }
+      await signOut();
+    } catch (e: any) {
+      setMessage(humanizeApiError(language, e?.message || ""));
+    }
+  };
 
   return (
     <View style={styles.container}>
@@ -27,6 +41,12 @@ export default function SettingsScreen() {
         <Pressable onPress={() => void signOut()} style={[styles.button, styles.logout]}>
           <Text style={styles.buttonText}>{t(language, "logout")}</Text>
         </Pressable>
+
+        <Pressable onPress={() => void signOutAll()} style={[styles.button, styles.logoutAll]}>
+          <Text style={styles.buttonText}>{t(language, "logout_all")}</Text>
+        </Pressable>
+
+        {message ? <Text style={styles.msg}>{message}</Text> : null}
 
         <View style={styles.sep} />
 
@@ -94,9 +114,20 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(248,113,113,0.35)",
   },
+  logoutAll: {
+    marginTop: 10,
+    backgroundColor: "rgba(248,113,113,0.10)",
+    borderWidth: 1,
+    borderColor: "rgba(248,113,113,0.25)",
+  },
   buttonText: {
     color: "#fff",
     fontWeight: "800",
+  },
+  msg: {
+    marginTop: 10,
+    color: "rgba(255,255,255,0.70)",
+    fontSize: 12,
   },
   sep: {
     height: 1,

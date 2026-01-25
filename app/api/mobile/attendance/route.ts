@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import prisma from "@/lib/db";
-import { requireMobileAuth } from "@/lib/mobile/auth";
+import { requireMobileAuthWithDevice } from "@/lib/mobile/auth";
 import { submitAttendance } from "@/lib/attendance/submit-attendance";
+import { consumeChallenge } from "@/lib/mobile/challenge";
 
 export async function GET(request: NextRequest) {
-  const payloadOrRes = await requireMobileAuth(request);
+  const payloadOrRes = await requireMobileAuthWithDevice(request);
   if (payloadOrRes instanceof NextResponse) return payloadOrRes;
 
   if (!payloadOrRes.tenantId) {
@@ -68,7 +69,7 @@ const schema = z.object({
 });
 
 export async function POST(request: NextRequest) {
-  const payloadOrRes = await requireMobileAuth(request);
+  const payloadOrRes = await requireMobileAuthWithDevice(request);
   if (payloadOrRes instanceof NextResponse) return payloadOrRes;
 
   if (!payloadOrRes.tenantId) {
@@ -80,6 +81,30 @@ export async function POST(request: NextRequest) {
   }
 
   try {
+    const nonce = request.headers.get("x-mobile-challenge") ?? "";
+    if (!nonce) {
+      return NextResponse.json({ error: "Challenge required" }, { status: 400 });
+    }
+
+    const device = await prisma.mobileDevice.findUnique({
+      where: { userId_deviceId: { userId: payloadOrRes.userId, deviceId: payloadOrRes.deviceId } },
+      select: { id: true },
+    });
+
+    if (!device) {
+      return NextResponse.json({ error: "Device not registered" }, { status: 400 });
+    }
+
+    const ok = await consumeChallenge(prisma, {
+      nonce,
+      userId: payloadOrRes.userId,
+      mobileDeviceId: device.id,
+    });
+
+    if (!ok) {
+      return NextResponse.json({ error: "Invalid challenge" }, { status: 400 });
+    }
+
     const body = await request.json();
     const parsed = schema.safeParse(body);
 

@@ -3,6 +3,8 @@ import { z } from "zod";
 import prisma from "@/lib/db";
 import { compare } from "bcryptjs";
 import { issueMobileAccessToken } from "@/lib/mobile/jwt";
+import { getMobileDeviceHeaders } from "@/lib/mobile/device";
+import { mintRefreshToken, upsertMobileDevice } from "@/lib/mobile/refresh-tokens";
 
 const schema = z.object({
   email: z.string().email(),
@@ -11,6 +13,13 @@ const schema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
+    let deviceHeaders;
+    try {
+      deviceHeaders = getMobileDeviceHeaders(request);
+    } catch {
+      return NextResponse.json({ error: "Missing or invalid device" }, { status: 400 });
+    }
+
     const body = await request.json();
     const parsed = schema.safeParse(body);
 
@@ -94,16 +103,36 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    const device = await upsertMobileDevice(prisma, {
+      userId: user.id,
+      deviceId: deviceHeaders.deviceId,
+      platform: deviceHeaders.platform,
+      name: deviceHeaders.name,
+      appVersion: deviceHeaders.appVersion,
+    });
+
+    const xff = request.headers.get("x-forwarded-for") ?? undefined;
+    const ipAddress = xff ? xff.split(",")[0]?.trim() : undefined;
+
+    const { refreshToken } = await mintRefreshToken(prisma, {
+      userId: user.id,
+      mobileDeviceId: device.id,
+      userAgent: deviceHeaders.userAgent,
+      ipAddress,
+    });
+
     const accessToken = await issueMobileAccessToken({
       userId: user.id,
       tenantId: user.tenantId,
       role: user.role,
       employeeId: user.employee?.id ?? null,
+      deviceId: deviceHeaders.deviceId,
     });
 
     return NextResponse.json({
       data: {
         accessToken,
+        refreshToken,
         user: {
           id: user.id,
           email: user.email,

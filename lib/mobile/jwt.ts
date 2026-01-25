@@ -5,6 +5,7 @@ export type MobileTokenPayload = {
   tenantId: string | null;
   role: string;
   employeeId: string | null;
+  deviceId: string;
 };
 
 function getSecret(): Uint8Array {
@@ -24,6 +25,7 @@ export async function issueMobileAccessToken(payload: MobileTokenPayload, opts?:
     tenantId: payload.tenantId,
     role: payload.role,
     employeeId: payload.employeeId,
+    deviceId: payload.deviceId,
   })
     .setProtectedHeader({ alg: "HS256", typ: "JWT" })
     .setIssuedAt(now)
@@ -40,10 +42,11 @@ export async function verifyMobileAccessToken(token: string): Promise<MobileToke
   const tenantId = typeof payload.tenantId === "string" ? payload.tenantId : null;
   const role = typeof payload.role === "string" ? payload.role : null;
   const employeeId = typeof payload.employeeId === "string" ? payload.employeeId : null;
+  const deviceId = typeof payload.deviceId === "string" ? payload.deviceId : null;
 
-  if (!userId || !role) {
+  if (!userId || !role || !deviceId) {
     throw new Error("Invalid token payload");
   }
 
-  return { userId, tenantId, role, employeeId };
+  return { userId, tenantId, role, employeeId, deviceId };
 }

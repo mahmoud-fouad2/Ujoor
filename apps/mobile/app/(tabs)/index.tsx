@@ -6,7 +6,6 @@ import * as LocalAuthentication from "expo-local-authentication";
 
 import { useAuth } from "@/components/auth-provider";
 import { useAppSettings } from "@/components/app-settings-provider";
-import { apiFetch } from "@/lib/api";
 import { humanizeApiError, t } from "@/lib/i18n";
 
 type LastResult = {
@@ -27,7 +26,7 @@ type TodayStatus = {
 };
 
 export default function AttendanceScreen() {
-  const { accessToken, user } = useAuth();
+  const { accessToken, user, authFetch } = useAuth();
   const { language } = useAppSettings();
   const [busy, setBusy] = useState(false);
   const [last, setLast] = useState<LastResult | null>(null);
@@ -48,16 +47,14 @@ export default function AttendanceScreen() {
     setLoadingToday(true);
     setLocationIssue(null);
     try {
-      const res = await apiFetch<{ data: TodayStatus }>("/api/mobile/attendance/today", {
-        token: accessToken,
-      });
+      const res = await authFetch<{ data: TodayStatus }>("/api/mobile/attendance/today");
       setToday(res.data);
     } catch (e: any) {
       setLast({ ok: false, message: humanizeApiError(language, e?.message || "") });
     } finally {
       setLoadingToday(false);
     }
-  }, [accessToken, language]);
+  }, [accessToken, authFetch, language]);
 
   useEffect(() => {
     void loadToday();
@@ -102,17 +99,22 @@ export default function AttendanceScreen() {
 
       const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
 
-      await apiFetch("/api/mobile/attendance", {
-        token: accessToken,
-        init: {
-          method: "POST",
-          body: JSON.stringify({
-            type,
-            latitude: pos.coords.latitude,
-            longitude: pos.coords.longitude,
-            accuracy: pos.coords.accuracy ?? undefined,
-          }),
+      const challenge = await authFetch<{ data: { nonce: string } }>("/api/mobile/auth/challenge", { method: "POST" });
+
+      const nonce = challenge?.data?.nonce;
+      if (!nonce) throw new Error(language === "ar" ? "فشل إنشاء التحدي" : "Failed to create challenge");
+
+      await authFetch("/api/mobile/attendance", {
+        method: "POST",
+        headers: {
+          "x-mobile-challenge": nonce,
         },
+        body: JSON.stringify({
+          type,
+          latitude: pos.coords.latitude,
+          longitude: pos.coords.longitude,
+          accuracy: pos.coords.accuracy ?? undefined,
+        }),
       });
 
       setLast({ ok: true, message: type === "check-in" ? (language === "ar" ? "تم تسجيل الحضور" : "Checked in") : (language === "ar" ? "تم تسجيل الانصراف" : "Checked out") });

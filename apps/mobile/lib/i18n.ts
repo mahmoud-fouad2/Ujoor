@@ -38,6 +38,7 @@ const dict: Dict = {
 
   settings_title: { ar: "الإعدادات", en: "Settings" },
   logout: { ar: "تسجيل الخروج", en: "Sign out" },
+  logout_all: { ar: "تسجيل الخروج من كل الأجهزة", en: "Sign out from all devices" },
   language: { ar: "اللغة", en: "Language" },
   arabic: { ar: "العربية", en: "Arabic" },
   english: { ar: "English", en: "English" },
@@ -53,6 +54,10 @@ export function humanizeApiError(lang: AppLanguage, message: string): string {
 
   const map: Array<[string, { ar: string; en: string }]> = [
     ["Unauthorized", { ar: "غير مصرح", en: "Unauthorized" }],
+    ["Missing device", { ar: "بيانات الجهاز غير متاحة", en: "Device info missing" }],
+    ["Device mismatch", { ar: "الجهاز غير مطابق", en: "Device mismatch" }],
+    ["Challenge required", { ar: "مطلوب تحدي أمني", en: "Security challenge required" }],
+    ["Invalid challenge", { ar: "تحدي غير صالح", en: "Invalid challenge" }],
     ["Tenant required", { ar: "بيانات الشركة غير متاحة", en: "Tenant required" }],
     ["Employee context required", { ar: "بيانات الموظف غير متاحة", en: "Employee context required" }],
     ["Location is required for attendance", { ar: "الموقع مطلوب لتسجيل الحضور", en: "Location is required" }],

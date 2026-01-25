@@ -192,28 +192,31 @@
 - [x] Pagination (Load more) + منع التحميل الزائد.
 
 ### 8.3 مراقبة وتشخيص (Observability)
-- [ ] إضافة logging واضح لأخطاء mobile auth/attendance في السيرفر.
-- [ ] رسائل خطأ مقروءة للمستخدم في الجوال.
+- [x] إضافة logging واضح لأخطاء mobile auth/attendance في السيرفر.
+- [x] رسائل خطأ مقروءة للمستخدم في الجوال.
 
 ---
 
 ## 11) الحالة الحالية (Status)
-**تم إنجازه:** Backend APIs للجوال + JWT + helper موحد + تطبيق Expo مع Login/Attendance/History/Settings(Logout) + ربط الأيقونات واللوجو.
+**تم إنجازه:** Backend APIs للجوال + JWT + Refresh Tokens + Device binding + One-time challenge (anti-replay) + helper موحد + تطبيق Expo مع Login/Attendance/History/Settings(Logout) + ربط الأيقونات واللوجو.
 
 **المتبقي الآن (أولوية):**
-1) توحيد هيدر/تصميم مشترك عبر الشاشات (اختياري لكن احترافي).
-2) تحسينات إضافية: رابط لإعدادات الموقع + التعامل مع حالة عدم وجود employeeId.
+1) Attestation (Play Integrity / App Attest) – اختياري حسب متطلبات الإنتاج.
+2) توحيد هيدر/تصميم مشترك عبر الشاشات (اختياري لكن احترافي).
 3) تحسينات سجل الحضور: اختيار تاريخ مخصص + تصدير (اختياري).
 
-**لاحقًا (Hardening):** Refresh tokens + device binding + signed challenges + attestation.
+**لاحقًا (Hardening إضافي):** Attestation + سياسات أكثر (مثل إلزام جهاز واحد/حد أقصى لأجهزة المستخدم).
 
 ---
 
 ## 9) متطلبات التشغيل (Environment)
 ### Backend
 - `NEXTAUTH_SECRET` موجود.
-- إضافة متغير جديد:
+- إضافة متغيرات جديدة:
   - `MOBILE_JWT_SECRET` (سر توقيع JWT للجوال).
+  - `MOBILE_REFRESH_TOKEN_SECRET` (سر hashing لرفرش توكن – لا يتم تخزين التوكن raw في DB).
+  - `MOBILE_REFRESH_TOKEN_TTL_DAYS` (اختياري – افتراضي 30 يوم).
+  - `MOBILE_CHALLENGE_TTL_SECONDS` (اختياري – افتراضي 120 ثانية).
 
 ### Mobile
 - ضبط `EXPO_PUBLIC_API_BASE_URL` (مثلاً `http://<LAN-IP>:3000` أثناء التطوير).

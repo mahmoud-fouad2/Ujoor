@@ -1,4 +1,19 @@
 import { getApiBaseUrl } from "@/lib/config";
+import { Platform } from "react-native";
+import Constants from "expo-constants";
+import { getOrCreateDeviceId } from "@/lib/auth-storage";
+
+export class ApiError extends Error {
+  status: number;
+  body: any;
+
+  constructor(message: string, status: number, body: any) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+    this.body = body;
+  }
+}
 
 export async function apiFetch<T = any>(pathname: string, opts?: { token?: string; init?: RequestInit }): Promise<T> {
   const base = getApiBaseUrl();
@@ -8,6 +23,18 @@ export async function apiFetch<T = any>(pathname: string, opts?: { token?: strin
     Accept: "application/json",
     ...(opts?.init?.headers as any),
   };
+
+  const deviceId = await getOrCreateDeviceId();
+  headers["x-device-id"] = deviceId;
+  headers["x-device-platform"] = Platform.OS;
+  const appVersion =
+    (Constants.expoConfig as any)?.version ??
+    (Constants as any).nativeAppVersion ??
+    (Constants as any).manifest?.version ??
+    undefined;
+  if (typeof appVersion === "string" && appVersion) {
+    headers["x-app-version"] = appVersion;
+  }
 
   if (!headers["Content-Type"] && opts?.init?.body) {
     headers["Content-Type"] = "application/json";
@@ -32,7 +59,7 @@ export async function apiFetch<T = any>(pathname: string, opts?: { token?: strin
 
   if (!res.ok) {
     const message = json?.error || `Request failed (${res.status})`;
-    throw new Error(message);
+    throw new ApiError(message, res.status, json);
   }
 
   return json as T;

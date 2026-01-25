@@ -3,7 +3,6 @@ import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from "
 
 import { useAuth } from "@/components/auth-provider";
 import { useAppSettings } from "@/components/app-settings-provider";
-import { apiFetch } from "@/lib/api";
 import { humanizeApiError, t } from "@/lib/i18n";
 
 type AttendanceRecordRow = {
@@ -14,7 +13,7 @@ type AttendanceRecordRow = {
 };
 
 export default function HistoryScreen() {
-  const { accessToken } = useAuth();
+  const { accessToken, authFetch } = useAuth();
   const { language } = useAppSettings();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -58,9 +57,8 @@ export default function HistoryScreen() {
           endDate: range.endDate,
         });
 
-        const res = await apiFetch<{ data: { items: AttendanceRecordRow[]; page: number; limit: number; total: number } }>(
-          `/api/mobile/attendance?${qs.toString()}`,
-          { token: accessToken }
+        const res = await authFetch<{ data: { items: AttendanceRecordRow[]; page: number; limit: number; total: number } }>(
+          `/api/mobile/attendance?${qs.toString()}`
         );
 
         setTotal(res.data.total || 0);
@@ -73,7 +71,7 @@ export default function HistoryScreen() {
         setLoadingMore(false);
       }
     },
-    [accessToken, days, language]
+    [accessToken, authFetch, days, language]
   );
 
   useEffect(() => {

@@ -1,7 +1,13 @@
-import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
+import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 
-import { apiFetch } from "@/lib/api";
-import { clearStoredAccessToken, getStoredAccessToken, setStoredAccessToken } from "@/lib/auth-storage";
+import { ApiError, apiFetch } from "@/lib/api";
+import {
+  clearStoredSession,
+  getStoredAccessToken,
+  getStoredRefreshToken,
+  setStoredAccessToken,
+  setStoredRefreshToken,
+} from "@/lib/auth-storage";
 
 type User = {
   id: string;
@@ -17,9 +23,11 @@ type User = {
 type AuthState = {
   loading: boolean;
   accessToken: string | null;
+  refreshToken: string | null;
   user: User | null;
   signIn: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
+  authFetch: <T = any>(pathname: string, init?: RequestInit) => Promise<T>;
 };
 
 const AuthContext = createContext<AuthState | null>(null);
@@ -27,22 +35,98 @@ const AuthContext = createContext<AuthState | null>(null);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [accessToken, setAccessToken] = useState<string | null>(null);
+  const [refreshToken, setRefreshToken] = useState<string | null>(null);
   const [user, setUser] = useState<User | null>(null);
+
+  const refreshInFlight = useRef<Promise<{ accessToken: string; refreshToken: string } | null> | null>(null);
+
+  const refreshSession = async (): Promise<{ accessToken: string; refreshToken: string } | null> => {
+    const currentRefresh = refreshToken ?? (await getStoredRefreshToken());
+    if (!currentRefresh) return null;
+
+    if (!refreshInFlight.current) {
+      refreshInFlight.current = (async () => {
+        try {
+          const refreshed = await apiFetch("/api/mobile/auth/refresh", {
+            init: { method: "POST", body: JSON.stringify({ refreshToken: currentRefresh }) },
+          });
+
+          const nextAccess = refreshed?.data?.accessToken as string | undefined;
+          const nextRefresh = refreshed?.data?.refreshToken as string | undefined;
+          if (!nextAccess || !nextRefresh) return null;
+
+          await setStoredAccessToken(nextAccess);
+          await setStoredRefreshToken(nextRefresh);
+
+          setAccessToken(nextAccess);
+          setRefreshToken(nextRefresh);
+
+          return { accessToken: nextAccess, refreshToken: nextRefresh };
+        } catch {
+          return null;
+        } finally {
+          refreshInFlight.current = null;
+        }
+      })();
+    }
+
+    return await refreshInFlight.current;
+  };
+
+  const authFetch = async <T = any,>(pathname: string, init?: RequestInit): Promise<T> => {
+    const token = accessToken ?? (await getStoredAccessToken());
+    if (!token) throw new Error("Unauthorized");
+
+    try {
+      return await apiFetch<T>(pathname, { token, init });
+    } catch (e) {
+      const status = e instanceof ApiError ? e.status : null;
+      if (status !== 401) throw e;
+
+      const refreshed = await refreshSession();
+      if (!refreshed) {
+        await clearStoredSession();
+        setAccessToken(null);
+        setRefreshToken(null);
+        setUser(null);
+        throw new Error("Unauthorized");
+      }
+
+      return await apiFetch<T>(pathname, { token: refreshed.accessToken, init });
+    }
+  };
 
   useEffect(() => {
     let mounted = true;
     (async () => {
       try {
         const token = await getStoredAccessToken();
+        const storedRefresh = await getStoredRefreshToken();
         if (!mounted) return;
         if (token) {
           setAccessToken(token);
+          setRefreshToken(storedRefresh);
           try {
             const me = await apiFetch("/api/mobile/me", { token });
             setUser(me.data as User);
-          } catch {
-            await clearStoredAccessToken();
+          } catch (e) {
+            const status = e instanceof ApiError ? e.status : null;
+            if (status === 401 && storedRefresh) {
+              const refreshed = await refreshSession();
+              if (refreshed) {
+                try {
+                  const me = await apiFetch("/api/mobile/me", { token: refreshed.accessToken });
+                  setUser(me.data as User);
+                  return;
+                } catch {
+                  // fall through to clear
+                }
+              }
+            }
+
+            await clearStoredSession();
             setAccessToken(null);
+            setRefreshToken(null);
             setUser(null);
           }
         }
@@ -64,23 +148,38 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
 
     const token = res?.data?.accessToken as string | undefined;
+    const nextRefresh = res?.data?.refreshToken as string | undefined;
     const nextUser = res?.data?.user as User | undefined;
-    if (!token || !nextUser) throw new Error("Login failed");
+    if (!token || !nextRefresh || !nextUser) throw new Error("Login failed");
 
     await setStoredAccessToken(token);
+    await setStoredRefreshToken(nextRefresh);
     setAccessToken(token);
+    setRefreshToken(nextRefresh);
     setUser(nextUser);
   };
 
   const signOut = async () => {
-    await clearStoredAccessToken();
+    try {
+      const currentRefresh = refreshToken ?? (await getStoredRefreshToken());
+      if (currentRefresh) {
+        await apiFetch("/api/mobile/auth/logout", {
+          init: { method: "POST", body: JSON.stringify({ refreshToken: currentRefresh }) },
+        });
+      }
+    } catch {
+      // ignore
+    }
+
+    await clearStoredSession();
     setAccessToken(null);
+    setRefreshToken(null);
     setUser(null);
   };
 
   const value = useMemo<AuthState>(
-    () => ({ loading, accessToken, user, signIn, signOut }),
-    [loading, accessToken, user]
+    () => ({ loading, accessToken, refreshToken, user, signIn, signOut, authFetch }),
+    [loading, accessToken, refreshToken, user]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
