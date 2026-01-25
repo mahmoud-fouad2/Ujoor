@@ -77,9 +77,11 @@ export async function GET(request: NextRequest) {
       },
     });
 
+    type DepartmentWithCount = typeof employeesByDepartment[number];
+
     const departmentData = employeesByDepartment
-      .filter((dept) => dept._count.employees > 0)
-      .map((dept) => ({
+      .filter((dept: DepartmentWithCount) => dept._count.employees > 0)
+      .map((dept: DepartmentWithCount) => ({
         name: dept.name,
         nameAr: dept.nameAr,
         value: dept._count.employees,
