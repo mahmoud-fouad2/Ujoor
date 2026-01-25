@@ -1,0 +1,313 @@
+'use client';
+
+import { useEffect, useMemo, useState } from 'react';
+import { 
+  Bell, BellOff, Check, CheckCheck, Trash2, Settings, 
+  FileText, Calendar, AlertCircle, CreditCard, GraduationCap,
+  Clock, Filter
+} from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
+  type Notification,
+  type NotificationType,
+  notificationTypeLabels,
+} from '@/lib/types/self-service';
+import { notificationsService } from '@/lib/api';
+
+export default function NotificationsManager() {
+  const [notificationsRaw, setNotificationsRaw] = useState<Notification[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  const [readIds, setReadIds] = useState<Set<string>>(() => new Set());
+  const [deletedIds, setDeletedIds] = useState<Set<string>>(() => new Set());
+  const [filter, setFilter] = useState<string>('all');
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const load = async () => {
+      setIsLoading(true);
+      setLoadError(null);
+      try {
+        const res = await notificationsService.getAll({ page: 1, pageSize: 100 });
+        if (!isMounted) return;
+        setNotificationsRaw(res.success && res.data ? res.data.notifications : []);
+        if (!res.success) setLoadError(res.error || 'فشل تحميل الإشعارات');
+      } catch (e) {
+        if (!isMounted) return;
+        setNotificationsRaw([]);
+        setLoadError(e instanceof Error ? e.message : 'فشل تحميل الإشعارات');
+      } finally {
+        if (!isMounted) return;
+        setIsLoading(false);
+      }
+    };
+
+    void load();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const markAsRead = (id: string) => {
+    setReadIds((prev) => new Set([...prev, id]));
+    void notificationsService.markAsRead(id);
+  };
+
+  const markAllAsRead = () => {
+    setReadIds(new Set(notificationsRaw.map((n) => n.id)));
+    void notificationsService.markAllAsRead();
+  };
+
+  const deleteNotification = (id: string) => {
+    setDeletedIds((prev) => new Set([...prev, id]));
+    void notificationsService.delete(id);
+  };
+
+  const notifications = useMemo<Notification[]>(() => {
+    return notificationsRaw
+      .filter((n) => !deletedIds.has(n.id))
+      .map((n) => ({
+        ...n,
+        isRead: n.isRead || readIds.has(n.id),
+      }));
+  }, [deletedIds, readIds]);
+
+  const unreadCount = notifications.filter(n => !n.isRead).length;
+
+  const getNotificationIcon = (type: NotificationType) => {
+    switch (type) {
+      case 'request-status': return <FileText className="h-5 w-5" />;
+      case 'approval-needed': return <Clock className="h-5 w-5" />;
+      case 'reminder': return <Bell className="h-5 w-5" />;
+      case 'announcement': return <AlertCircle className="h-5 w-5" />;
+      case 'payslip': return <CreditCard className="h-5 w-5" />;
+      case 'document-expiry': return <AlertCircle className="h-5 w-5" />;
+      case 'training': return <GraduationCap className="h-5 w-5" />;
+      default: return <Bell className="h-5 w-5" />;
+    }
+  };
+
+  const getNotificationColor = (type: NotificationType) => {
+    switch (type) {
+      case 'approval-needed': return 'bg-yellow-100 text-yellow-600';
+      case 'payslip': return 'bg-green-100 text-green-600';
+      case 'document-expiry': return 'bg-red-100 text-red-600';
+      case 'training': return 'bg-blue-100 text-blue-600';
+      case 'announcement': return 'bg-purple-100 text-purple-600';
+      default: return 'bg-gray-100 text-gray-600';
+    }
+  };
+
+  const filteredNotifications = notifications.filter(n => {
+    if (filter === 'all') return true;
+    if (filter === 'unread') return !n.isRead;
+    return n.type === filter;
+  });
+
+  const formatTimeAgo = (dateString: string) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diff = now.getTime() - date.getTime();
+    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+    const hours = Math.floor(diff / (1000 * 60 * 60));
+    const minutes = Math.floor(diff / (1000 * 60));
+
+    if (days > 0) return `منذ ${days} يوم`;
+    if (hours > 0) return `منذ ${hours} ساعة`;
+    if (minutes > 0) return `منذ ${minutes} دقيقة`;
+    return 'الآن';
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold">الإشعارات</h1>
+          <p className="text-muted-foreground">
+            {isLoading
+              ? 'جارٍ التحميل...'
+              : loadError
+                ? loadError
+                : unreadCount > 0
+                  ? `لديك ${unreadCount} إشعارات غير مقروءة`
+                  : 'لا توجد إشعارات جديدة'}
+          </p>
+        </div>
+        <div className="flex gap-2">
+          {unreadCount > 0 && (
+            <Button variant="outline" onClick={markAllAsRead}>
+              <CheckCheck className="h-4 w-4 ms-2" />
+              تعليم الكل كمقروء
+            </Button>
+          )}
+        </div>
+      </div>
+
+      <Tabs defaultValue="notifications" className="w-full">
+        <TabsList>
+          <TabsTrigger value="notifications">الإشعارات</TabsTrigger>
+          <TabsTrigger value="settings">إعدادات الإشعارات</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="notifications" className="space-y-4">
+          {/* Filter */}
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-4">
+                <Filter className="h-4 w-4 text-muted-foreground" />
+                <Select value={filter} onValueChange={setFilter}>
+                  <SelectTrigger className="w-[200px]">
+                    <SelectValue placeholder="تصفية الإشعارات" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">جميع الإشعارات</SelectItem>
+                    <SelectItem value="unread">غير المقروءة</SelectItem>
+                    {Object.entries(notificationTypeLabels).map(([value, label]) => (
+                      <SelectItem key={value} value={value}>{label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Badge variant="secondary">{filteredNotifications.length}</Badge>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Notifications List */}
+          <Card>
+            <CardContent className="pt-6">
+              <div className="space-y-2">
+                {filteredNotifications.length === 0 ? (
+                  <div className="text-center py-12">
+                    <BellOff className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                    <p className="text-muted-foreground">لا توجد إشعارات</p>
+                  </div>
+                ) : (
+                  filteredNotifications.map((notification) => (
+                    <div 
+                      key={notification.id} 
+                      className={`flex items-start gap-4 p-4 rounded-lg border transition-colors ${
+                        !notification.isRead ? 'bg-muted/50 border-primary/20' : 'hover:bg-muted/30'
+                      }`}
+                    >
+                      <div className={`h-10 w-10 rounded-full flex items-center justify-center ${getNotificationColor(notification.type)}`}>
+                        {getNotificationIcon(notification.type)}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <h4 className={`font-semibold ${!notification.isRead ? 'text-foreground' : 'text-muted-foreground'}`}>
+                              {notification.title}
+                            </h4>
+                            <p className="text-sm text-muted-foreground mt-1">{notification.message}</p>
+                          </div>
+                          {!notification.isRead && (
+                            <span className="h-2 w-2 rounded-full bg-primary flex-shrink-0 mt-2" />
+                          )}
+                        </div>
+                        <div className="flex items-center justify-between mt-2">
+                          <div className="flex items-center gap-2">
+                            <Badge variant="outline" className="text-xs">
+                              {notificationTypeLabels[notification.type]}
+                            </Badge>
+                            <span className="text-xs text-muted-foreground">
+                              {formatTimeAgo(notification.createdAt)}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            {!notification.isRead && (
+                              <Button 
+                                variant="ghost" 
+                                size="sm"
+                                onClick={() => markAsRead(notification.id)}
+                              >
+                                <Check className="h-4 w-4" />
+                              </Button>
+                            )}
+                            <Button 
+                              variant="ghost" 
+                              size="sm"
+                              onClick={() => deleteNotification(notification.id)}
+                            >
+                              <Trash2 className="h-4 w-4 text-muted-foreground" />
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="settings" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Settings className="h-5 w-5" />
+                تفضيلات الإشعارات
+              </CardTitle>
+              <CardDescription>تحكم في أنواع الإشعارات التي تريد استلامها</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="space-y-4">
+                <h4 className="font-semibold">إشعارات البريد الإلكتروني</h4>
+                {[
+                  { id: 'email-requests', label: 'تحديثات الطلبات', description: 'إشعار عند تغيير حالة طلباتك' },
+                  { id: 'email-approvals', label: 'طلبات الموافقة', description: 'إشعار عند وجود طلبات بانتظار موافقتك' },
+                  { id: 'email-payslip', label: 'قسائم الراتب', description: 'إشعار عند توفر قسيمة راتب جديدة' },
+                  { id: 'email-documents', label: 'انتهاء المستندات', description: 'تنبيه قبل انتهاء صلاحية المستندات' },
+                ].map((item) => (
+                  <div key={item.id} className="flex items-center justify-between py-2">
+                    <div>
+                      <Label htmlFor={item.id} className="font-medium">{item.label}</Label>
+                      <p className="text-sm text-muted-foreground">{item.description}</p>
+                    </div>
+                    <Switch id={item.id} defaultChecked />
+                  </div>
+                ))}
+              </div>
+
+              <div className="border-t pt-6 space-y-4">
+                <h4 className="font-semibold">إشعارات التطبيق</h4>
+                {[
+                  { id: 'app-all', label: 'جميع الإشعارات', description: 'استلام جميع إشعارات التطبيق' },
+                  { id: 'app-announcements', label: 'الإعلانات', description: 'إشعارات الإعلانات والأخبار المهمة' },
+                  { id: 'app-reminders', label: 'التذكيرات', description: 'تذكيرات المواعيد والمهام' },
+                ].map((item) => (
+                  <div key={item.id} className="flex items-center justify-between py-2">
+                    <div>
+                      <Label htmlFor={item.id} className="font-medium">{item.label}</Label>
+                      <p className="text-sm text-muted-foreground">{item.description}</p>
+                    </div>
+                    <Switch id={item.id} defaultChecked />
+                  </div>
+                ))}
+              </div>
+
+              <div className="border-t pt-6">
+                <Button>حفظ الإعدادات</Button>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+}

@@ -1,0 +1,42 @@
+"use client";
+
+import { Globe } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { useEffect, useState } from "react";
+
+type Locale = "ar" | "en";
+
+function setCookie(name: string, value: string) {
+  document.cookie = `${encodeURIComponent(name)}=${encodeURIComponent(value)}; path=/; SameSite=Lax`;
+}
+
+function getCookie(name: string): string | undefined {
+  const match = document.cookie
+    .split(";")
+    .map((c) => c.trim())
+    .find((c) => c.startsWith(`${encodeURIComponent(name)}=`));
+  if (!match) return undefined;
+  return decodeURIComponent(match.split("=").slice(1).join("="));
+}
+
+export function LocaleToggle({ variant = "ghost" }: { variant?: "ghost" | "outline" }) {
+  const [locale, setLocale] = useState<Locale>("ar");
+
+  useEffect(() => {
+    const l = getCookie("ujoors_locale");
+    if (l === "en" || l === "ar") setLocale(l);
+  }, []);
+
+  const toggleLocale = () => {
+    const next: Locale = locale === "ar" ? "en" : "ar";
+    setCookie("ujoors_locale", next);
+    window.location.reload();
+  };
+
+  return (
+    <Button variant={variant} onClick={toggleLocale} className="gap-2">
+      <Globe className="h-4 w-4" />
+      {locale === "ar" ? "EN" : "AR"}
+    </Button>
+  );
+}

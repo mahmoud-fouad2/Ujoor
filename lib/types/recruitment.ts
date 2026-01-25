@@ -1,0 +1,643 @@
+// نظام التوظيف والتعيين - Recruitment & Hiring System
+
+// ==================== الوظائف الشاغرة ====================
+
+export type JobStatus = 'draft' | 'open' | 'on-hold' | 'filled' | 'closed';
+
+export const jobStatusLabels: Record<JobStatus, string> = {
+  'draft': 'مسودة',
+  'open': 'مفتوح',
+  'on-hold': 'معلق',
+  'filled': 'تم شغلها',
+  'closed': 'مغلق',
+};
+
+export const jobStatusColors: Record<JobStatus, string> = {
+  'draft': 'bg-gray-100 text-gray-800',
+  'open': 'bg-green-100 text-green-800',
+  'on-hold': 'bg-yellow-100 text-yellow-800',
+  'filled': 'bg-blue-100 text-blue-800',
+  'closed': 'bg-red-100 text-red-800',
+};
+
+export type JobType = 'full-time' | 'part-time' | 'contract' | 'freelance' | 'internship';
+
+export const jobTypeLabels: Record<JobType, string> = {
+  'full-time': 'دوام كامل',
+  'part-time': 'دوام جزئي',
+  'contract': 'عقد مؤقت',
+  'freelance': 'عمل حر',
+  'internship': 'تدريب',
+};
+
+export type ExperienceLevel = 'entry' | 'mid' | 'senior' | 'lead' | 'executive';
+
+export const experienceLevelLabels: Record<ExperienceLevel, string> = {
+  'entry': 'مبتدئ',
+  'mid': 'متوسط',
+  'senior': 'خبير',
+  'lead': 'قائد فريق',
+  'executive': 'تنفيذي',
+};
+
+export interface JobPosting {
+  id: string;
+  title: string;
+  titleEn?: string;
+  description: string;
+  descriptionEn?: string;
+  requirements: string[];
+  requirementsEn?: string[];
+  responsibilities: string[];
+  responsibilitiesEn?: string[];
+  departmentId: string;
+  departmentName: string;
+  jobTitleId?: string;
+  location: string;
+  locationEn?: string;
+  jobType: JobType;
+  experienceLevel: ExperienceLevel;
+  salaryMin?: number;
+  salaryMax?: number;
+  currency: string;
+  showSalary: boolean;
+  status: JobStatus;
+  skills: string[];
+  benefits: string[];
+  openPositions: number;
+  filledPositions: number;
+  applicationDeadline?: string;
+  postedDate: string;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// ==================== المتقدمين ====================
+
+export type ApplicationStatus = 'new' | 'screening' | 'interview' | 'assessment' | 'offer' | 'hired' | 'rejected' | 'withdrawn';
+
+export const applicationStatusLabels: Record<ApplicationStatus, string> = {
+  'new': 'جديد',
+  'screening': 'فرز',
+  'interview': 'مقابلة',
+  'assessment': 'تقييم',
+  'offer': 'عرض وظيفي',
+  'hired': 'تم التوظيف',
+  'rejected': 'مرفوض',
+  'withdrawn': 'منسحب',
+};
+
+export const applicationStatusColors: Record<ApplicationStatus, string> = {
+  'new': 'bg-blue-100 text-blue-800',
+  'screening': 'bg-purple-100 text-purple-800',
+  'interview': 'bg-cyan-100 text-cyan-800',
+  'assessment': 'bg-orange-100 text-orange-800',
+  'offer': 'bg-green-100 text-green-800',
+  'hired': 'bg-emerald-100 text-emerald-800',
+  'rejected': 'bg-red-100 text-red-800',
+  'withdrawn': 'bg-gray-100 text-gray-800',
+};
+
+export type SourceChannel = 'website' | 'linkedin' | 'indeed' | 'referral' | 'agency' | 'social' | 'direct' | 'other';
+
+export const sourceChannelLabels: Record<SourceChannel, string> = {
+  'website': 'الموقع الإلكتروني',
+  'linkedin': 'لينكد إن',
+  'indeed': 'إنديد',
+  'referral': 'ترشيح موظف',
+  'agency': 'وكالة توظيف',
+  'social': 'وسائل التواصل',
+  'direct': 'تقديم مباشر',
+  'other': 'أخرى',
+};
+
+export interface Applicant {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string;
+  jobPostingId: string;
+  jobTitle: string;
+  currentPosition?: string;
+  currentCompany?: string;
+  expectedSalary?: number;
+  availableFrom?: string;
+  yearsOfExperience?: number;
+  education?: string;
+  skills: string[];
+  resumeUrl?: string;
+  portfolioUrl?: string;
+  linkedinUrl?: string;
+  coverLetter?: string;
+  source: SourceChannel;
+  referredBy?: string;
+  status: ApplicationStatus;
+  rating?: number;
+  notes?: string;
+  appliedAt: string;
+  updatedAt: string;
+}
+
+// ==================== المقابلات ====================
+
+export type InterviewType = 'phone' | 'video' | 'in-person' | 'panel' | 'technical' | 'hr';
+
+export const interviewTypeLabels: Record<InterviewType, string> = {
+  'phone': 'هاتفية',
+  'video': 'فيديو',
+  'in-person': 'حضورية',
+  'panel': 'لجنة',
+  'technical': 'تقنية',
+  'hr': 'موارد بشرية',
+};
+
+export type InterviewStatus = 'scheduled' | 'confirmed' | 'in-progress' | 'completed' | 'cancelled' | 'no-show';
+
+export const interviewStatusLabels: Record<InterviewStatus, string> = {
+  'scheduled': 'مجدولة',
+  'confirmed': 'مؤكدة',
+  'in-progress': 'جارية',
+  'completed': 'مكتملة',
+  'cancelled': 'ملغاة',
+  'no-show': 'لم يحضر',
+};
+
+export const interviewStatusColors: Record<InterviewStatus, string> = {
+  'scheduled': 'bg-blue-100 text-blue-800',
+  'confirmed': 'bg-green-100 text-green-800',
+  'in-progress': 'bg-yellow-100 text-yellow-800',
+  'completed': 'bg-gray-100 text-gray-800',
+  'cancelled': 'bg-red-100 text-red-800',
+  'no-show': 'bg-orange-100 text-orange-800',
+};
+
+export interface Interview {
+  id: string;
+  applicantId: string;
+  applicantName: string;
+  jobPostingId: string;
+  jobTitle: string;
+  type: InterviewType;
+  status: InterviewStatus;
+  scheduledDate: string;
+  scheduledTime: string;
+  duration: number; // minutes
+  location?: string;
+  meetingLink?: string;
+  interviewers: InterviewerInfo[];
+  feedback?: InterviewFeedback[];
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface InterviewerInfo {
+  id: string;
+  name: string;
+  role: string;
+  avatar?: string;
+}
+
+export interface InterviewFeedback {
+  interviewerId: string;
+  interviewerName: string;
+  overallRating: number; // 1-5
+  strengths: string[];
+  weaknesses: string[];
+  recommendation: 'strong-hire' | 'hire' | 'no-decision' | 'no-hire' | 'strong-no-hire';
+  comments?: string;
+  submittedAt: string;
+}
+
+export const recommendationLabels: Record<InterviewFeedback['recommendation'], string> = {
+  'strong-hire': 'توظيف قوي',
+  'hire': 'توظيف',
+  'no-decision': 'بدون قرار',
+  'no-hire': 'عدم التوظيف',
+  'strong-no-hire': 'رفض قاطع',
+};
+
+export const recommendationColors: Record<InterviewFeedback['recommendation'], string> = {
+  'strong-hire': 'bg-emerald-100 text-emerald-800',
+  'hire': 'bg-green-100 text-green-800',
+  'no-decision': 'bg-yellow-100 text-yellow-800',
+  'no-hire': 'bg-orange-100 text-orange-800',
+  'strong-no-hire': 'bg-red-100 text-red-800',
+};
+
+// ==================== العروض الوظيفية ====================
+
+export type OfferStatus = 'draft' | 'pending-approval' | 'approved' | 'sent' | 'accepted' | 'declined' | 'expired' | 'revoked';
+
+export const offerStatusLabels: Record<OfferStatus, string> = {
+  'draft': 'مسودة',
+  'pending-approval': 'بانتظار الموافقة',
+  'approved': 'موافق عليه',
+  'sent': 'تم الإرسال',
+  'accepted': 'مقبول',
+  'declined': 'مرفوض',
+  'expired': 'منتهي الصلاحية',
+  'revoked': 'ملغي',
+};
+
+export const offerStatusColors: Record<OfferStatus, string> = {
+  'draft': 'bg-gray-100 text-gray-800',
+  'pending-approval': 'bg-yellow-100 text-yellow-800',
+  'approved': 'bg-blue-100 text-blue-800',
+  'sent': 'bg-purple-100 text-purple-800',
+  'accepted': 'bg-green-100 text-green-800',
+  'declined': 'bg-red-100 text-red-800',
+  'expired': 'bg-orange-100 text-orange-800',
+  'revoked': 'bg-red-100 text-red-800',
+};
+
+export interface JobOffer {
+  id: string;
+  applicantId: string;
+  applicantName: string;
+  applicantEmail: string;
+  jobPostingId: string;
+  jobTitle: string;
+  departmentId: string;
+  departmentName: string;
+  offeredSalary: number;
+  currency: string;
+  jobType: JobType;
+  startDate: string;
+  probationPeriod?: number; // months
+  benefits: OfferBenefit[];
+  termsAndConditions?: string;
+  status: OfferStatus;
+  validUntil: string;
+  approvers: OfferApprover[];
+  sentAt?: string;
+  respondedAt?: string;
+  declineReason?: string;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface OfferBenefit {
+  name: string;
+  value?: string;
+  description?: string;
+}
+
+export interface OfferApprover {
+  id: string;
+  name: string;
+  role: string;
+  status: 'pending' | 'approved' | 'rejected';
+  comments?: string;
+  actionAt?: string;
+}
+
+// ==================== عملية الإلحاق ====================
+
+export type OnboardingStatus = 'not-started' | 'in-progress' | 'completed' | 'delayed';
+
+export const onboardingStatusLabels: Record<OnboardingStatus, string> = {
+  'not-started': 'لم يبدأ',
+  'in-progress': 'قيد التنفيذ',
+  'completed': 'مكتمل',
+  'delayed': 'متأخر',
+};
+
+export const onboardingStatusColors: Record<OnboardingStatus, string> = {
+  'not-started': 'bg-gray-100 text-gray-800',
+  'in-progress': 'bg-blue-100 text-blue-800',
+  'completed': 'bg-green-100 text-green-800',
+  'delayed': 'bg-red-100 text-red-800',
+};
+
+export interface OnboardingProcess {
+  id: string;
+  employeeId: string;
+  employeeName: string;
+  jobTitle: string;
+  departmentName: string;
+  startDate: string;
+  mentor?: MentorInfo;
+  status: OnboardingStatus;
+  progress: number; // 0-100
+  tasks: OnboardingTask[];
+  documents: OnboardingDocument[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface MentorInfo {
+  id: string;
+  name: string;
+  role: string;
+  avatar?: string;
+  email: string;
+}
+
+export interface OnboardingTask {
+  id: string;
+  title: string;
+  titleEn?: string;
+  description?: string;
+  category: 'documentation' | 'training' | 'system-access' | 'equipment' | 'introduction' | 'other';
+  assignedTo?: string;
+  assignedToName?: string;
+  dueDate: string;
+  completedDate?: string;
+  status: 'pending' | 'in-progress' | 'completed' | 'overdue';
+  priority: 'low' | 'medium' | 'high';
+  notes?: string;
+}
+
+export const taskCategoryLabels: Record<OnboardingTask['category'], string> = {
+  'documentation': 'المستندات',
+  'training': 'التدريب',
+  'system-access': 'صلاحيات النظام',
+  'equipment': 'المعدات',
+  'introduction': 'التعريف',
+  'other': 'أخرى',
+};
+
+export const taskStatusLabels: Record<OnboardingTask['status'], string> = {
+  'pending': 'معلق',
+  'in-progress': 'قيد التنفيذ',
+  'completed': 'مكتمل',
+  'overdue': 'متأخر',
+};
+
+export interface OnboardingDocument {
+  id: string;
+  name: string;
+  type: 'required' | 'optional';
+  status: 'pending' | 'uploaded' | 'approved' | 'rejected';
+  fileUrl?: string;
+  uploadedAt?: string;
+  reviewedBy?: string;
+  reviewedAt?: string;
+  notes?: string;
+}
+
+// ==================== قوالب الإلحاق ====================
+
+export interface OnboardingTemplate {
+  id: string;
+  name: string;
+  nameEn?: string;
+  description?: string;
+  departmentId?: string;
+  departmentName?: string;
+  jobTitleId?: string;
+  jobTitleName?: string;
+  isDefault: boolean;
+  tasks: OnboardingTaskTemplate[];
+  documents: OnboardingDocumentTemplate[];
+  duration: number; // days
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface OnboardingTaskTemplate {
+  id: string;
+  title: string;
+  titleEn?: string;
+  description?: string;
+  category: OnboardingTask['category'];
+  dayOffset: number; // أيام من تاريخ البدء
+  assignTo: 'employee' | 'manager' | 'hr' | 'it' | 'mentor';
+  priority: OnboardingTask['priority'];
+}
+
+export interface OnboardingDocumentTemplate {
+  id: string;
+  name: string;
+  nameEn?: string;
+  type: 'required' | 'optional';
+  description?: string;
+}
+
+// ==================== إحصائيات التوظيف ====================
+
+export interface RecruitmentStats {
+  totalJobPostings: number;
+  activeJobPostings: number;
+  totalApplications: number;
+  newApplications: number;
+  interviewsScheduled: number;
+  offersExtended: number;
+  hiredThisMonth: number;
+  averageTimeToHire: number; // days
+  applicationsBySource: { source: SourceChannel; count: number }[];
+  applicationsByStatus: { status: ApplicationStatus; count: number }[];
+  topSkillsInDemand: { skill: string; count: number }[];
+  conversionRates: {
+    applicationToInterview: number;
+    interviewToOffer: number;
+    offerToHire: number;
+  };
+}
+
+export interface RecruitmentPipeline {
+  stage: ApplicationStatus;
+  count: number;
+  percentage: number;
+}
+
+// ==================== فلاتر البحث ====================
+
+export interface JobSearchFilters {
+  query?: string;
+  status?: JobStatus[];
+  departmentId?: string;
+  jobType?: JobType[];
+  experienceLevel?: ExperienceLevel[];
+  postedAfter?: string;
+  postedBefore?: string;
+}
+
+export interface ApplicantSearchFilters {
+  query?: string;
+  jobPostingId?: string;
+  status?: ApplicationStatus[];
+  source?: SourceChannel[];
+  minRating?: number;
+  maxRating?: number;
+  appliedAfter?: string;
+  appliedBefore?: string;
+}
+
+export interface InterviewSearchFilters {
+  applicantId?: string;
+  jobPostingId?: string;
+  type?: InterviewType[];
+  status?: InterviewStatus[];
+  scheduledAfter?: string;
+  scheduledBefore?: string;
+  interviewerId?: string;
+}
+
+// ==================== بيانات وهمية ====================
+
+export const mockJobPostings: JobPosting[] = [
+  {
+    id: 'job-1',
+    title: 'مطور برمجيات أول',
+    titleEn: 'Senior Software Developer',
+    description: 'نبحث عن مطور برمجيات أول للانضمام إلى فريقنا التقني',
+    departmentId: 'dept-1',
+    departmentName: 'تقنية المعلومات',
+    location: 'الرياض',
+    jobType: 'full-time',
+    experienceLevel: 'senior',
+    salaryMin: 18000,
+    salaryMax: 25000,
+    currency: 'SAR',
+    showSalary: true,
+    status: 'open',
+    skills: ['React', 'Node.js', 'TypeScript', 'PostgreSQL'],
+    benefits: ['تأمين صحي', 'بدل سكن', 'بدل مواصلات'],
+    openPositions: 2,
+    filledPositions: 0,
+    requirements: ['خبرة 5+ سنوات في تطوير البرمجيات', 'إتقان JavaScript/TypeScript'],
+    responsibilities: ['تطوير وصيانة التطبيقات', 'مراجعة الكود', 'توجيه المطورين الجدد'],
+    applicationDeadline: '2024-03-15',
+    postedDate: '2024-01-15',
+    createdBy: 'user-1',
+    createdAt: '2024-01-15T10:00:00Z',
+    updatedAt: '2024-01-15T10:00:00Z',
+  },
+  {
+    id: 'job-2',
+    title: 'محاسب',
+    titleEn: 'Accountant',
+    description: 'مطلوب محاسب للعمل في قسم المالية',
+    departmentId: 'dept-2',
+    departmentName: 'المالية',
+    location: 'جدة',
+    jobType: 'full-time',
+    experienceLevel: 'mid',
+    salaryMin: 8000,
+    salaryMax: 12000,
+    currency: 'SAR',
+    showSalary: false,
+    status: 'open',
+    skills: ['Excel', 'SAP', 'المحاسبة المالية'],
+    benefits: ['تأمين صحي', 'إجازة سنوية'],
+    openPositions: 1,
+    filledPositions: 0,
+    requirements: ['بكالوريوس محاسبة', 'خبرة 3+ سنوات'],
+    responsibilities: ['إعداد القوائم المالية', 'المراجعة الداخلية'],
+    postedDate: '2024-01-20',
+    createdBy: 'user-2',
+    createdAt: '2024-01-20T10:00:00Z',
+    updatedAt: '2024-01-20T10:00:00Z',
+  },
+];
+
+export const mockApplicants: Applicant[] = [
+  {
+    id: 'app-1',
+    firstName: 'أحمد',
+    lastName: 'محمد',
+    email: 'ahmed@example.com',
+    phone: '+966501234567',
+    jobPostingId: 'job-1',
+    jobTitle: 'مطور برمجيات أول',
+    currentPosition: 'مطور برمجيات',
+    currentCompany: 'شركة التقنية',
+    expectedSalary: 20000,
+    yearsOfExperience: 6,
+    education: 'بكالوريوس علوم حاسب',
+    skills: ['React', 'Node.js', 'Python'],
+    source: 'linkedin',
+    status: 'interview',
+    rating: 4,
+    appliedAt: '2024-01-18T10:00:00Z',
+    updatedAt: '2024-01-20T10:00:00Z',
+  },
+  {
+    id: 'app-2',
+    firstName: 'سارة',
+    lastName: 'علي',
+    email: 'sara@example.com',
+    phone: '+966507654321',
+    jobPostingId: 'job-1',
+    jobTitle: 'مطور برمجيات أول',
+    currentPosition: 'مطور برمجيات متوسط',
+    currentCompany: 'شركة البرمجيات',
+    expectedSalary: 22000,
+    yearsOfExperience: 5,
+    education: 'ماجستير هندسة برمجيات',
+    skills: ['React', 'TypeScript', 'AWS'],
+    source: 'referral',
+    referredBy: 'emp-1',
+    status: 'screening',
+    rating: 5,
+    appliedAt: '2024-01-19T10:00:00Z',
+    updatedAt: '2024-01-19T10:00:00Z',
+  },
+];
+
+export const mockInterviews: Interview[] = [
+  {
+    id: 'int-1',
+    applicantId: 'app-1',
+    applicantName: 'أحمد محمد',
+    jobPostingId: 'job-1',
+    jobTitle: 'مطور برمجيات أول',
+    type: 'technical',
+    status: 'scheduled',
+    scheduledDate: '2024-01-25',
+    scheduledTime: '10:00',
+    duration: 60,
+    location: 'غرفة الاجتماعات 1',
+    interviewers: [
+      { id: 'emp-1', name: 'محمد أحمد', role: 'مدير تقني' },
+      { id: 'emp-2', name: 'فاطمة علي', role: 'مطور أول' },
+    ],
+    createdAt: '2024-01-20T10:00:00Z',
+    updatedAt: '2024-01-20T10:00:00Z',
+  },
+];
+
+export const mockRecruitmentStats: RecruitmentStats = {
+  totalJobPostings: 15,
+  activeJobPostings: 8,
+  totalApplications: 156,
+  newApplications: 23,
+  interviewsScheduled: 12,
+  offersExtended: 5,
+  hiredThisMonth: 3,
+  averageTimeToHire: 28,
+  applicationsBySource: [
+    { source: 'linkedin', count: 45 },
+    { source: 'website', count: 38 },
+    { source: 'referral', count: 32 },
+    { source: 'indeed', count: 25 },
+    { source: 'agency', count: 16 },
+  ],
+  applicationsByStatus: [
+    { status: 'new', count: 23 },
+    { status: 'screening', count: 45 },
+    { status: 'interview', count: 38 },
+    { status: 'assessment', count: 20 },
+    { status: 'offer', count: 12 },
+    { status: 'hired', count: 8 },
+    { status: 'rejected', count: 10 },
+  ],
+  topSkillsInDemand: [
+    { skill: 'React', count: 45 },
+    { skill: 'Python', count: 38 },
+    { skill: 'JavaScript', count: 35 },
+    { skill: 'Node.js', count: 28 },
+    { skill: 'SQL', count: 25 },
+  ],
+  conversionRates: {
+    applicationToInterview: 65,
+    interviewToOffer: 42,
+    offerToHire: 85,
+  },
+};

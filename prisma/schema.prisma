@@ -1,0 +1,782 @@
+// Prisma Schema for Ujoor HR Platform
+// Multi-tenant HR management system
+
+generator client {
+  provider = "prisma-client"
+  output   = "../node_modules/.prisma/client"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// =============================================
+// MULTI-TENANCY
+// =============================================
+
+model Tenant {
+  id                String   @id @default(cuid())
+  name              String
+  nameAr            String?
+  slug              String   @unique
+  domain            String?  @unique
+  logo              String?
+  
+  // Subscription
+  plan              TenantPlan @default(TRIAL)
+  planExpiresAt     DateTime?
+  maxEmployees      Int        @default(10)
+  
+  // Settings
+  settings          Json?
+  timezone          String     @default("Asia/Riyadh")
+  currency          String     @default("SAR")
+  weekStartDay      Int        @default(0) // 0 = Sunday
+  
+  // Status
+  status            TenantStatus @default(ACTIVE)
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  
+  // Relations
+  users             User[]
+  employees         Employee[]
+  departments       Department[]
+  jobTitles         JobTitle[]
+  shifts            Shift[]
+  attendanceRecords AttendanceRecord[]
+  attendanceRequests AttendanceRequest[]
+  holidays          Holiday[]
+  leaveTypes        LeaveType[]
+  leaveRequests     LeaveRequest[]
+  leaveBalances     LeaveBalance[]
+  documents         Document[]
+  announcements     Announcement[]
+  
+  @@index([slug])
+  @@index([status])
+}
+
+enum TenantPlan {
+  TRIAL
+  BASIC
+  PROFESSIONAL
+  ENTERPRISE
+}
+
+enum TenantStatus {
+  PENDING
+  ACTIVE
+  SUSPENDED
+  CANCELLED
+}
+
+// =============================================
+// AUTHENTICATION & USERS
+// =============================================
+
+model User {
+  id                String    @id @default(cuid())
+  tenantId          String?
+  tenant            Tenant?   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  
+  email             String    @unique
+  emailVerified     DateTime?
+  password          String
+  
+  // Profile
+  firstName         String
+  lastName          String
+  avatar            String?
+  phone             String?
+  
+  // Role & Permissions
+  role              UserRole  @default(EMPLOYEE)
+  permissions       String[]  @default([])
+  
+  // Status
+  status            UserStatus @default(ACTIVE)
+  lastLoginAt       DateTime?
+  
+  // Security
+  passwordChangedAt DateTime?
+  failedLoginAttempts Int     @default(0)
+  lockedUntil       DateTime?
+  
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  
+  // Relations
+  employee          Employee?
+  sessions          Session[]
+  auditLogs         AuditLog[]
+  
+  @@index([tenantId])
+  @@index([email])
+  @@index([role])
+}
+
+enum UserRole {
+  SUPER_ADMIN    // Platform admin (no tenant)
+  TENANT_ADMIN   // Tenant owner/admin
+  HR_MANAGER     // HR department manager
+  MANAGER        // Department/team manager
+  EMPLOYEE       // Regular employee
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+  PENDING_VERIFICATION
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expires      DateTime
+  
+  userAgent    String?
+  ipAddress    String?
+  
+  createdAt    DateTime @default(now())
+  
+  @@index([userId])
+}
+
+// =============================================
+// CORE HR - EMPLOYEES & ORGANIZATION
+// =============================================
+
+model Employee {
+  id                String   @id @default(cuid())
+  tenantId          String
+  tenant            Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  
+  userId            String?  @unique
+  user              User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  
+  // Basic Info
+  employeeNumber    String
+  firstName         String
+  lastName          String
+  firstNameAr       String?
+  lastNameAr        String?
+  email             String
+  phone             String?
+  avatar            String?
+  
+  // Personal
+  nationalId        String?
+  dateOfBirth       DateTime?
+  gender            Gender?
+  nationality       String?
+  maritalStatus     MaritalStatus?
+  
+  // Employment
+  departmentId      String?
+  department        Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  jobTitleId        String?
+  jobTitle          JobTitle?   @relation(fields: [jobTitleId], references: [id], onDelete: SetNull)
+  managerId         String?
+  manager           Employee?   @relation("ManagerEmployee", fields: [managerId], references: [id], onDelete: SetNull)
+  directReports     Employee[]  @relation("ManagerEmployee")
+  
+  hireDate          DateTime
+  employmentType    EmploymentType @default(FULL_TIME)
+  status            EmployeeStatus @default(ACTIVE)
+  
+  // Work
+  shiftId           String?
+  shift             Shift?      @relation(fields: [shiftId], references: [id], onDelete: SetNull)
+  workLocation      String?
+  
+  // Compensation
+  baseSalary        Decimal?    @db.Decimal(12, 2)
+  currency          String      @default("SAR")
+  
+  // Dates
+  probationEndDate  DateTime?
+  contractEndDate   DateTime?
+  terminationDate   DateTime?
+  
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+  
+  // Relations
+  attendanceRecords AttendanceRecord[]
+  attendanceRequests AttendanceRequest[]
+  leaveRequests     LeaveRequest[]
+  leaveBalances     LeaveBalance[]
+  documents         Document[]
+  
+  @@unique([tenantId, employeeNumber])
+  @@index([tenantId])
+  @@index([departmentId])
+  @@index([managerId])
+  @@index([status])
+}
+
+enum Gender {
+  MALE
+  FEMALE
+}
+
+enum MaritalStatus {
+  SINGLE
+  MARRIED
+  DIVORCED
+  WIDOWED
+}
+
+enum EmploymentType {
+  FULL_TIME
+  PART_TIME
+  CONTRACT
+  INTERN
+  TEMPORARY
+}
+
+enum EmployeeStatus {
+  ACTIVE
+  ON_LEAVE
+  SUSPENDED
+  TERMINATED
+  RESIGNED
+}
+
+model Department {
+  id          String   @id @default(cuid())
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  
+  name        String
+  nameAr      String?
+  code        String
+  description String?
+  
+  parentId    String?
+  parent      Department?  @relation("DepartmentHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  children    Department[] @relation("DepartmentHierarchy")
+  
+  managerId   String?
+  
+  isActive    Boolean  @default(true)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  employees   Employee[]
+  
+  @@unique([tenantId, code])
+  @@index([tenantId])
+  @@index([parentId])
+}
+
+model JobTitle {
+  id          String   @id @default(cuid())
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  
+  name        String
+  nameAr      String?
+  code        String
+  description String?
+  level       Int      @default(1)
+  
+  minSalary   Decimal? @db.Decimal(12, 2)
+  maxSalary   Decimal? @db.Decimal(12, 2)
+  
+  isActive    Boolean  @default(true)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  employees   Employee[]
+  
+  @@unique([tenantId, code])
+  @@index([tenantId])
+}
+
+// =============================================
+// TIME & ATTENDANCE
+// =============================================
+
+model Shift {
+  id                  String   @id @default(cuid())
+  tenantId            String
+  tenant              Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  
+  name                String
+  nameAr              String?
+  code                String
+  
+  // Working hours (stored as "HH:mm")
+  startTime           String
+  endTime             String
+  
+  // Break
+  breakStartTime      String?
+  breakEndTime        String?
+  breakDurationMinutes Int?
+  
+  // Flexibility (grace period in minutes)
+  flexibleStartMinutes Int     @default(0)
+  flexibleEndMinutes   Int     @default(0)
+  
+  // Work days (array of day numbers: 0=Sun, 6=Sat)
+  workDays            Int[]    @default([0, 1, 2, 3, 4])
+  
+  // Overtime
+  overtimeEnabled     Boolean  @default(false)
+  overtimeMultiplier  Decimal? @db.Decimal(3, 2)
+  
+  color               String   @default("#3B82F6")
+  isDefault           Boolean  @default(false)
+  isActive            Boolean  @default(true)
+  
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  
+  employees           Employee[]
+  attendanceRecords   AttendanceRecord[]
+  
+  @@unique([tenantId, code])
+  @@index([tenantId])
+}
+
+model AttendanceRecord {
+  id                String   @id @default(cuid())
+  tenantId          String
+  tenant            Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  employeeId        String
+  employee          Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  shiftId           String?
+  shift             Shift?   @relation(fields: [shiftId], references: [id], onDelete: SetNull)
+  
+  date              DateTime @db.Date
+  
+  // Check-in/out
+  checkInTime       DateTime?
+  checkOutTime      DateTime?
+  
+  // Expected times
+  expectedCheckIn   DateTime?
+  expectedCheckOut  DateTime?
+  
+  // Calculated
+  status            AttendanceStatus @default(PENDING)
+  lateMinutes       Int?
+  earlyLeaveMinutes Int?
+  totalWorkMinutes  Int?
+  overtimeMinutes   Int?
+  
+  // Source
+  checkInSource     CheckSource?
+  checkOutSource    CheckSource?
+  
+  // Location (for mobile check-in)
+  checkInLat        Decimal? @db.Decimal(10, 8)
+  checkInLng        Decimal? @db.Decimal(11, 8)
+  checkInAddress    String?
+  checkOutLat       Decimal? @db.Decimal(10, 8)
+  checkOutLng       Decimal? @db.Decimal(11, 8)
+  checkOutAddress   String?
+  
+  notes             String?
+  
+  // Modification tracking
+  modifiedById      String?
+  modifiedAt        DateTime?
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  
+  @@unique([employeeId, date])
+  @@index([tenantId])
+  @@index([employeeId])
+  @@index([date])
+  @@index([status])
+}
+
+enum AttendanceStatus {
+  PENDING
+  PRESENT
+  ABSENT
+  LATE
+  EARLY_LEAVE
+  ON_LEAVE
+  HOLIDAY
+  WEEKEND
+}
+
+enum CheckSource {
+  MANUAL
+  BIOMETRIC
+  MOBILE
+  WEB
+}
+
+model AttendanceRequest {
+  id                  String   @id @default(cuid())
+  tenantId            String
+  tenant              Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  employeeId          String
+  employee            Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  
+  type                AttendanceRequestType
+  status              RequestStatus @default(PENDING)
+  
+  date                DateTime @db.Date
+  
+  // For check correction
+  requestedCheckIn    DateTime?
+  requestedCheckOut   DateTime?
+  
+  // For overtime
+  overtimeHours       Decimal? @db.Decimal(4, 2)
+  
+  // For permission
+  permissionStartTime DateTime?
+  permissionEndTime   DateTime?
+  
+  reason              String
+  attachmentUrl       String?
+  
+  // Approval
+  approvedById        String?
+  approvedAt          DateTime?
+  rejectionReason     String?
+  
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  
+  @@index([tenantId])
+  @@index([employeeId])
+  @@index([status])
+}
+
+enum AttendanceRequestType {
+  CHECK_CORRECTION
+  OVERTIME
+  PERMISSION
+  WORK_FROM_HOME
+}
+
+enum RequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+model Holiday {
+  id          String   @id @default(cuid())
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  
+  name        String
+  nameAr      String?
+  date        DateTime @db.Date
+  endDate     DateTime? @db.Date
+  isRecurring Boolean  @default(false)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@index([tenantId])
+  @@index([date])
+}
+
+// =============================================
+// LEAVE MANAGEMENT
+// =============================================
+
+model LeaveType {
+  id                String   @id @default(cuid())
+  tenantId          String
+  tenant            Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  
+  name              String
+  nameAr            String?
+  code              String
+  description       String?
+  
+  // Policy
+  defaultDays       Int      @default(0)
+  maxDays           Int?
+  carryOverDays     Int      @default(0)
+  carryOverExpiry   Int?     // months
+  
+  isPaid            Boolean  @default(true)
+  requiresApproval  Boolean  @default(true)
+  requiresAttachment Boolean @default(false)
+  
+  // Eligibility
+  minServiceMonths  Int      @default(0)
+  applicableGenders Gender[]
+  
+  color             String   @default("#3B82F6")
+  isActive          Boolean  @default(true)
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  
+  leaveRequests     LeaveRequest[]
+  leaveBalances     LeaveBalance[]
+  
+  @@unique([tenantId, code])
+  @@index([tenantId])
+}
+
+model LeaveRequest {
+  id              String   @id @default(cuid())
+  tenantId        String
+  tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  employeeId      String
+  employee        Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  leaveTypeId     String
+  leaveType       LeaveType @relation(fields: [leaveTypeId], references: [id], onDelete: Restrict)
+  
+  startDate       DateTime @db.Date
+  endDate         DateTime @db.Date
+  totalDays       Decimal  @db.Decimal(4, 1)
+  
+  reason          String?
+  attachmentUrl   String?
+  
+  status          RequestStatus @default(PENDING)
+  
+  // Approval
+  approvedById    String?
+  approvedAt      DateTime?
+  rejectionReason String?
+  
+  // Delegation
+  delegateToId    String?
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  @@index([tenantId])
+  @@index([employeeId])
+  @@index([status])
+  @@index([startDate, endDate])
+}
+
+model LeaveBalance {
+  id            String   @id @default(cuid())
+  tenantId      String
+  tenant        Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  employeeId    String
+  employee      Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  leaveTypeId   String
+  leaveType     LeaveType @relation(fields: [leaveTypeId], references: [id], onDelete: Cascade)
+  
+  year          Int
+  
+  // Days
+  entitled      Decimal  @db.Decimal(5, 1) @default(0)
+  used          Decimal  @db.Decimal(5, 1) @default(0)
+  pending       Decimal  @db.Decimal(5, 1) @default(0)
+  carriedOver   Decimal  @db.Decimal(5, 1) @default(0)
+  adjustment    Decimal  @db.Decimal(5, 1) @default(0)
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  @@unique([employeeId, leaveTypeId, year])
+  @@index([tenantId])
+  @@index([employeeId])
+  @@index([year])
+}
+
+// =============================================
+// DOCUMENTS
+// =============================================
+
+model Document {
+  id            String   @id @default(cuid())
+  tenantId      String
+  tenant        Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  employeeId    String
+  employee      Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  
+  // File info
+  fileName      String
+  originalName  String
+  mimeType      String
+  size          Int
+  url           String   // R2 URL or key
+  
+  // Metadata
+  category      DocumentCategory
+  title         String?
+  titleAr       String?
+  description   String?
+  
+  // Dates
+  issuedDate    DateTime?
+  expiryDate    DateTime?
+  
+  // Status
+  status        DocumentStatus @default(PENDING)
+  
+  // Approval
+  uploadedById  String
+  approvedById  String?
+  approvedAt    DateTime?
+  rejectedReason String?
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  @@index([tenantId])
+  @@index([employeeId])
+  @@index([category])
+  @@index([status])
+  @@index([expiryDate])
+}
+
+enum DocumentCategory {
+  PERSONAL
+  EMPLOYMENT
+  EDUCATIONAL
+  MEDICAL
+  FINANCIAL
+  LEGAL
+  OTHER
+}
+
+enum DocumentStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  EXPIRED
+}
+
+// =============================================
+// ANNOUNCEMENTS & COMMUNICATION
+// =============================================
+
+model Announcement {
+  id            String   @id @default(cuid())
+  tenantId      String
+  tenant        Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  
+  title         String
+  titleAr       String?
+  content       String
+  contentAr     String?
+  
+  type          AnnouncementType @default(INFO)
+  priority      AnnouncementPriority @default(NORMAL)
+  
+  // Targeting
+  targetAll     Boolean  @default(true)
+  targetDeptIds String[] @default([])
+  
+  // Schedule
+  publishedAt   DateTime @default(now())
+  expiresAt     DateTime?
+  
+  // Author
+  authorId      String
+  
+  isActive      Boolean  @default(true)
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  @@index([tenantId])
+  @@index([publishedAt])
+  @@index([isActive])
+}
+
+enum AnnouncementType {
+  INFO
+  WARNING
+  URGENT
+  CELEBRATION
+}
+
+enum AnnouncementPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+// =============================================
+// AUDIT LOG
+// =============================================
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  tenantId    String?
+  userId      String?
+  user        User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  
+  action      String   // CREATE, UPDATE, DELETE, LOGIN, etc.
+  entity      String   // Employee, Document, etc.
+  entityId    String?
+  
+  oldData     Json?
+  newData     Json?
+  
+  ipAddress   String?
+  userAgent   String?
+  
+  createdAt   DateTime @default(now())
+  
+  @@index([tenantId])
+  @@index([userId])
+  @@index([entity, entityId])
+  @@index([createdAt])
+}
+
+// =============================================
+// SUPER ADMIN - TENANT REQUESTS
+// =============================================
+
+model TenantRequest {
+  id              String   @id @default(cuid())
+  
+  // Company Info
+  companyName     String
+  companyNameAr   String?
+  industry        String?
+  employeeCount   String?
+  
+  // Contact
+  contactName     String
+  contactEmail    String
+  contactPhone    String?
+  
+  // Request
+  plan            TenantPlan @default(TRIAL)
+  message         String?
+  
+  status          TenantRequestStatus @default(PENDING)
+  
+  // Processing
+  processedById   String?
+  processedAt     DateTime?
+  rejectionReason String?
+  tenantId        String?  // Created tenant ID if approved
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  @@index([status])
+  @@index([createdAt])
+}
+
+enum TenantRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}

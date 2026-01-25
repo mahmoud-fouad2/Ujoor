@@ -1,0 +1,283 @@
+"use client";
+
+import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
+import { Bell, HelpCircle, LogOut, User, KeyRound, ChevronLeft, ChevronRight } from "lucide-react";
+
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { getText } from "@/lib/i18n/text";
+import { notificationsService } from "@/lib/api";
+import type { Notification } from "@/lib/types/self-service";
+
+export function DashboardHeaderActions({
+  locale,
+}: {
+  locale: "ar" | "en";
+}) {
+  const t = getText(locale);
+  // TODO: Replace with API call to get user avatar from R2 storage
+  const [avatarSrc] = useState<string>("/images/avatars/1.png");
+
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  // TODO: Replace with API call to get read notification IDs
+  const [readIds, setReadIds] = useState<Set<string>>(() => new Set());
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const load = async () => {
+      try {
+        const res = await notificationsService.getAll({ page: 1, pageSize: 20 });
+        if (!isMounted) return;
+        setNotifications(res.success && res.data ? res.data.notifications : []);
+      } catch {
+        if (!isMounted) return;
+        setNotifications([]);
+      }
+    };
+
+    void load();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const markRead = (id: string) => {
+    if (!id) return;
+    if (readIds.has(id)) return;
+    const next = new Set(readIds);
+    next.add(id);
+    void notificationsService.markAsRead(id);
+    setReadIds(next);
+  };
+
+  const markAllRead = () => {
+    const next = new Set(readIds);
+    for (const n of notifications) next.add(n.id);
+    void notificationsService.markAllAsRead();
+    setReadIds(next);
+  };
+
+  const { unreadCount, latest } = useMemo(() => {
+    const withRead: Notification[] = notifications.map((n: Notification) => ({
+      ...n,
+      isRead: n.isRead || readIds.has(n.id),
+    }));
+
+    const unreadCount = withRead.filter((n: Notification) => !n.isRead).length;
+    const latest = [...withRead]
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      .slice(0, 5);
+    return { unreadCount, latest };
+  }, [notifications, readIds]);
+
+  const toggleLocale = () => {
+    const next = locale === "ar" ? "en" : "ar";
+    const maxAge = 60 * 60 * 24 * 365;
+    document.cookie = `ujoors_locale=${next}; path=/; max-age=${maxAge}; samesite=lax`;
+    window.location.reload();
+  };
+
+  const logout = () => {
+    window.location.href = "/login";
+  };
+
+  return (
+    <div className="flex items-center gap-2">
+      {/* Help */}
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost" size="icon" className="h-9 w-9">
+            <HelpCircle className="h-5 w-5" />
+            <span className="sr-only">{t.common.helpCenter}</span>
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-72">
+          <DropdownMenuLabel>{t.common.helpCenter}</DropdownMenuLabel>
+          <DropdownMenuSeparator />
+          <DropdownMenuGroup>
+            <DropdownMenuItem asChild>
+              <Link href="/dashboard/help-center" className="flex items-center justify-between">
+                <span>{t.common.helpCenter}</span>
+                {locale === "ar" ? (
+                  <ChevronLeft className="h-4 w-4 opacity-60" />
+                ) : (
+                  <ChevronRight className="h-4 w-4 opacity-60" />
+                )}
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <Link href="/dashboard/academy" className="flex items-center justify-between">
+                <span>{t.common.academy}</span>
+                {locale === "ar" ? (
+                  <ChevronLeft className="h-4 w-4 opacity-60" />
+                ) : (
+                  <ChevronRight className="h-4 w-4 opacity-60" />
+                )}
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <Link href="/dashboard/ideas" className="flex items-center justify-between">
+                <span>{t.common.shareIdeas}</span>
+                {locale === "ar" ? (
+                  <ChevronLeft className="h-4 w-4 opacity-60" />
+                ) : (
+                  <ChevronRight className="h-4 w-4 opacity-60" />
+                )}
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <Link href="/dashboard/whats-new" className="flex items-center justify-between">
+                <span>{t.common.whatsNew}</span>
+                {locale === "ar" ? (
+                  <ChevronLeft className="h-4 w-4 opacity-60" />
+                ) : (
+                  <ChevronRight className="h-4 w-4 opacity-60" />
+                )}
+              </Link>
+            </DropdownMenuItem>
+          </DropdownMenuGroup>
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      {/* Notifications */}
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost" size="icon" className="relative h-9 w-9">
+            <Bell className="h-5 w-5" />
+            {unreadCount > 0 && (
+              <span className="absolute -end-0.5 -top-0.5">
+                <Badge className="h-5 min-w-5 justify-center rounded-full px-1 text-[11px]">
+                  {unreadCount > 9 ? "9+" : unreadCount}
+                </Badge>
+              </span>
+            )}
+            <span className="sr-only">{t.common.notifications}</span>
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-96">
+          <DropdownMenuLabel className="flex items-center justify-between">
+            <span>{t.common.notifications}</span>
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                className="text-xs text-muted-foreground hover:text-foreground"
+                onClick={(e) => {
+                  e.preventDefault();
+                  markAllRead();
+                }}
+              >
+                {locale === "ar" ? "تحديد الكل كمقروء" : "Mark all read"}
+              </button>
+              <Link href="/dashboard/notifications" className="text-xs text-muted-foreground hover:text-foreground">
+                {t.common.viewAll}
+              </Link>
+            </div>
+          </DropdownMenuLabel>
+          <DropdownMenuSeparator />
+          <div className="max-h-[320px] overflow-auto">
+            {latest.length === 0 ? (
+              <div className="p-6 text-center text-sm text-muted-foreground">
+                {locale === "ar" ? "لا توجد إشعارات" : "No notifications"}
+              </div>
+            ) : (
+              latest.map((n) => (
+                <DropdownMenuItem key={n.id} asChild>
+                  <Link
+                    href="/dashboard/notifications"
+                    className="flex flex-col gap-1 py-3"
+                    onClick={() => markRead(n.id)}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-medium">{n.title}</span>
+                      {!n.isRead && <span className="h-2 w-2 rounded-full bg-primary" />}
+                    </div>
+                    <span className="line-clamp-2 text-xs text-muted-foreground">{n.message}</span>
+                  </Link>
+                </DropdownMenuItem>
+              ))
+            )}
+          </div>
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      {/* User */}
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost" className="h-9 gap-2 px-2">
+            <Avatar className="h-7 w-7">
+              <AvatarImage src={avatarSrc} alt="User" />
+              <AvatarFallback>U</AvatarFallback>
+            </Avatar>
+            <span className="hidden md:inline text-sm font-medium">
+              {locale === "ar" ? "مستخدم أجور" : "Ujoors User"}
+            </span>
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-72">
+          <DropdownMenuLabel className="p-0">
+            <div className="flex items-center gap-2 px-2 py-2">
+              <Avatar className="h-9 w-9 rounded-lg">
+                <AvatarImage src={avatarSrc} alt="User" />
+                <AvatarFallback className="rounded-lg">U</AvatarFallback>
+              </Avatar>
+              <div className="min-w-0">
+                <div className="truncate text-sm font-semibold">{locale === "ar" ? "مستخدم أجور" : "Ujoors User"}</div>
+                <div className="truncate text-xs text-muted-foreground">user@ujoors.com</div>
+              </div>
+            </div>
+          </DropdownMenuLabel>
+          <DropdownMenuSeparator />
+          <DropdownMenuGroup>
+            <DropdownMenuItem asChild>
+              <Link href="/dashboard/my-profile">
+                <User className="me-2 h-4 w-4" />
+                {t.common.viewProfile}
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <Link href="/dashboard/account/change-password">
+                <KeyRound className="me-2 h-4 w-4" />
+                {t.common.changePassword}
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onSelect={(e: Event) => {
+                e.preventDefault();
+                toggleLocale();
+              }}
+            >
+              <span className="inline-flex items-center gap-2">
+                <span className="inline-flex size-5 items-center justify-center rounded bg-muted text-xs font-semibold">
+                  {locale === "ar" ? "EN" : "AR"}
+                </span>
+                {locale === "ar" ? "English" : "العربية"}
+              </span>
+            </DropdownMenuItem>
+          </DropdownMenuGroup>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            onSelect={(e: Event) => {
+              e.preventDefault();
+              logout();
+            }}
+          >
+            <LogOut className="me-2 h-4 w-4" />
+            {t.common.logout}
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
+  );
+}

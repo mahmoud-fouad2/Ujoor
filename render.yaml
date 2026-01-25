@@ -1,0 +1,58 @@
+# Render Build Configuration
+# https://render.com/docs/yaml-spec
+
+services:
+  - type: web
+    name: ujoor
+    runtime: node
+    region: frankfurt # Closest to Middle East
+    plan: starter
+    buildCommand: npm install -g pnpm && pnpm install && pnpm build
+    startCommand: pnpm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: 20
+      - key: DATABASE_URL
+        fromDatabase:
+          name: ujoor-db
+          property: connectionString
+      - key: R2_ACCOUNT_ID
+        sync: false
+      - key: R2_ACCESS_KEY_ID
+        sync: false
+      - key: R2_SECRET_ACCESS_KEY
+        sync: false
+      - key: R2_BUCKET_NAME
+        value: ujoor
+      - key: R2_PUBLIC_URL
+        sync: false
+      - key: R2_ENDPOINT
+        sync: false
+      - key: NEXTAUTH_SECRET
+        generateValue: true
+      - key: NEXTAUTH_URL
+        fromService:
+          type: web
+          name: ujoor
+          property: host
+      - key: NEXT_PUBLIC_APP_URL
+        fromService:
+          type: web
+          name: ujoor
+          property: host
+      - key: NEXT_PUBLIC_RECAPTCHA_SITE_KEY
+        sync: false
+      - key: RECAPTCHA_SECRET_KEY
+        sync: false
+      - key: SUPER_ADMIN_EMAIL
+        value: admin@ujoor.com
+      - key: SUPER_ADMIN_PASSWORD
+        sync: false
+
+databases:
+  - name: ujoor-db
+    region: frankfurt
+    plan: starter
+    databaseName: ujoor
+    user: ujoor_user

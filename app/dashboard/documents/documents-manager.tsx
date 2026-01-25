@@ -1,0 +1,768 @@
+"use client";
+
+import * as React from "react";
+import {
+  IconUpload,
+  IconSearch,
+  IconFilter,
+  IconFile,
+  IconFileTypePdf,
+  IconFileTypeDoc,
+  IconPhoto,
+  IconDownload,
+  IconTrash,
+  IconCheck,
+  IconX,
+  IconEye,
+  IconClock,
+  IconAlertCircle,
+} from "@tabler/icons-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  type Document,
+  type DocumentCategory,
+  type DocumentStatus,
+  documentCategoryLabels,
+  documentStatusLabels,
+  formatFileSize,
+  isDocumentExpired,
+} from "@/lib/types/documents";
+import { documentsService } from "@/lib/api";
+import { useEmployees } from "@/hooks/use-employees";
+
+export function DocumentsManager() {
+  const { employees, getEmployeeFullName } = useEmployees();
+  const [documents, setDocuments] = React.useState<Document[]>([]);
+  const [isLoading, setIsLoading] = React.useState(true);
+  const [error, setError] = React.useState<string | null>(null);
+  const [actionError, setActionError] = React.useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = React.useState(false);
+  const [searchQuery, setSearchQuery] = React.useState("");
+  const [categoryFilter, setCategoryFilter] = React.useState<DocumentCategory | "all">("all");
+  const [statusFilter, setStatusFilter] = React.useState<DocumentStatus | "all">("all");
+  const [isUploadOpen, setIsUploadOpen] = React.useState(false);
+  const [selectedDocument, setSelectedDocument] = React.useState<Document | null>(null);
+  const [isPreviewOpen, setIsPreviewOpen] = React.useState(false);
+
+  const fetchDocuments = React.useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const res = await documentsService.getAll();
+      if (res.success && res.data) {
+        setDocuments(res.data);
+      } else {
+        setDocuments([]);
+        setError(res.error ?? "فشل تحميل المستندات");
+      }
+    } catch (e) {
+      setDocuments([]);
+      setError(e instanceof Error ? e.message : "فشل تحميل المستندات");
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  React.useEffect(() => {
+    fetchDocuments();
+  }, [fetchDocuments]);
+
+  // Upload form state
+  const [uploadFile, setUploadFile] = React.useState<File | null>(null);
+  const [uploadCategory, setUploadCategory] = React.useState<DocumentCategory>("personal");
+  const [uploadTitle, setUploadTitle] = React.useState("");
+  const [uploadTitleAr, setUploadTitleAr] = React.useState("");
+  const [uploadEmployeeId, setUploadEmployeeId] = React.useState<string>("");
+  const [uploadDescription, setUploadDescription] = React.useState("");
+  const [uploadExpiry, setUploadExpiry] = React.useState("");
+  const [uploadIssued, setUploadIssued] = React.useState("");
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+  // Filter documents
+  const filteredDocuments = documents.filter((doc) => {
+    const matchesSearch =
+      doc.fileName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      doc.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      doc.titleAr?.includes(searchQuery) ||
+      doc.description?.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesCategory = categoryFilter === "all" || doc.category === categoryFilter;
+    const matchesStatus = statusFilter === "all" || doc.status === statusFilter;
+    return matchesSearch && matchesCategory && matchesStatus;
+  });
+
+  // Stats
+  const stats = {
+    total: documents.length,
+    pending: documents.filter((d) => d.status === "pending").length,
+    approved: documents.filter((d) => d.status === "approved").length,
+    expiringSoon: documents.filter((d) => {
+      if (!d.expiryDate) return false;
+      const daysUntilExpiry = Math.ceil(
+        (new Date(d.expiryDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24)
+      );
+      return daysUntilExpiry > 0 && daysUntilExpiry <= 30;
+    }).length,
+  };
+
+  // Handle file select
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setUploadFile(file);
+    }
+  };
+
+  // Handle upload
+  const handleUpload = async () => {
+    if (!uploadFile || !uploadEmployeeId || !uploadTitle) return;
+    setIsSubmitting(true);
+    setActionError(null);
+    try {
+      const res = await documentsService.upload({
+        file: uploadFile,
+        employeeId: uploadEmployeeId,
+        category: uploadCategory,
+        title: uploadTitle,
+        titleAr: uploadTitleAr || undefined,
+        description: uploadDescription || undefined,
+        expiryDate: uploadExpiry || undefined,
+        issuedDate: uploadIssued || undefined,
+      });
+
+      if (!res.success) {
+        setActionError(res.error ?? "فشل رفع المستند");
+        return;
+      }
+
+      await fetchDocuments();
+      resetUploadForm();
+      setIsUploadOpen(false);
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : "فشل رفع المستند");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const resetUploadForm = () => {
+    setUploadFile(null);
+    setUploadCategory("personal");
+    setUploadTitle("");
+    setUploadTitleAr("");
+    setUploadEmployeeId("");
+    setUploadDescription("");
+    setUploadExpiry("");
+    setUploadIssued("");
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
+
+  // Handle approve/reject
+  const handleStatusChange = async (docId: string, newStatus: "approved" | "rejected") => {
+    setActionError(null);
+    try {
+      const res =
+        newStatus === "approved"
+          ? await documentsService.approve(docId)
+          : await documentsService.reject(docId, "مرفوض");
+
+      if (!res.success) {
+        setActionError(res.error ?? "فشل تحديث حالة المستند");
+        return;
+      }
+
+      await fetchDocuments();
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : "فشل تحديث حالة المستند");
+    }
+  };
+
+  // Handle delete
+  const handleDelete = async (docId: string) => {
+    setActionError(null);
+    try {
+      const res = await documentsService.delete(docId);
+      if (!res.success) {
+        setActionError(res.error ?? "فشل حذف المستند");
+        return;
+      }
+      await fetchDocuments();
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : "فشل حذف المستند");
+    }
+  };
+
+  // Get employee name
+  const getEmployeeName = (employeeId: string) => {
+    return getEmployeeFullName(employeeId);
+  };
+
+  // Get status badge variant
+  const getStatusVariant = (status: DocumentStatus): "default" | "secondary" | "destructive" | "outline" => {
+    switch (status) {
+      case "approved":
+        return "default";
+      case "pending":
+        return "secondary";
+      case "rejected":
+        return "destructive";
+      case "expired":
+        return "outline";
+      default:
+        return "secondary";
+    }
+  };
+
+  // Get file icon component
+  const FileIconComponent = ({ mimeType }: { mimeType: string }) => {
+    if (mimeType.includes("pdf")) return <IconFileTypePdf className="h-5 w-5 text-red-500" />;
+    if (mimeType.includes("image")) return <IconPhoto className="h-5 w-5 text-blue-500" />;
+    if (mimeType.includes("word") || mimeType.includes("document")) return <IconFileTypeDoc className="h-5 w-5 text-blue-600" />;
+    return <IconFile className="h-5 w-5 text-gray-500" />;
+  };
+
+  const handleDownload = async (doc: Document) => {
+    setActionError(null);
+    try {
+      if (doc.url) {
+        window.open(doc.url, "_blank");
+        return;
+      }
+
+      const res = await documentsService.download(doc.id);
+      if (!res.success || !res.data) {
+        setActionError(res.error ?? "فشل تنزيل المستند");
+        return;
+      }
+
+      const blob = res.data instanceof Blob ? res.data : new Blob([res.data as unknown as BlobPart]);
+      const url = URL.createObjectURL(blob);
+      window.open(url, "_blank");
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : "فشل تنزيل المستند");
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      {(error || actionError) && (
+        <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-destructive">
+          {actionError ?? error}
+        </div>
+      )}
+      {/* Stats Cards */}
+      <div className="grid gap-4 md:grid-cols-4">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">إجمالي المستندات</CardTitle>
+            <IconFile className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.total}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">بانتظار الموافقة</CardTitle>
+            <IconClock className="h-4 w-4 text-yellow-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-yellow-600">{stats.pending}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">معتمدة</CardTitle>
+            <IconCheck className="h-4 w-4 text-green-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-green-600">{stats.approved}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">تنتهي قريباً</CardTitle>
+            <IconAlertCircle className="h-4 w-4 text-orange-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-orange-600">{stats.expiringSoon}</div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Toolbar */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-1 items-center gap-2">
+          <div className="relative flex-1 max-w-sm">
+            <IconSearch className="absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="بحث في المستندات..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="ps-9"
+            />
+          </div>
+          <Select
+            value={categoryFilter}
+            onValueChange={(value) => setCategoryFilter(value as DocumentCategory | "all")}
+          >
+            <SelectTrigger className="w-[160px]">
+              <IconFilter className="h-4 w-4 ms-2" />
+              <SelectValue placeholder="التصنيف" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">كل التصنيفات</SelectItem>
+              {Object.entries(documentCategoryLabels).map(([key, label]) => (
+                <SelectItem key={key} value={key}>
+                  {label.ar}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select
+            value={statusFilter}
+            onValueChange={(value) => setStatusFilter(value as DocumentStatus | "all")}
+          >
+            <SelectTrigger className="w-[140px]">
+              <SelectValue placeholder="الحالة" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">كل الحالات</SelectItem>
+              {Object.entries(documentStatusLabels).map(([key, label]) => (
+                <SelectItem key={key} value={key}>
+                  {label.ar}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* Upload Dialog */}
+        <Dialog open={isUploadOpen} onOpenChange={setIsUploadOpen}>
+          <DialogTrigger asChild>
+            <Button>
+              <IconUpload className="ms-2 h-4 w-4" />
+              رفع مستند
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>رفع مستند جديد</DialogTitle>
+              <DialogDescription>
+                قم برفع مستند للموظف. الأنواع المدعومة: PDF, Word, صور
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              {/* File Input */}
+              <div className="space-y-2">
+                <Label>اختر الملف</Label>
+                <div
+                  className="border-2 border-dashed rounded-lg p-6 text-center cursor-pointer hover:border-primary transition-colors"
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    className="hidden"
+                    accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                    onChange={handleFileSelect}
+                  />
+                  {uploadFile ? (
+                    <div className="flex items-center justify-center gap-2">
+                      <FileIconComponent mimeType={uploadFile.type} />
+                      <span className="font-medium">{uploadFile.name}</span>
+                      <span className="text-muted-foreground">
+                        ({formatFileSize(uploadFile.size)})
+                      </span>
+                    </div>
+                  ) : (
+                    <>
+                      <IconUpload className="mx-auto h-8 w-8 text-muted-foreground mb-2" />
+                      <p className="text-sm text-muted-foreground">
+                        اضغط لاختيار ملف
+                      </p>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {/* Employee Select */}
+              <div className="space-y-2">
+                <Label>الموظف</Label>
+                <Select value={uploadEmployeeId} onValueChange={setUploadEmployeeId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="اختر الموظف" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {employees.length === 0 ? (
+                      <SelectItem value="__empty" disabled>
+                        لا يوجد موظفون
+                      </SelectItem>
+                    ) : (
+                      employees.map((emp) => (
+                        <SelectItem key={emp.id} value={emp.id}>
+                          {getEmployeeFullName(emp.id)}
+                        </SelectItem>
+                      ))
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Category */}
+              <div className="space-y-2">
+                <Label>التصنيف</Label>
+                <Select
+                  value={uploadCategory}
+                  onValueChange={(v) => setUploadCategory(v as DocumentCategory)}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Object.entries(documentCategoryLabels).map(([key, label]) => (
+                      <SelectItem key={key} value={key}>
+                        {label.ar}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Title */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>العنوان (عربي)</Label>
+                  <Input
+                    value={uploadTitleAr}
+                    onChange={(e) => setUploadTitleAr(e.target.value)}
+                    placeholder="مثال: الهوية الوطنية"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>العنوان (English)</Label>
+                  <Input
+                    value={uploadTitle}
+                    onChange={(e) => setUploadTitle(e.target.value)}
+                    placeholder="e.g., National ID"
+                  />
+                </div>
+              </div>
+
+              {/* Description */}
+              <div className="space-y-2">
+                <Label>الوصف (اختياري)</Label>
+                <Textarea
+                  value={uploadDescription}
+                  onChange={(e) => setUploadDescription(e.target.value)}
+                  placeholder="وصف أو ملاحظات..."
+                  rows={2}
+                />
+              </div>
+
+              {/* Dates */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>تاريخ الإصدار (اختياري)</Label>
+                  <Input
+                    type="date"
+                    value={uploadIssued}
+                    onChange={(e) => setUploadIssued(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>تاريخ الانتهاء (اختياري)</Label>
+                  <Input
+                    type="date"
+                    value={uploadExpiry}
+                    onChange={(e) => setUploadExpiry(e.target.value)}
+                  />
+                </div>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsUploadOpen(false)}>
+                إلغاء
+              </Button>
+              <Button
+                onClick={handleUpload}
+                disabled={isSubmitting || !uploadFile || !uploadEmployeeId || !uploadTitle}
+              >
+                {isSubmitting ? "جاري الرفع..." : "رفع المستند"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </div>
+
+      {/* Documents Table */}
+      <Card>
+        <CardHeader>
+          <CardTitle>المستندات</CardTitle>
+          <CardDescription>
+            قائمة بجميع مستندات الموظفين ({filteredDocuments.length} مستند)
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>الملف</TableHead>
+                <TableHead>الموظف</TableHead>
+                <TableHead>التصنيف</TableHead>
+                <TableHead>الحالة</TableHead>
+                <TableHead>تاريخ الرفع</TableHead>
+                <TableHead>تاريخ الانتهاء</TableHead>
+                <TableHead className="text-start">إجراءات</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {isLoading ? (
+                <TableRow>
+                  <TableCell colSpan={7} className="text-center py-8">
+                    <p className="text-muted-foreground">جاري التحميل...</p>
+                  </TableCell>
+                </TableRow>
+              ) : filteredDocuments.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={7} className="text-center py-8">
+                    <IconFile className="mx-auto h-12 w-12 text-muted-foreground mb-2" />
+                    <p className="text-muted-foreground">لا توجد مستندات</p>
+                  </TableCell>
+                </TableRow>
+              ) : (
+                filteredDocuments.map((doc) => (
+                  <TableRow key={doc.id}>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <FileIconComponent mimeType={doc.mimeType} />
+                        <div>
+                          <p className="font-medium text-sm">{doc.titleAr || doc.title}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {formatFileSize(doc.size)}
+                          </p>
+                        </div>
+                      </div>
+                    </TableCell>
+                    <TableCell>{getEmployeeName(doc.employeeId)}</TableCell>
+                    <TableCell>
+                      <Badge variant="outline">
+                        {documentCategoryLabels[doc.category].ar}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={getStatusVariant(doc.status)}>
+                        {documentStatusLabels[doc.status].ar}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-sm">
+                      {new Date(doc.uploadedAt).toLocaleDateString("ar-SA")}
+                    </TableCell>
+                    <TableCell>
+                      {doc.expiryDate ? (
+                        <span
+                          className={
+                            isDocumentExpired(doc)
+                              ? "text-red-600"
+                              : "text-muted-foreground"
+                          }
+                        >
+                          {new Date(doc.expiryDate).toLocaleDateString("ar-SA")}
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground">-</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-1">
+                        {/* Preview */}
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => {
+                            setSelectedDocument(doc);
+                            setIsPreviewOpen(true);
+                          }}
+                        >
+                          <IconEye className="h-4 w-4" />
+                        </Button>
+
+                        {/* Download */}
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleDownload(doc)}
+                        >
+                          <IconDownload className="h-4 w-4" />
+                        </Button>
+
+                        {/* Approve/Reject (if pending) */}
+                        {doc.status === "pending" && (
+                          <>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="text-green-600"
+                              onClick={() => handleStatusChange(doc.id, "approved")}
+                            >
+                              <IconCheck className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="text-red-600"
+                              onClick={() => handleStatusChange(doc.id, "rejected")}
+                            >
+                              <IconX className="h-4 w-4" />
+                            </Button>
+                          </>
+                        )}
+
+                        {/* Delete */}
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button variant="ghost" size="icon" className="text-destructive">
+                              <IconTrash className="h-4 w-4" />
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>حذف المستند</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                هل أنت متأكد من حذف "{doc.titleAr || doc.title}"؟
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>إلغاء</AlertDialogCancel>
+                              <AlertDialogAction
+                                onClick={() => handleDelete(doc.id)}
+                                className="bg-destructive"
+                              >
+                                حذف
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+      {/* Preview Dialog */}
+      <Dialog open={isPreviewOpen} onOpenChange={setIsPreviewOpen}>
+        <DialogContent className="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle>معاينة المستند</DialogTitle>
+          </DialogHeader>
+          {selectedDocument && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <p className="text-muted-foreground">العنوان</p>
+                  <p className="font-medium">{selectedDocument.titleAr || selectedDocument.title}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">الحجم</p>
+                  <p className="font-medium">{formatFileSize(selectedDocument.size)}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">الموظف</p>
+                  <p className="font-medium">{getEmployeeName(selectedDocument.employeeId)}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">التصنيف</p>
+                  <p className="font-medium">
+                    {documentCategoryLabels[selectedDocument.category].ar}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">الحالة</p>
+                  <Badge variant={getStatusVariant(selectedDocument.status)}>
+                    {documentStatusLabels[selectedDocument.status].ar}
+                  </Badge>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">تاريخ الرفع</p>
+                  <p className="font-medium">
+                    {new Date(selectedDocument.uploadedAt).toLocaleDateString("ar-SA")}
+                  </p>
+                </div>
+                {selectedDocument.expiryDate && (
+                  <div>
+                    <p className="text-muted-foreground">تاريخ الانتهاء</p>
+                    <p
+                      className={`font-medium ${
+                        isDocumentExpired(selectedDocument) ? "text-red-600" : ""
+                      }`}
+                    >
+                      {new Date(selectedDocument.expiryDate).toLocaleDateString("ar-SA")}
+                    </p>
+                  </div>
+                )}
+                {selectedDocument.description && (
+                  <div className="col-span-2">
+                    <p className="text-muted-foreground">الوصف</p>
+                    <p className="font-medium">{selectedDocument.description}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}

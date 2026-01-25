@@ -1,0 +1,610 @@
+"use client";
+
+import * as React from "react";
+import {
+  IconPlus,
+  IconSearch,
+  IconFilter,
+  IconClock,
+  IconCheck,
+  IconX,
+  IconCurrencyRiyal,
+  IconUsers,
+  IconFileInvoice,
+  IconDownload,
+  IconSend,
+  IconPlayerPlay,
+  IconAlertCircle,
+  IconChevronDown,
+  IconCalendar,
+} from "@tabler/icons-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Badge } from "@/components/ui/badge";
+import { Label } from "@/components/ui/label";
+import { Progress } from "@/components/ui/progress";
+import {
+  type PayrollPeriod,
+  type PayrollPeriodStatus,
+  payrollPeriodStatusLabels,
+  mockPayrollPeriods,
+  formatCurrency,
+  getMonthName,
+} from "@/lib/types/payroll";
+
+export function PayrollProcessingManager() {
+  const [periods, setPeriods] = React.useState<PayrollPeriod[]>(mockPayrollPeriods);
+  const [searchQuery, setSearchQuery] = React.useState("");
+  const [statusFilter, setStatusFilter] = React.useState<PayrollPeriodStatus | "all">("all");
+  const [yearFilter, setYearFilter] = React.useState<string>("2024");
+  const [isCreateOpen, setIsCreateOpen] = React.useState(false);
+  const [selectedPeriod, setSelectedPeriod] = React.useState<PayrollPeriod | null>(null);
+  const [isProcessing, setIsProcessing] = React.useState(false);
+  const [processProgress, setProcessProgress] = React.useState(0);
+
+  // Create form state
+  const [formYear, setFormYear] = React.useState(new Date().getFullYear().toString());
+  const [formMonth, setFormMonth] = React.useState((new Date().getMonth() + 1).toString());
+  const [formPaymentDate, setFormPaymentDate] = React.useState("");
+
+  const filteredPeriods = periods.filter((p) => {
+    const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      p.nameAr.includes(searchQuery);
+    const matchesStatus = statusFilter === "all" || p.status === statusFilter;
+    const matchesYear = !yearFilter || p.startDate.startsWith(yearFilter);
+    return matchesSearch && matchesStatus && matchesYear;
+  });
+
+  const stats = {
+    total: periods.length,
+    draft: periods.filter((p) => p.status === "draft").length,
+    pending: periods.filter((p) => p.status === "pending_approval").length,
+    paid: periods.filter((p) => p.status === "paid").length,
+    totalPaid: periods
+      .filter((p) => p.status === "paid")
+      .reduce((sum, p) => sum + p.totalNet, 0),
+  };
+
+  const handleCreatePeriod = () => {
+    const year = parseInt(formYear);
+    const month = parseInt(formMonth);
+    const startDate = new Date(year, month - 1, 1);
+    const endDate = new Date(year, month, 0);
+
+    const newPeriod: PayrollPeriod = {
+      id: `payroll-${year}-${month.toString().padStart(2, "0")}`,
+      tenantId: "tenant-1",
+      name: `${getMonthName(month, "en")} ${year}`,
+      nameAr: `${getMonthName(month, "ar")} ${year}`,
+      startDate: startDate.toISOString().split("T")[0],
+      endDate: endDate.toISOString().split("T")[0],
+      paymentDate: formPaymentDate || endDate.toISOString().split("T")[0],
+      status: "draft",
+      totalGross: 0,
+      totalDeductions: 0,
+      totalNet: 0,
+      employeeCount: 0,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    setPeriods((prev) => [newPeriod, ...prev]);
+    setIsCreateOpen(false);
+    setFormPaymentDate("");
+  };
+
+  const handleProcessPeriod = async (periodId: string) => {
+    setIsProcessing(true);
+    setProcessProgress(0);
+
+    // Simulate processing
+    for (let i = 0; i <= 100; i += 10) {
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      setProcessProgress(i);
+    }
+
+    // Update period with mock calculations
+    setPeriods((prev) =>
+      prev.map((p) =>
+        p.id === periodId
+          ? {
+              ...p,
+              status: "processing" as PayrollPeriodStatus,
+              employeeCount: 26,
+              totalGross: 492000,
+              totalDeductions: 47968,
+              totalNet: 444032,
+              processedBy: "current-user",
+              processedAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+            }
+          : p
+      )
+    );
+
+    // After a moment, set to pending approval
+    setTimeout(() => {
+      setPeriods((prev) =>
+        prev.map((p) =>
+          p.id === periodId ? { ...p, status: "pending_approval" as PayrollPeriodStatus } : p
+        )
+      );
+      setIsProcessing(false);
+      setProcessProgress(0);
+    }, 500);
+  };
+
+  const handleStatusChange = (periodId: string, newStatus: PayrollPeriodStatus) => {
+    setPeriods((prev) =>
+      prev.map((p) =>
+        p.id === periodId
+          ? {
+              ...p,
+              status: newStatus,
+              ...(newStatus === "approved" && {
+                approvedBy: "current-user",
+                approvedAt: new Date().toISOString(),
+              }),
+              ...(newStatus === "paid" && {
+                paidBy: "current-user",
+                paidAt: new Date().toISOString(),
+              }),
+              updatedAt: new Date().toISOString(),
+            }
+          : p
+      )
+    );
+  };
+
+  const getStatusBadge = (status: PayrollPeriodStatus) => {
+    const info = payrollPeriodStatusLabels[status];
+    const variants: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
+      draft: "secondary",
+      processing: "outline",
+      pending_approval: "outline",
+      approved: "default",
+      paid: "default",
+      cancelled: "destructive",
+    };
+    return (
+      <Badge variant={variants[status] || "secondary"} className={
+        status === "paid" ? "bg-emerald-500" :
+        status === "approved" ? "bg-green-500" :
+        status === "pending_approval" ? "bg-yellow-500 text-yellow-900" :
+        status === "processing" ? "bg-blue-500" :
+        ""
+      }>
+        {info.ar}
+      </Badge>
+    );
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Stats Cards */}
+      <div className="grid gap-4 md:grid-cols-5">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">إجمالي الفترات</CardTitle>
+            <IconCalendar className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.total}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">مسودات</CardTitle>
+            <IconFileInvoice className="h-4 w-4 text-gray-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-gray-600">{stats.draft}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">بانتظار الموافقة</CardTitle>
+            <IconClock className="h-4 w-4 text-yellow-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-yellow-600">{stats.pending}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">مدفوعة</CardTitle>
+            <IconCheck className="h-4 w-4 text-emerald-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-emerald-600">{stats.paid}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">إجمالي المدفوع</CardTitle>
+            <IconCurrencyRiyal className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-xl font-bold">{formatCurrency(stats.totalPaid)}</div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Toolbar */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-1 items-center gap-2">
+          <div className="relative flex-1 max-w-sm">
+            <IconSearch className="absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="بحث..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="ps-9"
+            />
+          </div>
+          <Select value={yearFilter} onValueChange={setYearFilter}>
+            <SelectTrigger className="w-[120px]">
+              <SelectValue placeholder="السنة" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="2024">2024</SelectItem>
+              <SelectItem value="2023">2023</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select
+            value={statusFilter}
+            onValueChange={(v) => setStatusFilter(v as PayrollPeriodStatus | "all")}
+          >
+            <SelectTrigger className="w-[160px]">
+              <IconFilter className="h-4 w-4 ms-2" />
+              <SelectValue placeholder="الحالة" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">كل الحالات</SelectItem>
+              {Object.entries(payrollPeriodStatusLabels).map(([key, label]) => (
+                <SelectItem key={key} value={key}>
+                  {label.ar}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+          <DialogTrigger asChild>
+            <Button>
+              <IconPlus className="ms-2 h-4 w-4" />
+              فترة جديدة
+            </Button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>إنشاء فترة رواتب جديدة</DialogTitle>
+              <DialogDescription>
+                حدد الشهر والسنة لإنشاء مسير رواتب جديد
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>السنة</Label>
+                  <Select value={formYear} onValueChange={setFormYear}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="2024">2024</SelectItem>
+                      <SelectItem value="2025">2025</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>الشهر</Label>
+                  <Select value={formMonth} onValueChange={setFormMonth}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Array.from({ length: 12 }, (_, i) => (
+                        <SelectItem key={i + 1} value={(i + 1).toString()}>
+                          {getMonthName(i + 1)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>تاريخ الصرف</Label>
+                <Input
+                  type="date"
+                  value={formPaymentDate}
+                  onChange={(e) => setFormPaymentDate(e.target.value)}
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsCreateOpen(false)}>
+                إلغاء
+              </Button>
+              <Button onClick={handleCreatePeriod}>إنشاء</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </div>
+
+      {/* Processing Progress */}
+      {isProcessing && (
+        <Card>
+          <CardContent className="py-4">
+            <div className="flex items-center gap-4">
+              <IconClock className="h-5 w-5 animate-spin text-blue-500" />
+              <div className="flex-1">
+                <p className="text-sm font-medium">جاري معالجة مسير الرواتب...</p>
+                <Progress value={processProgress} className="mt-2" />
+              </div>
+              <span className="text-sm text-muted-foreground">{processProgress}%</span>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Periods Table */}
+      <Card>
+        <CardHeader>
+          <CardTitle>فترات الرواتب</CardTitle>
+          <CardDescription>
+            إدارة ومعالجة مسيرات الرواتب الشهرية
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>الفترة</TableHead>
+                <TableHead>تاريخ الصرف</TableHead>
+                <TableHead>الموظفين</TableHead>
+                <TableHead>الإجمالي</TableHead>
+                <TableHead>الخصومات</TableHead>
+                <TableHead>الصافي</TableHead>
+                <TableHead>الحالة</TableHead>
+                <TableHead className="text-start">إجراءات</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filteredPeriods.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={8} className="text-center py-8">
+                    <IconFileInvoice className="mx-auto h-12 w-12 text-muted-foreground mb-2" />
+                    <p className="text-muted-foreground">لا توجد فترات رواتب</p>
+                  </TableCell>
+                </TableRow>
+              ) : (
+                filteredPeriods.map((period) => (
+                  <TableRow key={period.id}>
+                    <TableCell>
+                      <div>
+                        <p className="font-medium">{period.nameAr}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {period.startDate} - {period.endDate}
+                        </p>
+                      </div>
+                    </TableCell>
+                    <TableCell>{period.paymentDate}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-1">
+                        <IconUsers className="h-4 w-4 text-muted-foreground" />
+                        {period.employeeCount}
+                      </div>
+                    </TableCell>
+                    <TableCell>{formatCurrency(period.totalGross)}</TableCell>
+                    <TableCell className="text-red-600">
+                      -{formatCurrency(period.totalDeductions)}
+                    </TableCell>
+                    <TableCell className="font-bold">
+                      {formatCurrency(period.totalNet)}
+                    </TableCell>
+                    <TableCell>{getStatusBadge(period.status)}</TableCell>
+                    <TableCell>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="sm">
+                            إجراءات
+                            <IconChevronDown className="h-4 w-4 me-1" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          {period.status === "draft" && (
+                            <DropdownMenuItem
+                              onClick={() => handleProcessPeriod(period.id)}
+                              disabled={isProcessing}
+                            >
+                              <IconPlayerPlay className="h-4 w-4 ms-2" />
+                              معالجة المسير
+                            </DropdownMenuItem>
+                          )}
+                          {period.status === "pending_approval" && (
+                            <>
+                              <DropdownMenuItem
+                                onClick={() => handleStatusChange(period.id, "approved")}
+                              >
+                                <IconCheck className="h-4 w-4 ms-2 text-green-500" />
+                                موافقة
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() => handleStatusChange(period.id, "draft")}
+                              >
+                                <IconX className="h-4 w-4 ms-2 text-red-500" />
+                                إرجاع للتعديل
+                              </DropdownMenuItem>
+                            </>
+                          )}
+                          {period.status === "approved" && (
+                            <DropdownMenuItem
+                              onClick={() => handleStatusChange(period.id, "paid")}
+                            >
+                              <IconCurrencyRiyal className="h-4 w-4 ms-2" />
+                              تأكيد الصرف
+                            </DropdownMenuItem>
+                          )}
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            onClick={() => setSelectedPeriod(period)}
+                          >
+                            <IconFileInvoice className="h-4 w-4 ms-2" />
+                            عرض التفاصيل
+                          </DropdownMenuItem>
+                          {period.status === "paid" && (
+                            <>
+                              <DropdownMenuItem>
+                                <IconSend className="h-4 w-4 ms-2" />
+                                إرسال قسائم الرواتب
+                              </DropdownMenuItem>
+                              <DropdownMenuItem>
+                                <IconDownload className="h-4 w-4 ms-2" />
+                                تحميل ملف البنك
+                              </DropdownMenuItem>
+                            </>
+                          )}
+                          {(period.status === "draft" || period.status === "pending_approval") && (
+                            <>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                className="text-destructive"
+                                onClick={() => handleStatusChange(period.id, "cancelled")}
+                              >
+                                <IconX className="h-4 w-4 ms-2" />
+                                إلغاء
+                              </DropdownMenuItem>
+                            </>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+      {/* Period Details Dialog */}
+      <Dialog open={!!selectedPeriod} onOpenChange={() => setSelectedPeriod(null)}>
+        <DialogContent className="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle>تفاصيل مسير الرواتب</DialogTitle>
+            <DialogDescription>{selectedPeriod?.nameAr}</DialogDescription>
+          </DialogHeader>
+          {selectedPeriod && (
+            <div className="space-y-6">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="p-4 bg-muted rounded-lg">
+                  <p className="text-sm text-muted-foreground">فترة المسير</p>
+                  <p className="font-medium">
+                    {selectedPeriod.startDate} - {selectedPeriod.endDate}
+                  </p>
+                </div>
+                <div className="p-4 bg-muted rounded-lg">
+                  <p className="text-sm text-muted-foreground">تاريخ الصرف</p>
+                  <p className="font-medium">{selectedPeriod.paymentDate}</p>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <h4 className="font-semibold">ملخص المسير</h4>
+                <Table>
+                  <TableBody>
+                    <TableRow>
+                      <TableCell>عدد الموظفين</TableCell>
+                      <TableCell className="text-start">{selectedPeriod.employeeCount}</TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell>إجمالي الرواتب</TableCell>
+                      <TableCell className="text-start">
+                        {formatCurrency(selectedPeriod.totalGross)}
+                      </TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell>إجمالي الخصومات</TableCell>
+                      <TableCell className="text-start text-red-600">
+                        -{formatCurrency(selectedPeriod.totalDeductions)}
+                      </TableCell>
+                    </TableRow>
+                    <TableRow className="font-bold">
+                      <TableCell>صافي الرواتب</TableCell>
+                      <TableCell className="text-start text-green-600">
+                        {formatCurrency(selectedPeriod.totalNet)}
+                      </TableCell>
+                    </TableRow>
+                  </TableBody>
+                </Table>
+              </div>
+
+              {selectedPeriod.processedAt && (
+                <div className="text-sm text-muted-foreground">
+                  <p>تمت المعالجة: {new Date(selectedPeriod.processedAt).toLocaleDateString("ar-SA")}</p>
+                  {selectedPeriod.approvedAt && (
+                    <p>تمت الموافقة: {new Date(selectedPeriod.approvedAt).toLocaleDateString("ar-SA")}</p>
+                  )}
+                  {selectedPeriod.paidAt && (
+                    <p>تم الصرف: {new Date(selectedPeriod.paidAt).toLocaleDateString("ar-SA")}</p>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}

@@ -1,0 +1,669 @@
+"use client";
+
+import * as React from "react";
+import {
+  IconPlus,
+  IconEdit,
+  IconTrash,
+  IconSearch,
+  IconCopy,
+  IconCheck,
+  IconPercentage,
+  IconCurrencyRiyal,
+  IconBuildingBank,
+  IconShieldCheck,
+} from "@tabler/icons-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  type SalaryStructure,
+  type SalaryComponentItem,
+  type SalaryComponent,
+  salaryComponentLabels,
+  mockSalaryStructures,
+  formatCurrency,
+} from "@/lib/types/payroll";
+
+export function SalaryStructuresManager() {
+  // TODO: Replace with API call
+  const [structures, setStructures] = React.useState<SalaryStructure[]>(mockSalaryStructures);
+  const [searchQuery, setSearchQuery] = React.useState("");
+  const [isFormOpen, setIsFormOpen] = React.useState(false);
+  const [editingStructure, setEditingStructure] = React.useState<SalaryStructure | null>(null);
+  const [selectedStructure, setSelectedStructure] = React.useState<SalaryStructure | null>(null);
+
+  // Form state
+  const [formName, setFormName] = React.useState("");
+  const [formNameAr, setFormNameAr] = React.useState("");
+  const [formDescription, setFormDescription] = React.useState("");
+  const [formIsDefault, setFormIsDefault] = React.useState(false);
+  const [formIsActive, setFormIsActive] = React.useState(true);
+  const [formComponents, setFormComponents] = React.useState<SalaryComponentItem[]>([
+    { id: "basic", type: "basic", name: "Basic Salary", nameAr: "الراتب الأساسي", isPercentage: false, value: 0, isTaxable: true, isGOSIApplicable: true },
+  ]);
+
+  const filteredStructures = structures.filter(
+    (s) =>
+      s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      s.nameAr.includes(searchQuery)
+  );
+
+  const resetForm = () => {
+    setFormName("");
+    setFormNameAr("");
+    setFormDescription("");
+    setFormIsDefault(false);
+    setFormIsActive(true);
+    setFormComponents([
+      { id: "basic", type: "basic", name: "Basic Salary", nameAr: "الراتب الأساسي", isPercentage: false, value: 0, isTaxable: true, isGOSIApplicable: true },
+    ]);
+    setEditingStructure(null);
+  };
+
+  const openEditForm = (structure: SalaryStructure) => {
+    setEditingStructure(structure);
+    setFormName(structure.name);
+    setFormNameAr(structure.nameAr);
+    setFormDescription(structure.description || "");
+    setFormIsDefault(structure.isDefault);
+    setFormIsActive(structure.isActive);
+    setFormComponents([...structure.components]);
+    setIsFormOpen(true);
+  };
+
+  const handleSubmit = () => {
+    if (!formName || !formNameAr) return;
+
+    if (editingStructure) {
+      setStructures((prev) =>
+        prev.map((s) =>
+          s.id === editingStructure.id
+            ? {
+                ...s,
+                name: formName,
+                nameAr: formNameAr,
+                description: formDescription,
+                isDefault: formIsDefault,
+                isActive: formIsActive,
+                components: formComponents,
+                updatedAt: new Date().toISOString(),
+              }
+            : formIsDefault
+            ? { ...s, isDefault: false }
+            : s
+        )
+      );
+    } else {
+      const newStructure: SalaryStructure = {
+        id: `struct-${Date.now()}`,
+        name: formName,
+        nameAr: formNameAr,
+        description: formDescription,
+        tenantId: "tenant-1",
+        isDefault: formIsDefault,
+        isActive: formIsActive,
+        components: formComponents,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+
+      if (formIsDefault) {
+        setStructures((prev) =>
+          prev.map((s) => ({ ...s, isDefault: false })).concat(newStructure)
+        );
+      } else {
+        setStructures((prev) => [...prev, newStructure]);
+      }
+    }
+
+    setIsFormOpen(false);
+    resetForm();
+  };
+
+  const handleDelete = (id: string) => {
+    setStructures((prev) => prev.filter((s) => s.id !== id));
+  };
+
+  const handleDuplicate = (structure: SalaryStructure) => {
+    const newStructure: SalaryStructure = {
+      ...structure,
+      id: `struct-${Date.now()}`,
+      name: `${structure.name} (Copy)`,
+      nameAr: `${structure.nameAr} (نسخة)`,
+      isDefault: false,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    setStructures((prev) => [...prev, newStructure]);
+  };
+
+  const addComponent = () => {
+    const newComp: SalaryComponentItem = {
+      id: `comp-${Date.now()}`,
+      type: "housing",
+      name: "Housing Allowance",
+      nameAr: "بدل السكن",
+      isPercentage: true,
+      value: 25,
+      isTaxable: true,
+      isGOSIApplicable: true,
+    };
+    setFormComponents((prev) => [...prev, newComp]);
+  };
+
+  const updateComponent = (index: number, updates: Partial<SalaryComponentItem>) => {
+    setFormComponents((prev) =>
+      prev.map((comp, i) => (i === index ? { ...comp, ...updates } : comp))
+    );
+  };
+
+  const removeComponent = (index: number) => {
+    if (formComponents[index].type === "basic") return; // Can't remove basic
+    setFormComponents((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Stats Cards */}
+      <div className="grid gap-4 md:grid-cols-4">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">إجمالي الهياكل</CardTitle>
+            <IconBuildingBank className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{structures.length}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">نشطة</CardTitle>
+            <IconCheck className="h-4 w-4 text-green-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-green-600">
+              {structures.filter((s) => s.isActive).length}
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">الافتراضي</CardTitle>
+            <IconShieldCheck className="h-4 w-4 text-blue-500" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {structures.find((s) => s.isDefault)?.nameAr || "-"}
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">متوسط المكونات</CardTitle>
+            <IconPercentage className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {Math.round(
+                structures.reduce((sum, s) => sum + s.components.length, 0) /
+                  structures.length || 0
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Toolbar */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="relative flex-1 max-w-sm">
+          <IconSearch className="absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            placeholder="بحث في الهياكل..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="ps-9"
+          />
+        </div>
+
+        <Dialog open={isFormOpen} onOpenChange={(open) => {
+          setIsFormOpen(open);
+          if (!open) resetForm();
+        }}>
+          <DialogTrigger asChild>
+            <Button>
+              <IconPlus className="ms-2 h-4 w-4" />
+              هيكل جديد
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>
+                {editingStructure ? "تعديل هيكل الراتب" : "إنشاء هيكل راتب جديد"}
+              </DialogTitle>
+              <DialogDescription>
+                حدد مكونات الراتب ونسبها أو قيمها الثابتة
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="grid gap-4 py-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>الاسم (عربي)</Label>
+                  <Input
+                    value={formNameAr}
+                    onChange={(e) => setFormNameAr(e.target.value)}
+                    placeholder="مثال: الحزمة القياسية"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>الاسم (English)</Label>
+                  <Input
+                    value={formName}
+                    onChange={(e) => setFormName(e.target.value)}
+                    placeholder="e.g., Standard Package"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>الوصف</Label>
+                <Textarea
+                  value={formDescription}
+                  onChange={(e) => setFormDescription(e.target.value)}
+                  placeholder="وصف مختصر لهذا الهيكل..."
+                  rows={2}
+                />
+              </div>
+
+              <div className="flex items-center gap-6">
+                <div className="flex items-center gap-2">
+                  <Switch
+                    checked={formIsActive}
+                    onCheckedChange={setFormIsActive}
+                  />
+                  <Label>نشط</Label>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Switch
+                    checked={formIsDefault}
+                    onCheckedChange={setFormIsDefault}
+                  />
+                  <Label>الافتراضي</Label>
+                </div>
+              </div>
+
+              {/* Components */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <Label className="text-base font-semibold">مكونات الراتب</Label>
+                  <Button type="button" variant="outline" size="sm" onClick={addComponent}>
+                    <IconPlus className="h-4 w-4 ms-1" />
+                    إضافة مكون
+                  </Button>
+                </div>
+
+                <div className="space-y-3">
+                  {formComponents.map((comp, index) => (
+                    <div
+                      key={comp.id}
+                      className="p-4 border rounded-lg space-y-3 bg-muted/30"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="font-medium">{comp.nameAr}</span>
+                        {comp.type !== "basic" && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-destructive"
+                            onClick={() => removeComponent(index)}
+                          >
+                            <IconTrash className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
+
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                        <div className="space-y-1">
+                          <Label className="text-xs">النوع</Label>
+                          <Select
+                            value={comp.type}
+                            onValueChange={(v) => {
+                              const type = v as SalaryComponent;
+                              updateComponent(index, {
+                                type,
+                                name: salaryComponentLabels[type].en,
+                                nameAr: salaryComponentLabels[type].ar,
+                              });
+                            }}
+                            disabled={comp.type === "basic"}
+                          >
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {Object.entries(salaryComponentLabels).map(([key, label]) => (
+                                <SelectItem key={key} value={key} disabled={key === "basic" && comp.type !== "basic"}>
+                                  {label.ar}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        {comp.type !== "basic" && (
+                          <>
+                            <div className="space-y-1">
+                              <Label className="text-xs">القيمة</Label>
+                              <div className="flex items-center gap-2">
+                                <Input
+                                  type="number"
+                                  value={comp.value}
+                                  onChange={(e) =>
+                                    updateComponent(index, { value: Number(e.target.value) })
+                                  }
+                                  className="flex-1"
+                                />
+                                <span className="text-sm text-muted-foreground">
+                                  {comp.isPercentage ? "%" : "ر.س"}
+                                </span>
+                              </div>
+                            </div>
+
+                            <div className="space-y-1">
+                              <Label className="text-xs">نوع القيمة</Label>
+                              <Select
+                                value={comp.isPercentage ? "percentage" : "fixed"}
+                                onValueChange={(v) =>
+                                  updateComponent(index, { isPercentage: v === "percentage" })
+                                }
+                              >
+                                <SelectTrigger>
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="percentage">نسبة من الأساسي</SelectItem>
+                                  <SelectItem value="fixed">مبلغ ثابت</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          </>
+                        )}
+
+                        <div className="space-y-2">
+                          <Label className="text-xs">خاضع لـ</Label>
+                          <div className="flex flex-col gap-1">
+                            <div className="flex items-center gap-2">
+                              <Checkbox
+                                id={`gosi-${index}`}
+                                checked={comp.isGOSIApplicable}
+                                onCheckedChange={(checked) =>
+                                  updateComponent(index, { isGOSIApplicable: !!checked })
+                                }
+                              />
+                              <label htmlFor={`gosi-${index}`} className="text-xs">
+                                التأمينات
+                              </label>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Checkbox
+                                id={`tax-${index}`}
+                                checked={comp.isTaxable}
+                                onCheckedChange={(checked) =>
+                                  updateComponent(index, { isTaxable: !!checked })
+                                }
+                              />
+                              <label htmlFor={`tax-${index}`} className="text-xs">
+                                الضريبة
+                              </label>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsFormOpen(false)}>
+                إلغاء
+              </Button>
+              <Button onClick={handleSubmit} disabled={!formName || !formNameAr}>
+                {editingStructure ? "حفظ التعديلات" : "إنشاء الهيكل"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </div>
+
+      {/* Structures Table */}
+      <Card>
+        <CardHeader>
+          <CardTitle>هياكل الرواتب</CardTitle>
+          <CardDescription>قائمة بجميع هياكل الرواتب المتاحة</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>الهيكل</TableHead>
+                <TableHead>المكونات</TableHead>
+                <TableHead>الحالة</TableHead>
+                <TableHead>افتراضي</TableHead>
+                <TableHead className="text-start">إجراءات</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filteredStructures.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center py-8">
+                    <IconBuildingBank className="mx-auto h-12 w-12 text-muted-foreground mb-2" />
+                    <p className="text-muted-foreground">لا توجد هياكل رواتب</p>
+                  </TableCell>
+                </TableRow>
+              ) : (
+                filteredStructures.map((structure) => (
+                  <TableRow key={structure.id}>
+                    <TableCell>
+                      <div>
+                        <p className="font-medium">{structure.nameAr}</p>
+                        <p className="text-sm text-muted-foreground">{structure.name}</p>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex flex-wrap gap-1">
+                        {structure.components.slice(0, 3).map((comp) => (
+                          <Badge key={comp.id} variant="outline" className="text-xs">
+                            {comp.nameAr}
+                            {comp.type !== "basic" && (
+                              <span className="me-1">
+                                ({comp.isPercentage ? `${comp.value}%` : formatCurrency(comp.value)})
+                              </span>
+                            )}
+                          </Badge>
+                        ))}
+                        {structure.components.length > 3 && (
+                          <Badge variant="secondary" className="text-xs">
+                            +{structure.components.length - 3}
+                          </Badge>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={structure.isActive ? "default" : "secondary"}>
+                        {structure.isActive ? "نشط" : "غير نشط"}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      {structure.isDefault && (
+                        <Badge variant="outline" className="text-blue-600">
+                          <IconCheck className="h-3 w-3 ms-1" />
+                          افتراضي
+                        </Badge>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => setSelectedStructure(structure)}
+                        >
+                          <IconCurrencyRiyal className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => openEditForm(structure)}
+                        >
+                          <IconEdit className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleDuplicate(structure)}
+                        >
+                          <IconCopy className="h-4 w-4" />
+                        </Button>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="text-destructive"
+                              disabled={structure.isDefault}
+                            >
+                              <IconTrash className="h-4 w-4" />
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>حذف الهيكل</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                هل أنت متأكد من حذف "{structure.nameAr}"؟
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>إلغاء</AlertDialogCancel>
+                              <AlertDialogAction
+                                onClick={() => handleDelete(structure.id)}
+                                className="bg-destructive"
+                              >
+                                حذف
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+      {/* Preview Dialog */}
+      <Dialog open={!!selectedStructure} onOpenChange={() => setSelectedStructure(null)}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>معاينة الهيكل</DialogTitle>
+            <DialogDescription>{selectedStructure?.nameAr}</DialogDescription>
+          </DialogHeader>
+          {selectedStructure && (
+            <div className="space-y-4">
+              <div className="p-4 bg-muted rounded-lg">
+                <p className="text-sm text-muted-foreground mb-2">مثال: راتب أساسي 10,000 ر.س</p>
+                <Table>
+                  <TableBody>
+                    <TableRow>
+                      <TableCell className="font-medium">الراتب الأساسي</TableCell>
+                      <TableCell className="text-start">{formatCurrency(10000)}</TableCell>
+                    </TableRow>
+                    {selectedStructure.components
+                      .filter((c) => c.type !== "basic")
+                      .map((comp) => (
+                        <TableRow key={comp.id}>
+                          <TableCell>{comp.nameAr}</TableCell>
+                          <TableCell className="text-start">
+                            {comp.isPercentage
+                              ? formatCurrency((10000 * comp.value) / 100)
+                              : formatCurrency(comp.value)}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    <TableRow className="font-bold border-t-2">
+                      <TableCell>الإجمالي</TableCell>
+                      <TableCell className="text-start">
+                        {formatCurrency(
+                          10000 +
+                            selectedStructure.components
+                              .filter((c) => c.type !== "basic")
+                              .reduce(
+                                (sum, c) =>
+                                  sum + (c.isPercentage ? (10000 * c.value) / 100 : c.value),
+                                0
+                              )
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
