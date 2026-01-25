@@ -9,6 +9,7 @@ import { Building2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { marketingNav } from "@/components/marketing/nav";
+import { startLocaleTransition } from "@/components/locale-transition";
 
 function getLocaleFromCookie(): "ar" | "en" {
   if (typeof document === "undefined") return "ar";
@@ -37,7 +38,9 @@ export function MarketingHeader() {
     const hasEnPrefix = pathname === "/en" || pathname.startsWith("/en/");
     const stripped = hasEnPrefix ? (pathname.replace(/^\/en(?=\/|$)/, "") || "/") : pathname;
     const target = next === "en" ? (stripped === "/" ? "/en" : `/en${stripped}`) : stripped;
+    startLocaleTransition();
     router.push(target);
+    router.refresh();
   };
 
   return (

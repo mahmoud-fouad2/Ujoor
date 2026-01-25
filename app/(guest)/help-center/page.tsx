@@ -75,6 +75,103 @@ export default async function PublicHelpCenterPage() {
         </Card>
       </div>
 
+      <div className="mt-8 grid gap-4 md:grid-cols-3">
+        <Card>
+          <CardHeader>
+            <CardTitle>{isAr ? "الأمان" : "Security"}</CardTitle>
+          </CardHeader>
+          <CardContent className="text-sm text-muted-foreground">
+            {isAr
+              ? "عزل الشركات، أدوار وصلاحيات، وتدقيق عمليات حساسة حسب الإعداد."
+              : "Tenant isolation, roles/permissions, and auditable sensitive actions."}
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle>{isAr ? "الاستيراد والتصدير" : "Import & export"}</CardTitle>
+          </CardHeader>
+          <CardContent className="text-sm text-muted-foreground">
+            {isAr
+              ? "استيراد بيانات أساسية وتصدير تقارير وملفات الرواتب حسب الباقة."
+              : "Import core data and export reports/payroll files depending on plan."}
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle>{isAr ? "التكاملات" : "Integrations"}</CardTitle>
+          </CardHeader>
+          <CardContent className="text-sm text-muted-foreground">
+            {isAr
+              ? "تكاملات وتخصيصات لباقة المؤسسات (API/SSO/ملفات مخصصة)."
+              : "Enterprise integrations and customizations (API/SSO/custom exports)."}
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="mt-10 grid gap-6 lg:grid-cols-2">
+        <div className="rounded-xl border bg-card p-6">
+          <h2 className="text-lg font-semibold">{isAr ? "ابدأ خلال 10 دقائق" : "Get started in 10 minutes"}</h2>
+          <p className="mt-2 text-sm text-muted-foreground">
+            {isAr
+              ? "خطوات سريعة تساعدك تجهز بيئة شركتك وتبدأ التشغيل."
+              : "A quick checklist to set up your workspace and go live."}
+          </p>
+          <ol className="mt-4 space-y-2 text-sm text-muted-foreground">
+            <li>{isAr ? "1) أنشئ/حدّد الشركة (Tenant)" : "1) Create/select your tenant"}</li>
+            <li>{isAr ? "2) أضف المستخدمين وحدد الأدوار" : "2) Invite users and set roles"}</li>
+            <li>{isAr ? "3) أضف الموظفين والأقسام" : "3) Add employees and departments"}</li>
+            <li>{isAr ? "4) اضبط الورديات وسياسة الحضور" : "4) Configure shifts and attendance policy"}</li>
+            <li>{isAr ? "5) جهّز هياكل الرواتب (إن لزم)" : "5) Configure payroll structures (optional)"}</li>
+          </ol>
+          <div className="mt-5 flex flex-wrap gap-2">
+            <Button asChild variant="secondary">
+              <Link href={`${p}/screenshots`}>{isAr ? "استعراض النظام" : "Product tour"}</Link>
+            </Button>
+            <Button asChild variant="outline">
+              <Link href={`${p}/faq`}>{isAr ? "الأسئلة الشائعة" : "FAQ"}</Link>
+            </Button>
+            <Button asChild>
+              <Link href={`${p}/request-demo`}>{isAr ? "اطلب عرضًا" : "Request a demo"}</Link>
+            </Button>
+          </div>
+        </div>
+
+        <div className="rounded-xl border bg-card p-6">
+          <h2 className="text-lg font-semibold">{isAr ? "مقالات شائعة" : "Popular articles"}</h2>
+          <p className="mt-2 text-sm text-muted-foreground">
+            {isAr
+              ? "مواضيع متكررة تساعدك تحل المشاكل بسرعة."
+              : "Common topics that help you resolve issues quickly."}
+          </p>
+          <div className="mt-4 grid gap-3">
+            <Link href={`${p}/support`} className="rounded-lg border bg-background p-4 hover:bg-muted/40">
+              <div className="font-medium">{isAr ? "كتابة تذكرة دعم احترافية" : "How to write a great support ticket"}</div>
+              <div className="mt-1 text-sm text-muted-foreground">
+                {isAr
+                  ? "المعلومات التي نحتاجها لتسريع الحل (slug، خطوات، لقطة شاشة)."
+                  : "What we need to debug faster (slug, steps, screenshots)."}
+              </div>
+            </Link>
+            <Link href={`${p}/faq`} className="rounded-lg border bg-background p-4 hover:bg-muted/40">
+              <div className="font-medium">{isAr ? "الأمان وتعدد الشركات" : "Security & multi-tenancy"}</div>
+              <div className="mt-1 text-sm text-muted-foreground">
+                {isAr
+                  ? "كيف يتم عزل البيانات وصلاحيات المستخدمين."
+                  : "How data isolation and user roles work."}
+              </div>
+            </Link>
+            <Link href={`${p}/pricing`} className="rounded-lg border bg-background p-4 hover:bg-muted/40">
+              <div className="font-medium">{isAr ? "اختيار الباقة المناسبة" : "Choosing the right plan"}</div>
+              <div className="mt-1 text-sm text-muted-foreground">
+                {isAr
+                  ? "إرشادات عملية حسب حجم شركتك والميزات المطلوبة."
+                  : "A practical guide based on size and required modules."}
+              </div>
+            </Link>
+          </div>
+        </div>
+      </div>
+
       <div className="mt-10 rounded-xl border bg-card p-6">
         <h2 className="text-lg font-semibold">{isAr ? "هل تحتاج مساعدة داخل النظام؟" : "Need help inside the app?"}</h2>
         <p className="mt-2 text-sm text-muted-foreground">

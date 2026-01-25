@@ -3,6 +3,8 @@
 import { Globe } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useEffect, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { startLocaleTransition } from "@/components/locale-transition";
 
 type Locale = "ar" | "en";
 
@@ -20,6 +22,8 @@ function getCookie(name: string): string | undefined {
 }
 
 export function LocaleToggle({ variant = "ghost" }: { variant?: "ghost" | "outline" }) {
+  const router = useRouter();
+  const pathname = usePathname();
   const [locale, setLocale] = useState<Locale>("ar");
 
   useEffect(() => {
@@ -30,7 +34,14 @@ export function LocaleToggle({ variant = "ghost" }: { variant?: "ghost" | "outli
   const toggleLocale = () => {
     const next: Locale = locale === "ar" ? "en" : "ar";
     setCookie("ujoors_locale", next);
-    window.location.reload();
+
+    const hasEnPrefix = pathname === "/en" || pathname.startsWith("/en/");
+    const stripped = hasEnPrefix ? (pathname.replace(/^\/en(?=\/|$)/, "") || "/") : pathname;
+    const target = next === "en" ? (stripped === "/" ? "/en" : `/en${stripped}`) : stripped;
+
+    startLocaleTransition();
+    router.push(target);
+    router.refresh();
   };
 
   return (

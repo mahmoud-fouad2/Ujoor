@@ -1,54 +1,68 @@
 import type { Metadata } from "next";
 import { marketingMetadata } from "@/lib/marketing/seo";
 import { ScreenshotsGallery } from "./gallery";
+import { getAppLocale } from "@/lib/i18n/locale";
 
 export async function generateMetadata(): Promise<Metadata> {
   return marketingMetadata({
     path: "/screenshots",
-    titleAr: "سكرينشوتس | أجور",
-    titleEn: "Screenshots | Ujoors",
-    descriptionAr: "لقطات من واجهات أجور: لوحة التحكم، الموظفين، والرواتب.",
-    descriptionEn: "UI previews of Ujoors: dashboard, employees, and payroll.",
+    titleAr: "استعراض النظام | أجور",
+    titleEn: "Product Tour | Ujoors",
+    descriptionAr: "معرض لواجهات أجور: لوحة التحكم، الموظفين، الحضور، والرواتب.",
+    descriptionEn: "A guided UI tour of Ujoors: dashboard, employees, attendance, and payroll.",
   });
 }
 
 const desktopShots = [
   {
+    src: "/preview.png",
+    titleAr: "لوحة التحكم (معاينة)",
+    titleEn: "Dashboard (preview)",
+  },
+  {
+    src: "/preview2.png",
+    titleAr: "تقارير ولوحات",
+    titleEn: "Reports & insights",
+  },
+  {
     src: "/images/marketing/screenshot-dashboard.svg",
-    titleAr: "لوحة التحكم",
-    titleEn: "Dashboard",
+    titleAr: "الواجهة (توضيحية)",
+    titleEn: "UI (illustration)",
   },
   {
     src: "/images/marketing/screenshot-employees.svg",
-    titleAr: "الموظفين",
-    titleEn: "Employees",
+    titleAr: "الموظفون (توضيحية)",
+    titleEn: "Employees (illustration)",
   },
   {
     src: "/images/marketing/screenshot-payroll.svg",
-    titleAr: "الرواتب",
-    titleEn: "Payroll",
+    titleAr: "الرواتب (توضيحية)",
+    titleEn: "Payroll (illustration)",
   },
 ];
 
 const mobileShots = [
   {
     src: "/images/marketing/mobile-dashboard.svg",
-    titleAr: "موبايل: لوحة التحكم",
-    titleEn: "Mobile: Dashboard",
+    titleAr: "موبايل: لوحة التحكم (توضيحية)",
+    titleEn: "Mobile: Dashboard (illustration)",
   },
   {
     src: "/images/marketing/mobile-employees.svg",
-    titleAr: "موبايل: الموظفين",
-    titleEn: "Mobile: Employees",
+    titleAr: "موبايل: الموظفون (توضيحية)",
+    titleEn: "Mobile: Employees (illustration)",
   },
   {
     src: "/images/marketing/mobile-payroll.svg",
-    titleAr: "موبايل: الرواتب",
-    titleEn: "Mobile: Payroll",
+    titleAr: "موبايل: الرواتب (توضيحية)",
+    titleEn: "Mobile: Payroll (illustration)",
   },
 ];
 
-export default function ScreenshotsPage() {
+export default async function ScreenshotsPage() {
+  const locale = await getAppLocale();
+  const isAr = locale === "ar";
+
   return (
     <main className="bg-background">
       <section className="relative overflow-hidden border-b">
@@ -58,16 +72,20 @@ export default function ScreenshotsPage() {
         </div>
         <div className="container mx-auto px-4 py-14">
         <div className="mx-auto max-w-3xl text-center">
-          <h1 className="text-3xl font-bold sm:text-4xl">سكرينشوتس</h1>
+          <h1 className="text-3xl font-bold sm:text-4xl">{isAr ? "استعراض النظام" : "Product tour"}</h1>
           <p className="mt-3 text-muted-foreground">
-            معرض لواجهات أجور — اضغط على أي لقطة للتكبير.
+            {isAr
+              ? "معرض لواجهات أجور — اضغط على أي لقطة للتكبير."
+              : "A quick look at Ujoors UI — click any item to zoom."}
           </p>
         </div>
 
-          <ScreenshotsGallery desktop={desktopShots} mobile={mobileShots} />
+          <ScreenshotsGallery locale={locale} desktop={desktopShots} mobile={mobileShots} />
 
           <p className="mx-auto mt-8 max-w-3xl text-center text-xs text-muted-foreground">
-            ملاحظة: هذه لقطات توضيحية محسّنة (SVG). لو عندك لقطات حقيقية من الداشبورد/الموبايل ابعتها وأنا أستبدلها فورًا.
+            {isAr
+              ? "ملاحظة: بعضها معاينات من المشروع (PNG) والباقي لقطات توضيحية (SVG). لو عندك لقطات حقيقية من الداشبورد/الموبايل ابعتها وأنا أستبدلها فورًا."
+              : "Note: This gallery mixes real previews (PNG) and illustrative shots (SVG). If you have real production screenshots, send them and we’ll replace the placeholders."}
           </p>
         </div>
       </section>

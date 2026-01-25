@@ -1,10 +1,10 @@
 import Providers from "@/components/providers";
 import type { Metadata } from "next";
-import { cookies } from "next/headers";
 import localFont from "next/font/local";
 import "./globals.css";
 
 import { getSiteUrl } from "@/lib/marketing/site";
+import { getAppLocale } from "@/lib/i18n/locale";
 
 export const metadata: Metadata = {
   metadataBase: new URL(getSiteUrl()),
@@ -67,8 +67,7 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const cookieStore = await cookies();
-  const locale = cookieStore.get("ujoors_locale")?.value === "en" ? "en" : "ar";
+  const locale = await getAppLocale();
   const dir = locale === "ar" ? "rtl" : "ltr";
 
   return (

@@ -37,6 +37,18 @@ R2_SECRET_ACCESS_KEY="..."
 
 # Auth
 NEXTAUTH_SECRET="..." # openssl rand -base64 32
+
+# Mobile Auth (Bearer JWT)
+# استخدم قيمة قوية (32+ بايت). مثال (Node): node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
+MOBILE_JWT_SECRET="..."
+
+# Mobile Refresh Tokens (hashing/rotation)
+# سر مختلف عن MOBILE_JWT_SECRET
+MOBILE_REFRESH_TOKEN_SECRET="..."
+
+# Optional
+# MOBILE_REFRESH_TOKEN_TTL_DAYS=30
+# MOBILE_CHALLENGE_TTL_SECONDS=120
 ```
 
 ### 3. إعداد قاعدة البيانات
@@ -130,14 +142,20 @@ NEXTAUTH_URL=https://your-app.onrender.com
 NEXT_PUBLIC_APP_URL=https://your-app.onrender.com
 NEXT_PUBLIC_RECAPTCHA_SITE_KEY=6Lfwj00sAAAAAFHU_cOvEPiLnLox4pMZMz22aHA7
 RECAPTCHA_SECRET_KEY=6Lfwj00sAAAAAFiG_yMMN4YWHVu6S9QQ8_Ztxu8y
+
+# Mobile Auth
+MOBILE_JWT_SECRET=...
+MOBILE_REFRESH_TOKEN_SECRET=...
+
+# Optional
+# MOBILE_REFRESH_TOKEN_TTL_DAYS=30
+# MOBILE_CHALLENGE_TTL_SECONDS=120
 ```
 
-### 4. شغّل الـ Migration بعد الـ Deploy
+### 4. قاعدة البيانات على Render
 
-```bash
-pnpm db:migrate:prod
-pnpm db:seed
-```
+- البناء الحالي يشغّل `prisma db push` أثناء `pnpm build` لمزامنة الـ schema تلقائيًا (مناسب لقيود Render Free Tier بدون SSH).
+- لو حابب تعتمد على migrations لاحقًا، فعّل `prisma migrate deploy` ضمن Pipeline خاصة بك.
 
 ## 📜 الأوامر المتاحة
 

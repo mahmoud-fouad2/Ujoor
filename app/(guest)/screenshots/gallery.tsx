@@ -25,14 +25,17 @@ export type MarketingShot = {
 type View = "desktop" | "mobile";
 
 type Props = {
+  locale: "ar" | "en";
   desktop: MarketingShot[];
   mobile: MarketingShot[];
 };
 
-export function ScreenshotsGallery({ desktop, mobile }: Props) {
+export function ScreenshotsGallery({ locale, desktop, mobile }: Props) {
   const [view, setView] = React.useState<View>("desktop");
   const [open, setOpen] = React.useState(false);
   const [activeIndex, setActiveIndex] = React.useState(0);
+
+  const isAr = locale === "ar";
 
   const shots = view === "desktop" ? desktop : mobile;
 
@@ -103,7 +106,7 @@ export function ScreenshotsGallery({ desktop, mobile }: Props) {
             <div className="pointer-events-none absolute inset-0 ring-1 ring-inset ring-white/5" />
             <div className="absolute end-3 top-3 inline-flex items-center gap-2 rounded-full bg-black/35 px-3 py-1 text-xs text-white backdrop-blur">
               <Maximize2 className="h-3.5 w-3.5" />
-              <span>Preview</span>
+              <span>{isAr ? "معاينة" : "Preview"}</span>
             </div>
             <div className="absolute bottom-3 start-3">
               <p className="text-sm font-semibold text-white drop-shadow">{s.titleAr}</p>
@@ -121,8 +124,8 @@ export function ScreenshotsGallery({ desktop, mobile }: Props) {
         <Tabs value={view} onValueChange={(v) => setView(v as View)}>
           <div className="flex items-center justify-center">
             <TabsList>
-              <TabsTrigger value="desktop">Desktop</TabsTrigger>
-              <TabsTrigger value="mobile">Mobile</TabsTrigger>
+              <TabsTrigger value="desktop">{isAr ? "سطح المكتب" : "Desktop"}</TabsTrigger>
+              <TabsTrigger value="mobile">{isAr ? "الجوال" : "Mobile"}</TabsTrigger>
             </TabsList>
           </div>
           <TabsContent value="desktop">
@@ -141,14 +144,28 @@ export function ScreenshotsGallery({ desktop, mobile }: Props) {
               <DialogHeader className="text-start">
                 <DialogTitle className="text-base sm:text-lg">{active?.titleAr}</DialogTitle>
                 <DialogDescription className="text-xs sm:text-sm">
-                  Desktop/Mobile • استخدم الأسهم أو اسحب للتنقل • {activeIndex + 1} / {shots.length}
+                    {isAr
+                      ? `سطح المكتب/الجوال • استخدم الأسهم أو اسحب للتنقل • ${activeIndex + 1} / ${shots.length}`
+                      : `Desktop/Mobile • Use arrows or swipe • ${activeIndex + 1} / ${shots.length}`}
                 </DialogDescription>
               </DialogHeader>
               <div className="flex items-center gap-2">
-                <Button variant="outline" size="icon" onClick={prev} disabled={!canPrev} aria-label="Previous">
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={prev}
+                  disabled={!canPrev}
+                  aria-label={isAr ? "السابق" : "Previous"}
+                >
                   <ChevronLeft className="h-4 w-4" />
                 </Button>
-                <Button variant="outline" size="icon" onClick={next} disabled={!canNext} aria-label="Next">
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={next}
+                  disabled={!canNext}
+                  aria-label={isAr ? "التالي" : "Next"}
+                >
                   <ChevronRight className="h-4 w-4" />
                 </Button>
               </div>
