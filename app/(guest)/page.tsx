@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { TenantAccess } from "@/components/tenant-access";
 
 const features = [
   {
@@ -81,7 +82,16 @@ const plans = [
   },
 ];
 
-export default function LandingPage() {
+export default async function LandingPage({
+  searchParams,
+}: {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const sp = searchParams ? await searchParams : undefined;
+  const tenantRequired = sp?.tenantRequired === "1";
+  const nextPathRaw = sp?.next;
+  const nextPath = typeof nextPathRaw === "string" ? nextPathRaw : undefined;
+
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
@@ -117,6 +127,16 @@ export default function LandingPage() {
 
       {/* Hero */}
       <section className="container mx-auto px-4 py-20 text-center">
+        {tenantRequired ? (
+          <div className="mx-auto mb-8 max-w-2xl rounded-xl border bg-muted/40 p-4 text-right">
+            <p className="mb-3 text-sm text-muted-foreground">
+              لازم تختار شركتك (Tenant) قبل الدخول للداشبورد على هذا الدومين.
+              لو عندك demo tenant استخدم: <span className="font-medium">demo</span>
+            </p>
+            <TenantAccess nextPath={nextPath} />
+          </div>
+        ) : null}
+
         <h1 className="mb-6 text-4xl font-bold leading-tight sm:text-5xl lg:text-6xl">
           منصة إدارة الموارد البشرية
           <br />
