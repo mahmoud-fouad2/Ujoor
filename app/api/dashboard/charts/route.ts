@@ -106,7 +106,7 @@ export async function GET(request: NextRequest) {
       where: { id: { in: leavesByType.map((l: LeavesByTypeRow) => l.leaveTypeId) } },
     });
 
-    const leaveData = leavesByType.map((item) => {
+    const leaveData = leavesByType.map((item: LeavesByTypeRow) => {
       const leaveType = leaveTypes.find((lt) => lt.id === item.leaveTypeId);
       return {
         name: leaveType?.name || "Unknown",
