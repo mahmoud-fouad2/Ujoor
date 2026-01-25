@@ -1,10 +1,13 @@
 import { getAppLocale } from "@/lib/i18n/locale";
 import { getText } from "@/lib/i18n/text";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
 
 export default async function HelpCenterPage() {
   const locale = await getAppLocale();
   const t = getText(locale);
+  const p = locale === "en" ? "/en" : "";
 
   return (
     <div className="space-y-6">
@@ -49,6 +52,22 @@ export default async function HelpCenterPage() {
           </CardContent>
         </Card>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>{locale === "ar" ? "الدعم الفني" : "Support"}</CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm text-muted-foreground">
+            {locale === "ar"
+              ? "إذا واجهت مشكلة داخل النظام، افتح تذكرة دعم وسيتم متابعتها من فريقنا."
+              : "If you hit an issue, open a support ticket and our team will follow up."}
+          </p>
+          <Button asChild>
+            <Link href={`${p}/dashboard/support`}>{locale === "ar" ? "فتح / متابعة التذاكر" : "Open / view tickets"}</Link>
+          </Button>
+        </CardContent>
+      </Card>
     </div>
   );
 }

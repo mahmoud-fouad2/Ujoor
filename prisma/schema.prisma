@@ -52,9 +52,50 @@ model Tenant {
   leaveBalances     LeaveBalance[]
   documents         Document[]
   announcements     Announcement[]
+  supportTickets    SupportTicket[]
+  workLocations     TenantWorkLocation[]
+  attendancePolicy  TenantAttendancePolicy?
   
   @@index([slug])
   @@index([status])
+}
+
+model TenantWorkLocation {
+  id           String   @id @default(cuid())
+  tenantId     String
+  tenant       Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  name         String
+  nameAr       String?
+  address      String?
+
+  lat          Decimal  @db.Decimal(10, 8)
+  lng          Decimal  @db.Decimal(11, 8)
+  radiusMeters Int      @default(150)
+
+  isActive     Boolean  @default(true)
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  checkInRecords  AttendanceRecord[] @relation("CheckInWorkLocation")
+  checkOutRecords AttendanceRecord[] @relation("CheckOutWorkLocation")
+
+  @@index([tenantId])
+  @@index([tenantId, isActive])
+}
+
+model TenantAttendancePolicy {
+  id                          String   @id @default(cuid())
+  tenantId                    String   @unique
+  tenant                      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  enforceGeofence             Boolean  @default(false)
+  allowCheckInWithoutLocation Boolean  @default(true)
+  maxAccuracyMeters           Int      @default(50)
+
+  createdAt                   DateTime @default(now())
+  updatedAt                   DateTime @updatedAt
 }
 
 enum TenantPlan {
@@ -110,6 +151,9 @@ model User {
   employee          Employee?
   sessions          Session[]
   auditLogs         AuditLog[]
+  createdTickets    SupportTicket[] @relation("CreatedTickets")
+  assignedTickets   SupportTicket[] @relation("AssignedTickets")
+  ticketMessages    TicketMessage[]
   
   @@index([tenantId])
   @@index([email])
@@ -381,9 +425,13 @@ model AttendanceRecord {
   checkInLat        Decimal? @db.Decimal(10, 8)
   checkInLng        Decimal? @db.Decimal(11, 8)
   checkInAddress    String?
+  checkInLocationId String?
+  checkInLocation   TenantWorkLocation? @relation("CheckInWorkLocation", fields: [checkInLocationId], references: [id], onDelete: SetNull)
   checkOutLat       Decimal? @db.Decimal(10, 8)
   checkOutLng       Decimal? @db.Decimal(11, 8)
   checkOutAddress   String?
+  checkOutLocationId String?
+  checkOutLocation   TenantWorkLocation? @relation("CheckOutWorkLocation", fields: [checkOutLocationId], references: [id], onDelete: SetNull)
   
   notes             String?
   
@@ -399,6 +447,8 @@ model AttendanceRecord {
   @@index([employeeId])
   @@index([date])
   @@index([status])
+  @@index([checkInLocationId])
+  @@index([checkOutLocationId])
 }
 
 enum AttendanceStatus {
@@ -778,4 +828,71 @@ enum TenantRequestStatus {
   PENDING
   APPROVED
   REJECTED
+}
+
+// =============================================
+// SUPPORT - TICKETS
+// =============================================
+
+model SupportTicket {
+  id            String   @id @default(cuid())
+
+  tenantId      String
+  tenant        Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  createdById   String
+  createdBy     User     @relation("CreatedTickets", fields: [createdById], references: [id], onDelete: Restrict)
+
+  assignedToId  String?
+  assignedTo    User?    @relation("AssignedTickets", fields: [assignedToId], references: [id], onDelete: SetNull)
+
+  subject       String
+  category      String?
+  priority      TicketPriority @default(NORMAL)
+  status        TicketStatus   @default(OPEN)
+
+  lastMessageAt DateTime @default(now())
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  messages      TicketMessage[]
+
+  @@index([tenantId])
+  @@index([tenantId, status])
+  @@index([createdById])
+  @@index([assignedToId])
+  @@index([lastMessageAt])
+}
+
+model TicketMessage {
+  id         String   @id @default(cuid())
+
+  ticketId   String
+  ticket     SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  senderId   String
+  sender     User     @relation(fields: [senderId], references: [id], onDelete: Cascade)
+
+  body       String
+  isInternal Boolean  @default(false)
+
+  createdAt  DateTime @default(now())
+
+  @@index([ticketId, createdAt])
+  @@index([senderId])
+}
+
+enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  WAITING_CUSTOMER
+  RESOLVED
+  CLOSED
+}
+
+enum TicketPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
 }

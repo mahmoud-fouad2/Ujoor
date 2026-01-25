@@ -3,6 +3,7 @@
  * الصفحة الرئيسية للمنصة
  */
 
+import type { Metadata } from "next";
 import Link from "next/link";
 import { 
   Building2, 
@@ -17,6 +18,19 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { TenantAccess } from "@/components/tenant-access";
+import { marketingMetadata } from "@/lib/marketing/seo";
+
+export async function generateMetadata(): Promise<Metadata> {
+  return marketingMetadata({
+    path: "/",
+    titleAr: "أجور | منصة الموارد البشرية والرواتب والحضور",
+    titleEn: "Ujoors | HR, Payroll & Attendance Platform",
+    descriptionAr:
+      "أجور منصة سحابية لإدارة الموظفين والحضور والرواتب مع تجربة عربية/إنجليزية ودعم متعدد الشركات.",
+    descriptionEn:
+      "Ujoors is a cloud HR platform for employees, attendance and payroll with Arabic/English UX and multi-tenant support.",
+  });
+}
 
 const features = [
   {
@@ -93,40 +107,10 @@ export default async function LandingPage({
   const nextPath = typeof nextPathRaw === "string" ? nextPathRaw : undefined;
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur">
-        <div className="container mx-auto flex h-16 items-center justify-between px-4">
-          <div className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
-              <Building2 className="h-5 w-5 text-primary-foreground" />
-            </div>
-            <span className="text-xl font-bold">أجور</span>
-            <span className="text-xl font-light text-muted-foreground">Ujoors</span>
-          </div>
-          <nav className="flex items-center gap-4">
-            <Link href="#features" className="text-sm text-muted-foreground hover:text-foreground">
-              المميزات
-            </Link>
-            <Link href="#pricing" className="text-sm text-muted-foreground hover:text-foreground">
-              الباقات
-            </Link>
-            <Link href="/login">
-              <Button variant="outline" size="sm">
-                تسجيل الدخول
-              </Button>
-            </Link>
-            <Link href="/request-demo">
-              <Button size="sm">
-                طلب عرض تجريبي
-              </Button>
-            </Link>
-          </nav>
-        </div>
-      </header>
+    <main className="min-h-[calc(100vh-8rem)] bg-background">
 
       {/* Hero */}
-      <section className="container mx-auto px-4 py-20 text-center">
+      <section className="container mx-auto px-4 py-16 text-center sm:py-20">
         {tenantRequired ? (
           <div className="mx-auto mb-8 max-w-2xl rounded-xl border bg-muted/40 p-4 text-right">
             <p className="mb-3 text-sm text-muted-foreground">
@@ -153,7 +137,7 @@ export default async function LandingPage({
               <ArrowLeft className="h-4 w-4" />
             </Button>
           </Link>
-          <Link href="#features">
+          <Link href="/features">
             <Button size="lg" variant="outline">
               اكتشف المميزات
             </Button>
@@ -240,6 +224,11 @@ export default async function LandingPage({
               </Card>
             ))}
           </div>
+          <div className="mt-10 text-center">
+            <Link href="/pricing">
+              <Button variant="outline">عرض صفحة الأسعار كاملة</Button>
+            </Link>
+          </div>
         </div>
       </section>
 
@@ -260,22 +249,6 @@ export default async function LandingPage({
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className="border-t py-12">
-        <div className="container mx-auto px-4">
-          <div className="flex flex-col items-center justify-between gap-4 sm:flex-row">
-            <div className="flex items-center gap-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
-                <Building2 className="h-5 w-5 text-primary-foreground" />
-              </div>
-              <span className="font-bold">أجور Ujoors</span>
-            </div>
-            <p className="text-sm text-muted-foreground">
-              © 2026 أجور. جميع الحقوق محفوظة.
-            </p>
-          </div>
-        </div>
-      </footer>
-    </div>
+    </main>
   );
 }

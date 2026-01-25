@@ -21,10 +21,16 @@ export default async function SettingsLayout({
 }) {
   const locale = await getAppLocale();
 
+  const p = locale === "en" ? "/en" : "";
+
   const sidebarNavItems = [
     {
       title: locale === "ar" ? "الملف الشخصي" : "Profile",
-      href: "/dashboard/settings",
+      href: `${p}/dashboard/settings`,
+    },
+    {
+      title: locale === "ar" ? "إعدادات الحضور والموقع" : "Attendance & Location",
+      href: `${p}/dashboard/settings/attendance`,
     },
   ];
 

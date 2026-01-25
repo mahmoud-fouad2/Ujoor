@@ -26,6 +26,7 @@ export function DashboardHeaderActions({
   locale: "ar" | "en";
 }) {
   const t = getText(locale);
+  const p = locale === "en" ? "/en" : "";
   // TODO: Replace with API call to get user avatar from R2 storage
   const [avatarSrc] = useState<string>("/images/avatars/1.png");
 
@@ -86,7 +87,13 @@ export function DashboardHeaderActions({
     const next = locale === "ar" ? "en" : "ar";
     const maxAge = 60 * 60 * 24 * 365;
     document.cookie = `ujoors_locale=${next}; path=/; max-age=${maxAge}; samesite=lax`;
-    window.location.reload();
+
+    const path = window.location.pathname;
+    const hasEnPrefix = path === "/en" || path.startsWith("/en/");
+    const stripped = hasEnPrefix ? (path.replace(/^\/en(?=\/|$)/, "") || "/") : path;
+    const target = next === "en" ? (stripped === "/" ? "/en" : `/en${stripped}`) : stripped;
+
+    window.location.href = `${target}${window.location.search}`;
   };
 
   const logout = () => {
@@ -108,7 +115,7 @@ export function DashboardHeaderActions({
           <DropdownMenuSeparator />
           <DropdownMenuGroup>
             <DropdownMenuItem asChild>
-              <Link href="/dashboard/help-center" className="flex items-center justify-between">
+              <Link href={`${p}/dashboard/help-center`} className="flex items-center justify-between">
                 <span>{t.common.helpCenter}</span>
                 {locale === "ar" ? (
                   <ChevronLeft className="h-4 w-4 opacity-60" />
@@ -118,7 +125,7 @@ export function DashboardHeaderActions({
               </Link>
             </DropdownMenuItem>
             <DropdownMenuItem asChild>
-              <Link href="/dashboard/academy" className="flex items-center justify-between">
+              <Link href={`${p}/dashboard/academy`} className="flex items-center justify-between">
                 <span>{t.common.academy}</span>
                 {locale === "ar" ? (
                   <ChevronLeft className="h-4 w-4 opacity-60" />
@@ -128,7 +135,17 @@ export function DashboardHeaderActions({
               </Link>
             </DropdownMenuItem>
             <DropdownMenuItem asChild>
-              <Link href="/dashboard/ideas" className="flex items-center justify-between">
+              <Link href={`${p}/dashboard/support`} className="flex items-center justify-between">
+                <span>{locale === "ar" ? "الدعم الفني" : "Support"}</span>
+                {locale === "ar" ? (
+                  <ChevronLeft className="h-4 w-4 opacity-60" />
+                ) : (
+                  <ChevronRight className="h-4 w-4 opacity-60" />
+                )}
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <Link href={`${p}/dashboard/ideas`} className="flex items-center justify-between">
                 <span>{t.common.shareIdeas}</span>
                 {locale === "ar" ? (
                   <ChevronLeft className="h-4 w-4 opacity-60" />
@@ -138,7 +155,7 @@ export function DashboardHeaderActions({
               </Link>
             </DropdownMenuItem>
             <DropdownMenuItem asChild>
-              <Link href="/dashboard/whats-new" className="flex items-center justify-between">
+              <Link href={`${p}/dashboard/whats-new`} className="flex items-center justify-between">
                 <span>{t.common.whatsNew}</span>
                 {locale === "ar" ? (
                   <ChevronLeft className="h-4 w-4 opacity-60" />
@@ -241,13 +258,13 @@ export function DashboardHeaderActions({
           <DropdownMenuSeparator />
           <DropdownMenuGroup>
             <DropdownMenuItem asChild>
-              <Link href="/dashboard/my-profile">
+              <Link href={`${p}/dashboard/my-profile`}>
                 <User className="me-2 h-4 w-4" />
                 {t.common.viewProfile}
               </Link>
             </DropdownMenuItem>
             <DropdownMenuItem asChild>
-              <Link href="/dashboard/account/change-password">
+              <Link href={`${p}/dashboard/account/change-password`}>
                 <KeyRound className="me-2 h-4 w-4" />
                 {t.common.changePassword}
               </Link>

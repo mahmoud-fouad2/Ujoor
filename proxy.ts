@@ -50,6 +50,42 @@ export function proxy(request: NextRequest) {
   const tenantCookie = request.cookies.get("ujoors_tenant")?.value ?? null;
   const effectiveTenant = tenantSlug || tenantCookie;
 
+  // Locale prefixes: keep Arabic default, support /en (and /ar) for clean URLs.
+  // We rewrite internally to the non-prefixed path but pass locale via request header
+  // so server components/rendering pick the correct language on the same request.
+  const isEnPrefix = pathname === "/en" || pathname.startsWith("/en/");
+  const isArPrefix = pathname === "/ar" || pathname.startsWith("/ar/");
+  if (isEnPrefix || isArPrefix) {
+    const locale = isEnPrefix ? "en" : "ar";
+    const stripped = pathname.replace(/^\/(en|ar)(?=\/|$)/, "") || "/";
+
+    const url = request.nextUrl.clone();
+    url.pathname = stripped;
+
+    const nextHeaders = new Headers(request.headers);
+    nextHeaders.set("x-ujoors-locale", locale);
+
+    const res = NextResponse.rewrite(url, { request: { headers: nextHeaders } });
+    res.cookies.set("ujoors_locale", locale, { path: "/", sameSite: "lax" });
+    return res;
+  }
+
+  // Allow setting locale via query param (for SEO hreflang links)
+  const lang = request.nextUrl.searchParams.get("lang");
+  if (lang === "ar" || lang === "en") {
+    const nextPath =
+      safeNextPath(request.nextUrl.searchParams.get("next")) ??
+      (pathname + (request.nextUrl.search ? request.nextUrl.search : ""));
+
+    const url = new URL(nextPath, request.url);
+    url.searchParams.delete("lang");
+    url.searchParams.delete("next");
+
+    const res = NextResponse.redirect(url);
+    res.cookies.set("ujoors_locale", lang, { path: "/", sameSite: "lax" });
+    return res;
+  }
+
   // Allow selecting tenant on non-subdomain hosts (e.g. Render) via query param
   const tenantFromQuery = request.nextUrl.searchParams.get("tenant");
   if (tenantFromQuery && isValidTenantSlug(tenantFromQuery)) {

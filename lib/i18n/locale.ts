@@ -1,8 +1,14 @@
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 
 export type AppLocale = "ar" | "en";
 
 export async function getAppLocale(): Promise<AppLocale> {
+  const headerStore = await headers();
+  const headerLocale = headerStore.get("x-ujoors-locale");
+  if (headerLocale === "en" || headerLocale === "ar") {
+    return headerLocale;
+  }
+
   const cookieStore = await cookies();
   const value = cookieStore.get("ujoors_locale")?.value;
   return value === "en" ? "en" : "ar";

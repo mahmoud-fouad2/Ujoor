@@ -181,6 +181,24 @@
   [data-slot="sidebar"] {
     @apply transition-transform duration-300 ease-out;
   }
+
+  /* Premium subtle motion for marketing backgrounds */
+  @keyframes premium-float {
+    0% {
+      transform: translate3d(0, 0, 0) scale(1);
+    }
+    50% {
+      transform: translate3d(0, -12px, 0) scale(1.02);
+    }
+    100% {
+      transform: translate3d(0, 0, 0) scale(1);
+    }
+  }
+
+  .premium-float {
+    animation: premium-float 10s ease-in-out infinite;
+    will-change: transform;
+  }
   
   /* Custom scrollbar for RTL */
   ::-webkit-scrollbar {

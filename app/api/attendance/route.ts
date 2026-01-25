@@ -8,6 +8,7 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/db";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { submitAttendance } from "@/lib/attendance/submit-attendance";
 
 export async function GET(request: NextRequest) {
   try {
@@ -108,90 +109,34 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const now = new Date();
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
-    // Find or create today's attendance record
-    let record = await prisma.attendanceRecord.findFirst({
-      where: {
-        employeeId: body.employeeId,
-        date: today,
-      },
-    });
-
-    if (body.type === "check-in") {
-      if (record && record.checkInTime) {
-        return NextResponse.json(
-          { error: "Already checked in today" },
-          { status: 400 }
-        );
-      }
-
-      if (record) {
-        record = await prisma.attendanceRecord.update({
-          where: { id: record.id },
-          data: {
-            checkInTime: now,
-            checkInSource: body.source || "WEB",
-            checkInLat: body.latitude,
-            checkInLng: body.longitude,
-            checkInAddress: body.address,
-            status: "PRESENT",
-          },
-        });
-      } else {
-        record = await prisma.attendanceRecord.create({
-          data: {
-            tenantId,
-            employeeId: body.employeeId,
-            date: today,
-            checkInTime: now,
-            checkInSource: body.source || "WEB",
-            checkInLat: body.latitude,
-            checkInLng: body.longitude,
-            checkInAddress: body.address,
-            status: "PRESENT",
-          },
-        });
-      }
-    } else if (body.type === "check-out") {
-      if (!record || !record.checkInTime) {
-        return NextResponse.json(
-          { error: "Must check in first" },
-          { status: 400 }
-        );
-      }
-
-      if (record.checkOutTime) {
-        return NextResponse.json(
-          { error: "Already checked out today" },
-          { status: 400 }
-        );
-      }
-
-      // Calculate work duration
-      const checkInTime = new Date(record.checkInTime);
-      const totalMinutes = Math.floor((now.getTime() - checkInTime.getTime()) / 60000);
-
-      record = await prisma.attendanceRecord.update({
-        where: { id: record.id },
-        data: {
-          checkOutTime: now,
-          checkOutSource: body.source || "WEB",
-          checkOutLat: body.latitude,
-          checkOutLng: body.longitude,
-          checkOutAddress: body.address,
-          totalWorkMinutes: totalMinutes,
-        },
-      });
+    if (!body?.employeeId) {
+      return NextResponse.json({ error: "employeeId is required" }, { status: 400 });
     }
+
+    if (body.type !== "check-in" && body.type !== "check-out") {
+      return NextResponse.json({ error: "type must be check-in or check-out" }, { status: 400 });
+    }
+
+    const record = await submitAttendance({
+      tenantId,
+      employeeId: body.employeeId,
+      type: body.type,
+      source: body.source || "WEB",
+      latitude: body.latitude,
+      longitude: body.longitude,
+      accuracy: body.accuracy,
+      address: body.address,
+    });
 
     return NextResponse.json({ data: record }, { status: 201 });
   } catch (error) {
-    console.error("Error creating attendance:", error);
+    const status = typeof (error as any)?.status === "number" ? (error as any).status : 500;
+    const message = typeof (error as any)?.message === "string" ? (error as any).message : "Failed to record attendance";
+    if (status >= 500) console.error("Error creating attendance:", error);
     return NextResponse.json(
-      { error: "Failed to record attendance" },
-      { status: 500 }
+      { error: message },
+      { status }
     );
   }
 }

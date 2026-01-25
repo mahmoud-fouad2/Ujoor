@@ -1,7 +1,18 @@
 import Providers from "@/components/providers";
+import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import localFont from "next/font/local";
 import "./globals.css";
+
+import { getSiteUrl } from "@/lib/marketing/site";
+
+export const metadata: Metadata = {
+  metadataBase: new URL(getSiteUrl()),
+  title: {
+    default: "Ujoors",
+    template: "%s | Ujoors",
+  },
+};
 
 const ibmPlexSansArabic = localFont({
   variable: "--font-ujoors-sans",

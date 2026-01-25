@@ -5,7 +5,9 @@ import {
   IconChartBar,
   IconDashboard,
   IconFolder,
+  IconHelp,
   IconListDetails,
+  IconMessageCircle,
   IconUsers,
 } from "@tabler/icons-react";
 import Link from "next/link";
@@ -20,57 +22,75 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
 
-const data = {
-  navMain: [
+function getLocale(): "ar" | "en" {
+  if (typeof document === "undefined") return "ar";
+  return document.documentElement.lang === "en" ? "en" : "ar";
+}
+
+function getNav(locale: "ar" | "en") {
+  const p = locale === "en" ? "/en" : "";
+  return [
     {
-      title: "الرئيسية",
-      url: "/dashboard",
+      title: locale === "ar" ? "الرئيسية" : "Dashboard",
+      url: `${p}/dashboard`,
       icon: IconDashboard,
     },
     {
-      title: "طلبات الاشتراك (Super Admin)",
-      url: "/dashboard/super-admin/requests",
+      title: locale === "ar" ? "طلبات الاشتراك (Super Admin)" : "Subscription Requests (Super Admin)",
+      url: `${p}/dashboard/super-admin/requests`,
       icon: IconListDetails,
     },
     {
-      title: "الشركات (Super Admin)",
-      url: "/dashboard/super-admin/tenants",
+      title: locale === "ar" ? "الشركات (Super Admin)" : "Tenants (Super Admin)",
+      url: `${p}/dashboard/super-admin/tenants`,
       icon: IconUsers,
     },
     {
-      title: "الموظفون",
-      url: "/dashboard/employees",
+      title: locale === "ar" ? "الموظفون" : "Employees",
+      url: `${p}/dashboard/employees`,
       icon: IconChartBar,
     },
     {
-      title: "الأقسام",
-      url: "/dashboard/departments",
+      title: locale === "ar" ? "الأقسام" : "Departments",
+      url: `${p}/dashboard/departments`,
       icon: IconFolder,
     },
     {
-      title: "المسميات الوظيفية",
-      url: "/dashboard/job-titles",
+      title: locale === "ar" ? "المسميات الوظيفية" : "Job Titles",
+      url: `${p}/dashboard/job-titles`,
       icon: IconFolder,
     },
     {
-      title: "الهيكل التنظيمي",
-      url: "/dashboard/organization",
+      title: locale === "ar" ? "الهيكل التنظيمي" : "Organization",
+      url: `${p}/dashboard/organization`,
       icon: IconFolder,
     },
     {
-      title: "المستخدمون",
-      url: "/dashboard/users",
+      title: locale === "ar" ? "المستخدمون" : "Users",
+      url: `${p}/dashboard/users`,
       icon: IconUsers,
     },
     {
-      title: "إعدادات النظام",
-      url: "/dashboard/settings",
+      title: locale === "ar" ? "مركز المساعدة" : "Help Center",
+      url: `${p}/dashboard/help-center`,
+      icon: IconHelp,
+    },
+    {
+      title: locale === "ar" ? "الدعم الفني" : "Support",
+      url: `${p}/dashboard/support`,
+      icon: IconMessageCircle,
+    },
+    {
+      title: locale === "ar" ? "إعدادات النظام" : "Settings",
+      url: `${p}/dashboard/settings`,
       icon: IconUsers,
-    }
-  ],
+    },
+  ];
 }
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
+  const locale = getLocale();
+
   return (
     <Sidebar collapsible="icon" {...props}>
       <SidebarHeader>
@@ -95,7 +115,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         </SidebarMenu>
       </SidebarHeader>
       <SidebarContent>
-        <NavMain items={data.navMain} />
+        <NavMain items={getNav(locale)} />
       </SidebarContent>
     </Sidebar>
   )

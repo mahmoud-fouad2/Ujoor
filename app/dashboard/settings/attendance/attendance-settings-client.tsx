@@ -1,0 +1,494 @@
+"use client";
+
+import * as React from "react";
+
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
+
+type Locale = "ar" | "en";
+
+type Policy = {
+  tenantId: string;
+  enforceGeofence: boolean;
+  allowCheckInWithoutLocation: boolean;
+  maxAccuracyMeters: number;
+};
+
+type WorkLocation = {
+  id: string;
+  name: string;
+  nameAr: string | null;
+  address: string | null;
+  lat: string; // Prisma Decimal serialized
+  lng: string; // Prisma Decimal serialized
+  radiusMeters: number;
+  isActive: boolean;
+  createdAt: string;
+};
+
+function t(locale: Locale, ar: string, en: string) {
+  return locale === "ar" ? ar : en;
+}
+
+export default function AttendanceSettingsClient({ locale }: { locale: Locale }) {
+  const [loading, setLoading] = React.useState(true);
+  const [savingPolicy, setSavingPolicy] = React.useState(false);
+  const [policy, setPolicy] = React.useState<Policy | null>(null);
+  const [locations, setLocations] = React.useState<WorkLocation[]>([]);
+
+  const [openCreate, setOpenCreate] = React.useState(false);
+  const [creating, setCreating] = React.useState(false);
+
+  const [form, setForm] = React.useState({
+    name: "",
+    nameAr: "",
+    address: "",
+    lat: "",
+    lng: "",
+    radiusMeters: "150",
+    isActive: true,
+  });
+
+  const loadAll = React.useCallback(async () => {
+    setLoading(true);
+    try {
+      const [pRes, lRes] = await Promise.all([
+        fetch("/api/attendance/policy", { cache: "no-store" }),
+        fetch("/api/attendance/locations", { cache: "no-store" }),
+      ]);
+
+      const pJson = await pRes.json();
+      const lJson = await lRes.json();
+
+      if (pRes.ok) setPolicy(pJson.data);
+      if (lRes.ok) setLocations(lJson.data?.items ?? []);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  React.useEffect(() => {
+    void loadAll();
+  }, [loadAll]);
+
+  async function savePolicy() {
+    if (!policy) return;
+    setSavingPolicy(true);
+    try {
+      const res = await fetch("/api/attendance/policy", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          enforceGeofence: policy.enforceGeofence,
+          allowCheckInWithoutLocation: policy.allowCheckInWithoutLocation,
+          maxAccuracyMeters: policy.maxAccuracyMeters,
+        }),
+      });
+
+      if (!res.ok) {
+        const json = await res.json().catch(() => null);
+        alert(json?.error ?? "Failed to save");
+        return;
+      }
+
+      await loadAll();
+    } finally {
+      setSavingPolicy(false);
+    }
+  }
+
+  async function createLocation() {
+    setCreating(true);
+    try {
+      const res = await fetch("/api/attendance/locations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: form.name,
+          nameAr: form.nameAr || undefined,
+          address: form.address || undefined,
+          lat: form.lat,
+          lng: form.lng,
+          radiusMeters: form.radiusMeters,
+          isActive: form.isActive,
+        }),
+      });
+
+      const json = await res.json().catch(() => null);
+      if (!res.ok) {
+        alert(json?.error ?? "Failed to create");
+        return;
+      }
+
+      setOpenCreate(false);
+      setForm({
+        name: "",
+        nameAr: "",
+        address: "",
+        lat: "",
+        lng: "",
+        radiusMeters: "150",
+        isActive: true,
+      });
+      await loadAll();
+    } finally {
+      setCreating(false);
+    }
+  }
+
+  async function toggleActive(id: string, current: boolean) {
+    const res = await fetch(`/api/attendance/locations/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ isActive: !current }),
+    });
+    if (!res.ok) {
+      const json = await res.json().catch(() => null);
+      alert(json?.error ?? "Failed to update");
+      return;
+    }
+    await loadAll();
+  }
+
+  async function deleteLocation(id: string) {
+    const ok = window.confirm(
+      t(locale, "هل أنت متأكد من حذف هذا الموقع؟", "Are you sure you want to delete this location?")
+    );
+    if (!ok) return;
+
+    const res = await fetch(`/api/attendance/locations/${id}`, {
+      method: "DELETE",
+    });
+    if (!res.ok) {
+      const json = await res.json().catch(() => null);
+      alert(json?.error ?? "Failed to delete");
+      return;
+    }
+    await loadAll();
+  }
+
+  const isRtl = locale === "ar";
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h3 className="text-lg font-medium text-start">
+          {t(locale, "الحضور والموقع", "Attendance & Location")}
+        </h3>
+        <p className="text-sm text-muted-foreground text-start">
+          {t(
+            locale,
+            "حدد أماكن العمل المسموح بها للبصمة (Geofence) وسياسات دقة الموقع.",
+            "Configure allowed work locations (geofence) and location accuracy policies."
+          )}
+        </p>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-start">
+            {t(locale, "سياسة الحضور", "Attendance Policy")}
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {loading || !policy ? (
+            <div className="text-sm text-muted-foreground">
+              {t(locale, "جاري التحميل...", "Loading...")}
+            </div>
+          ) : (
+            <>
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between rtl:lg:flex-row-reverse">
+                <div className="space-y-1">
+                  <div className="font-medium text-start">
+                    {t(locale, "تفعيل التحقق من المكان", "Enforce Geofence")}
+                  </div>
+                  <div className="text-sm text-muted-foreground text-start">
+                    {t(
+                      locale,
+                      "لن يسمح بتسجيل الحضور إلا من داخل المواقع المحددة.",
+                      "Attendance will be allowed only inside configured locations."
+                    )}
+                  </div>
+                </div>
+                <Switch
+                  checked={policy.enforceGeofence}
+                  onCheckedChange={(v) =>
+                    setPolicy((p) => (p ? { ...p, enforceGeofence: v } : p))
+                  }
+                />
+              </div>
+
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between rtl:lg:flex-row-reverse">
+                <div className="space-y-1">
+                  <div className="font-medium text-start">
+                    {t(locale, "السماح بدون موقع", "Allow Without Location")}
+                  </div>
+                  <div className="text-sm text-muted-foreground text-start">
+                    {t(
+                      locale,
+                      "يسمح بتسجيل الحضور حتى لو لم يرسل الجهاز GPS (مفيد للويب).",
+                      "Allow attendance even if no GPS is provided (useful for web)."
+                    )}
+                  </div>
+                </div>
+                <Switch
+                  checked={policy.allowCheckInWithoutLocation}
+                  onCheckedChange={(v) =>
+                    setPolicy((p) =>
+                      p ? { ...p, allowCheckInWithoutLocation: v } : p
+                    )
+                  }
+                />
+              </div>
+
+              <div className="grid gap-2">
+                <Label className="text-start">
+                  {t(locale, "الحد الأقصى لدقة الموقع (متر)", "Max Location Accuracy (meters)")}
+                </Label>
+                <Input
+                  inputMode="numeric"
+                  value={policy.maxAccuracyMeters}
+                  onChange={(e) =>
+                    setPolicy((p) =>
+                      p
+                        ? {
+                            ...p,
+                            maxAccuracyMeters: Number(e.target.value || 0),
+                          }
+                        : p
+                    )
+                  }
+                />
+              </div>
+
+              <div className="flex justify-end rtl:justify-start">
+                <Button onClick={savePolicy} disabled={savingPolicy}>
+                  {savingPolicy
+                    ? t(locale, "جاري الحفظ...", "Saving...")
+                    : t(locale, "حفظ السياسة", "Save Policy")}
+                </Button>
+              </div>
+            </>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between rtl:lg:flex-row-reverse">
+          <CardTitle className="text-start">
+            {t(locale, "مواقع العمل المسموح بها", "Allowed Work Locations")}
+          </CardTitle>
+
+          <Dialog open={openCreate} onOpenChange={setOpenCreate}>
+            <DialogTrigger asChild>
+              <Button variant="default">
+                {t(locale, "إضافة موقع", "Add Location")}
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[560px]">
+              <DialogHeader>
+                <DialogTitle>
+                  {t(locale, "إضافة موقع عمل", "Add Work Location")}
+                </DialogTitle>
+              </DialogHeader>
+
+              <div className="grid gap-4">
+                <div className="grid gap-2">
+                  <Label className="text-start">{t(locale, "الاسم", "Name")}</Label>
+                  <Input
+                    value={form.name}
+                    onChange={(e) => setForm((s) => ({ ...s, name: e.target.value }))}
+                    placeholder={t(locale, "مثال: المقر الرئيسي", "e.g. HQ")}
+                    dir={isRtl ? "rtl" : "ltr"}
+                  />
+                </div>
+
+                <div className="grid gap-2">
+                  <Label className="text-start">
+                    {t(locale, "الاسم بالعربية (اختياري)", "Arabic Name (optional)")}
+                  </Label>
+                  <Input
+                    value={form.nameAr}
+                    onChange={(e) =>
+                      setForm((s) => ({ ...s, nameAr: e.target.value }))
+                    }
+                    placeholder={t(locale, "المقر الرئيسي", "")}
+                    dir="rtl"
+                  />
+                </div>
+
+                <div className="grid gap-2">
+                  <Label className="text-start">
+                    {t(locale, "العنوان (اختياري)", "Address (optional)")}
+                  </Label>
+                  <Input
+                    value={form.address}
+                    onChange={(e) =>
+                      setForm((s) => ({ ...s, address: e.target.value }))
+                    }
+                    placeholder={t(locale, "الرياض - شارع ...", "Riyadh - ...")}
+                    dir={isRtl ? "rtl" : "ltr"}
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                  <div className="grid gap-2">
+                    <Label className="text-start">{t(locale, "خط العرض (lat)", "Latitude")}</Label>
+                    <Input
+                      inputMode="decimal"
+                      value={form.lat}
+                      onChange={(e) => setForm((s) => ({ ...s, lat: e.target.value }))}
+                      placeholder="24.7136"
+                      dir="ltr"
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label className="text-start">{t(locale, "خط الطول (lng)", "Longitude")}</Label>
+                    <Input
+                      inputMode="decimal"
+                      value={form.lng}
+                      onChange={(e) => setForm((s) => ({ ...s, lng: e.target.value }))}
+                      placeholder="46.6753"
+                      dir="ltr"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                  <div className="grid gap-2">
+                    <Label className="text-start">
+                      {t(locale, "نصف القطر (متر)", "Radius (meters)")}
+                    </Label>
+                    <Input
+                      inputMode="numeric"
+                      value={form.radiusMeters}
+                      onChange={(e) =>
+                        setForm((s) => ({ ...s, radiusMeters: e.target.value }))
+                      }
+                      dir="ltr"
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-between rounded-md border p-3 rtl:flex-row-reverse">
+                    <div className="space-y-1">
+                      <div className="font-medium text-start">
+                        {t(locale, "مفعل", "Active")}
+                      </div>
+                      <div className="text-xs text-muted-foreground text-start">
+                        {t(locale, "يمكن استخدامه للتحقق", "Used for validation")}
+                      </div>
+                    </div>
+                    <Switch
+                      checked={form.isActive}
+                      onCheckedChange={(v) => setForm((s) => ({ ...s, isActive: v }))}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <DialogFooter className="gap-2">
+                <Button
+                  variant="secondary"
+                  onClick={() => setOpenCreate(false)}
+                  disabled={creating}
+                >
+                  {t(locale, "إلغاء", "Cancel")}
+                </Button>
+                <Button onClick={createLocation} disabled={creating}>
+                  {creating
+                    ? t(locale, "جاري الإضافة...", "Creating...")
+                    : t(locale, "إضافة", "Create")}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </CardHeader>
+
+        <CardContent>
+          {loading ? (
+            <div className="text-sm text-muted-foreground">
+              {t(locale, "جاري التحميل...", "Loading...")}
+            </div>
+          ) : locations.length === 0 ? (
+            <div className="text-sm text-muted-foreground text-start">
+              {t(
+                locale,
+                "لا توجد مواقع بعد. أضف موقعًا ثم فعّل التحقق من المكان.",
+                "No locations yet. Add a location then enable geofence enforcement."
+              )}
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="text-start">
+                      {t(locale, "الموقع", "Location")}
+                    </TableHead>
+                    <TableHead className="text-start">{t(locale, "الإحداثيات", "Coordinates")}</TableHead>
+                    <TableHead className="text-start">{t(locale, "نصف القطر", "Radius")}</TableHead>
+                    <TableHead className="text-start">{t(locale, "الحالة", "Status")}</TableHead>
+                    <TableHead className="text-start">{t(locale, "إجراءات", "Actions")}</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {locations.map((loc) => (
+                    <TableRow key={loc.id}>
+                      <TableCell className="text-start">
+                        <div className="font-medium">
+                          {locale === "ar" ? loc.nameAr || loc.name : loc.name}
+                        </div>
+                        {loc.address ? (
+                          <div className="text-xs text-muted-foreground">
+                            {loc.address}
+                          </div>
+                        ) : null}
+                      </TableCell>
+                      <TableCell className="text-start" dir="ltr">
+                        {loc.lat}, {loc.lng}
+                      </TableCell>
+                      <TableCell className="text-start">{loc.radiusMeters}m</TableCell>
+                      <TableCell className="text-start">
+                        {loc.isActive ? (
+                          <Badge variant="default">{t(locale, "مفعل", "Active")}</Badge>
+                        ) : (
+                          <Badge variant="secondary">{t(locale, "غير مفعل", "Inactive")}</Badge>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-start">
+                        <div className="flex flex-wrap items-center gap-2 rtl:flex-row-reverse">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => toggleActive(loc.id, loc.isActive)}
+                          >
+                            {loc.isActive
+                              ? t(locale, "تعطيل", "Disable")
+                              : t(locale, "تفعيل", "Enable")}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            onClick={() => deleteLocation(loc.id)}
+                          >
+                            {t(locale, "حذف", "Delete")}
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}

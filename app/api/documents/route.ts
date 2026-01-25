@@ -131,7 +131,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Tenant required" }, { status: 400 });
     }
 
-    const formData = await request.formData();
+    const formData = (await request.formData()) as unknown as globalThis.FormData;
     const file = formData.get("file") as File;
     const employeeId = formData.get("employeeId") as string;
     const title = formData.get("title") as string;

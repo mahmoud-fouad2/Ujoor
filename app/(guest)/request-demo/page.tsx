@@ -3,43 +3,36 @@
  * صفحة طلب اشتراك / عرض تجريبي
  */
 
-import { Building2 } from "lucide-react";
+import type { Metadata } from "next";
 import Link from "next/link";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { SubscriptionRequestForm } from "./subscription-request-form";
+import { marketingMetadata } from "@/lib/marketing/seo";
+
+export async function generateMetadata(): Promise<Metadata> {
+  return marketingMetadata({
+    path: "/request-demo",
+    titleAr: "طلب عرض تجريبي | أجور",
+    titleEn: "Request a Demo | Ujoors",
+    descriptionAr: "اطلب عرض تجريبي لمنصة أجور. املأ النموذج وسيتواصل معك فريقنا خلال 24 ساعة.",
+    descriptionEn: "Request a demo of Ujoors. Fill the form and our team will contact you within 24 hours.",
+  });
+}
 
 export default function RequestDemoPage() {
   return (
-    <div className="min-h-screen bg-muted/30">
-      {/* Header */}
-      <header className="border-b bg-background">
-        <div className="container mx-auto flex h-16 items-center px-4">
-          <Link href="/" className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
-              <Building2 className="h-5 w-5 text-primary-foreground" />
-            </div>
-            <span className="text-xl font-bold">أجور</span>
-            <span className="text-xl font-light text-muted-foreground">Ujoors</span>
-          </Link>
-        </div>
-      </header>
-
-      {/* Main Content */}
-      <main className="container mx-auto px-4 py-12">
+    <main className="bg-background">
+      <section className="container mx-auto px-4 py-14">
         <div className="mx-auto max-w-2xl">
           <div className="mb-8 text-center">
-            <h1 className="mb-4 text-3xl font-bold">طلب اشتراك</h1>
-            <p className="text-muted-foreground">
-              أكمل النموذج أدناه وسيتواصل معك فريقنا خلال 24 ساعة
-            </p>
+            <h1 className="mb-3 text-3xl font-bold">طلب اشتراك / عرض تجريبي</h1>
+            <p className="text-muted-foreground">أكمل النموذج أدناه وسيتواصل معك فريقنا خلال 24 ساعة.</p>
           </div>
 
           <Card>
             <CardHeader>
               <CardTitle>بيانات الشركة</CardTitle>
-              <CardDescription>
-                جميع الحقول المطلوبة معلمة بـ *
-              </CardDescription>
+              <CardDescription>جميع الحقول المطلوبة معلمة بـ *</CardDescription>
             </CardHeader>
             <CardContent>
               <SubscriptionRequestForm />
@@ -53,7 +46,7 @@ export default function RequestDemoPage() {
             </Link>
           </p>
         </div>
-      </main>
-    </div>
+      </section>
+    </main>
   );
 }
