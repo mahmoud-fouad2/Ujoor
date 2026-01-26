@@ -1,6 +1,7 @@
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import { cn } from "@/lib/utils";
 import type { DashboardActivity } from "@/lib/dashboard";
 import { getText } from "@/lib/i18n/text";
@@ -39,7 +40,12 @@ export function RecentActivities({
       </CardHeader>
       <CardContent>
         {activities.length === 0 ? (
-          <div className="text-muted-foreground text-sm">{t.dashboardActivities.empty}</div>
+          <Empty className="border-0 p-0">
+            <EmptyHeader>
+              <EmptyTitle>{t.dashboardActivities.title}</EmptyTitle>
+              <EmptyDescription>{t.dashboardActivities.empty}</EmptyDescription>
+            </EmptyHeader>
+          </Empty>
         ) : (
           <div className="space-y-4">
             {activities.map((activity) => (

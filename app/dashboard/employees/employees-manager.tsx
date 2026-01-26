@@ -39,6 +39,15 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { TableEmptyRow } from "@/components/empty-states/table-empty-row";
+import {
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty";
 import {
   Card,
   CardContent,
@@ -441,8 +450,80 @@ export function EmployeesManager() {
             </Select>
           </div>
 
-          {/* Table */}
-          <div className="rounded-md border">
+          {/* Mobile: Cards */}
+          <div className="md:hidden space-y-3">
+            {filteredEmployees.length === 0 ? (
+              <Empty className="border rounded-lg">
+                <EmptyHeader>
+                  <EmptyMedia variant="icon">
+                    <IconUser className="size-5" />
+                  </EmptyMedia>
+                  <EmptyTitle>لا يوجد موظفون</EmptyTitle>
+                  <EmptyDescription>
+                    ابدأ بإضافة أول موظف لعرض البيانات هنا.
+                  </EmptyDescription>
+                </EmptyHeader>
+                <EmptyContent>
+                  <Button onClick={handleAdd}>
+                    <IconPlus className="ms-2 h-4 w-4" />
+                    إضافة موظف
+                  </Button>
+                </EmptyContent>
+              </Empty>
+            ) : (
+              filteredEmployees.map((emp) => (
+                <Card key={emp.id} className="overflow-hidden">
+                  <CardContent className="p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <div className="size-9 rounded-full bg-muted flex items-center justify-center shrink-0">
+                            <IconUser className="size-4" />
+                          </div>
+                          <div className="min-w-0">
+                            <div className="font-medium truncate">{getEmployeeFullName(emp, "ar")}</div>
+                            <div className="text-sm text-muted-foreground truncate">{emp.email}</div>
+                          </div>
+                        </div>
+
+                        <div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 text-sm">
+                          <div className="text-muted-foreground">الرقم</div>
+                          <div className="text-start"><Badge variant="outline">{emp.employeeNumber}</Badge></div>
+
+                          <div className="text-muted-foreground">القسم</div>
+                          <div className="text-start truncate">{getDeptName(emp.departmentId)}</div>
+
+                          <div className="text-muted-foreground">المسمى</div>
+                          <div className="text-start truncate">{getJobName(emp.jobTitleId)}</div>
+
+                          <div className="text-muted-foreground">الحالة</div>
+                          <div className="text-start">{getStatusBadge(emp.status)}</div>
+
+                          <div className="text-muted-foreground">تاريخ التعيين</div>
+                          <div className="text-start">{emp.hireDate}</div>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-col items-center gap-1 shrink-0">
+                        <Button variant="ghost" size="icon" onClick={() => setViewingEmployee(emp)}>
+                          <IconEye className="h-4 w-4" />
+                        </Button>
+                        <Button variant="ghost" size="icon" onClick={() => handleEdit(emp)}>
+                          <IconPencil className="h-4 w-4" />
+                        </Button>
+                        <Button variant="ghost" size="icon" onClick={() => handleDeleteClick(emp)}>
+                          <IconTrash className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))
+            )}
+          </div>
+
+          {/* Desktop: Table */}
+          <div className="hidden md:block rounded-md border">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -457,11 +538,14 @@ export function EmployeesManager() {
               </TableHeader>
               <TableBody>
                 {filteredEmployees.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
-                      لا يوجد موظفون
-                    </TableCell>
-                  </TableRow>
+                  <TableEmptyRow
+                    colSpan={7}
+                    title="لا يوجد موظفون"
+                    description="ابدأ بإضافة أول موظف لعرض البيانات هنا."
+                    icon={<IconUser className="size-5" />}
+                    actionLabel="إضافة موظف"
+                    onAction={handleAdd}
+                  />
                 ) : (
                   filteredEmployees.map((emp) => (
                     <TableRow key={emp.id}>

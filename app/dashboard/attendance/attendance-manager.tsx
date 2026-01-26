@@ -38,6 +38,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { TableSkeleton } from "@/components/skeletons/table-skeleton";
+import { TableEmptyRow } from "@/components/empty-states/table-empty-row";
 import { Badge } from "@/components/ui/badge";
 import {
   type AttendanceRecord,
@@ -414,13 +416,19 @@ export function AttendanceManager() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredRecords.length === 0 ? (
+              {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center py-8">
-                    <IconCalendar className="mx-auto h-12 w-12 text-muted-foreground mb-2" />
-                    <p className="text-muted-foreground">{isLoading ? "جاري التحميل..." : "لا توجد سجلات"}</p>
+                  <TableCell colSpan={8} className="py-6">
+                    <TableSkeleton columns={8} rows={7} showHeader={false} />
                   </TableCell>
                 </TableRow>
+              ) : filteredRecords.length === 0 ? (
+                <TableEmptyRow
+                  colSpan={8}
+                  title="لا توجد سجلات"
+                  description="عند تسجيل الحضور والانصراف سيظهر السجل هنا."
+                  icon={<IconCalendar className="size-5" />}
+                />
               ) : (
                 filteredRecords.map((record) => (
                   <TableRow key={record.id}>

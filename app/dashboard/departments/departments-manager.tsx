@@ -40,6 +40,15 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { TableEmptyRow } from "@/components/empty-states/table-empty-row";
+import {
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty";
 import {
   Card,
   CardContent,
@@ -306,8 +315,75 @@ export function DepartmentsManager() {
             </div>
           </div>
 
-          {/* Table */}
-          <div className="rounded-md border">
+          {/* Mobile: Cards */}
+          <div className="md:hidden space-y-3">
+            {filteredDepartments.length === 0 ? (
+              <Empty className="border rounded-lg">
+                <EmptyHeader>
+                  <EmptyMedia variant="icon">
+                    <IconPlus className="size-5" />
+                  </EmptyMedia>
+                  <EmptyTitle>لا توجد أقسام</EmptyTitle>
+                  <EmptyDescription>
+                    أضف قسمًا لبدء تنظيم الموظفين وهيكلة المنشأة.
+                  </EmptyDescription>
+                </EmptyHeader>
+                <EmptyContent>
+                  <Button onClick={handleAdd}>
+                    <IconPlus className="ms-2 h-4 w-4" />
+                    إضافة قسم
+                  </Button>
+                </EmptyContent>
+              </Empty>
+            ) : (
+              filteredDepartments.map((dept) => (
+                <Card key={dept.id} className="overflow-hidden">
+                  <CardContent className="p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="font-medium truncate">{dept.nameAr || dept.name}</div>
+                        {dept.nameAr ? (
+                          <div className="text-sm text-muted-foreground truncate">{dept.name}</div>
+                        ) : null}
+
+                        <div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 text-sm">
+                          <div className="text-muted-foreground">الرمز</div>
+                          <div className="text-start">
+                            {dept.code ? <Badge variant="outline">{dept.code}</Badge> : <span className="text-muted-foreground">-</span>}
+                          </div>
+
+                          <div className="text-muted-foreground">الموظفين</div>
+                          <div className="text-start">
+                            <Badge variant="secondary">{dept.employeesCount}</Badge>
+                          </div>
+
+                          <div className="text-muted-foreground">الوصف</div>
+                          <div className="text-start line-clamp-2">{dept.description || "-"}</div>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-col items-center gap-1 shrink-0">
+                        <Button variant="ghost" size="icon" onClick={() => handleEdit(dept)}>
+                          <IconPencil className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleDeleteClick(dept)}
+                          disabled={dept.employeesCount > 0}
+                        >
+                          <IconTrash className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))
+            )}
+          </div>
+
+          {/* Desktop: Table */}
+          <div className="hidden md:block rounded-md border">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -320,11 +396,14 @@ export function DepartmentsManager() {
               </TableHeader>
               <TableBody>
                 {filteredDepartments.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
-                      لا توجد أقسام
-                    </TableCell>
-                  </TableRow>
+                  <TableEmptyRow
+                    colSpan={5}
+                    title="لا توجد أقسام"
+                    description="أضف قسمًا لبدء تنظيم الموظفين وهيكلة المنشأة."
+                    icon={<IconPlus className="size-5" />}
+                    actionLabel="إضافة قسم"
+                    onAction={handleAdd}
+                  />
                 ) : (
                   filteredDepartments.map((dept) => (
                     <TableRow key={dept.id}>
