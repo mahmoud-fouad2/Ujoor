@@ -90,6 +90,7 @@ function getNav(locale: "ar" | "en") {
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const locale = getLocale();
+  const p = locale === "en" ? "/en" : "";
 
   return (
     <Sidebar collapsible="icon" {...props}>
@@ -101,7 +102,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               asChild
               className="data-[slot=sidebar-menu-button]:!p-1.5"
             >
-              <Link href="/dashboard">
+              <Link href={`${p}/dashboard`}>
                 <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
                   <span className="text-sm font-bold">U</span>
                 </div>

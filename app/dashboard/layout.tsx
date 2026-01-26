@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { requireAuth } from "@/lib/auth";
 import { AppSidebar } from "@/components/app-sidebar"
 import { SiteHeader } from "@/components/site-header"
+import { PageTransition } from "@/components/motion/page-transition";
 import {
   SidebarInset,
   SidebarProvider,
@@ -30,7 +31,7 @@ export default async function Page({ children }: { children: React.ReactNode }) 
         <div className="flex flex-1 flex-col">
           <div className="@container/main flex flex-1 flex-col gap-2">
             <div className="flex flex-col gap-4  md:gap-6 p-4 lg:p-6">
-              {children}
+              <PageTransition>{children}</PageTransition>
             </div>
           </div>
         </div>
