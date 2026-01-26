@@ -1,5 +1,6 @@
 import React from "react";
 import { cookies } from "next/headers";
+import { requireAuth } from "@/lib/auth";
 import { AppSidebar } from "@/components/app-sidebar"
 import { SiteHeader } from "@/components/site-header"
 import {
@@ -8,6 +9,7 @@ import {
 } from "@/components/ui/sidebar"
 
 export default async function Page({ children }: { children: React.ReactNode }) {
+  await requireAuth();
   const cookieStore = await cookies();
   const locale = cookieStore.get("ujoors_locale")?.value === "en" ? "en" : "ar";
   const dir = locale === "ar" ? "rtl" : "ltr";

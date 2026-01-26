@@ -6,6 +6,7 @@ import { getAppLocale } from "@/lib/i18n/locale";
 import { getText } from "@/lib/i18n/text";
 import { Metadata } from "next";
 import { LocaleToggle } from "@/components/locale-toggle";
+import { LoginForm } from "./login-form";
 
 export async function generateMetadata(): Promise<Metadata> {
   const locale = await getAppLocale();
@@ -35,26 +36,16 @@ export default async function LoginPageV1() {
               <p className="mt-2 text-sm text-muted-foreground">{t.login.subtitle}</p>
             </div>
 
-            <form className="mt-10 space-y-6">
-              <div className="space-y-2">
-                <Label htmlFor="email" className="text-sm font-medium">
-                  {t.login.email}
-                </Label>
-                <Input
-                  id="email"
-                  name="email"
-                  type="email"
-                  autoComplete="email"
-                  placeholder={t.login.emailPlaceholder}
-                  className="h-11"
-                  required
-                />
-              </div>
-
-              <Button type="submit" className="h-11 w-full bg-black text-white hover:bg-black/90">
-                {t.login.submit}
-              </Button>
-            </form>
+            <LoginForm
+              locale={locale}
+              labels={{
+                email: t.login.email,
+                emailPlaceholder: t.login.emailPlaceholder,
+                password: t.login.password,
+                passwordPlaceholder: t.login.passwordPlaceholder,
+                submit: t.login.submit,
+              }}
+            />
           </div>
         </div>
 

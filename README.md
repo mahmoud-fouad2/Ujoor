@@ -140,8 +140,8 @@ R2_PUBLIC_URL=https://pub-408c0f665b964f47bcd1abfe89ac8aed.r2.dev
 NEXTAUTH_SECRET=...
 NEXTAUTH_URL=https://your-app.onrender.com
 NEXT_PUBLIC_APP_URL=https://your-app.onrender.com
-NEXT_PUBLIC_RECAPTCHA_SITE_KEY=6Lfwj00sAAAAAFHU_cOvEPiLnLox4pMZMz22aHA7
-RECAPTCHA_SECRET_KEY=6Lfwj00sAAAAAFiG_yMMN4YWHVu6S9QQ8_Ztxu8y
+NEXT_PUBLIC_RECAPTCHA_SITE_KEY=...
+RECAPTCHA_SECRET_KEY=...
 
 # Mobile Auth
 MOBILE_JWT_SECRET=...
@@ -150,6 +150,9 @@ MOBILE_REFRESH_TOKEN_SECRET=...
 # Optional
 # MOBILE_REFRESH_TOKEN_TTL_DAYS=30
 # MOBILE_CHALLENGE_TTL_SECONDS=120
+
+> ملاحظة reCAPTCHA: الواجهة تستخدم `react-google-recaptcha` (reCAPTCHA v2 Checkbox). إذا ظهرت رسالة
+> `ERROR for site owner: Invalid key type` فغالبًا المفاتيح تم إنشاؤها لنوع آخر (مثل v3) أو نطاق غير صحيح.
 ```
 
 ### 4. قاعدة البيانات على Render
