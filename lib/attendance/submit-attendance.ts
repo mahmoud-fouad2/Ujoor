@@ -19,7 +19,7 @@ export async function submitAttendance(input: SubmitAttendanceInput) {
 
   const employee = await prisma.employee.findFirst({
     where: { id: input.employeeId, tenantId: input.tenantId },
-    select: { id: true },
+    select: { id: true, shiftId: true },
   });
 
   if (!employee) {
@@ -115,6 +115,7 @@ export async function submitAttendance(input: SubmitAttendanceInput) {
           checkInAddress: input.address,
           checkInLocationId: matchedLocationId,
           status: "PRESENT",
+          ...(record.shiftId ? {} : employee.shiftId ? { shiftId: employee.shiftId } : {}),
         },
       });
     } else {
@@ -122,6 +123,7 @@ export async function submitAttendance(input: SubmitAttendanceInput) {
         data: {
           tenantId: input.tenantId,
           employeeId: input.employeeId,
+          shiftId: employee.shiftId,
           date: today,
           checkInTime: now,
           checkInSource: source,

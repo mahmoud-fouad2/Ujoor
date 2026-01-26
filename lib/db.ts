@@ -18,10 +18,20 @@ function createPrismaClient() {
     throw new Error("DATABASE_URL environment variable is not set");
   }
 
-  const adapter = new PrismaPg({ connectionString });
+  // For Prisma Postgres (prisma+postgres://) use the adapter
+  // For standard PostgreSQL (postgresql://) use direct connection
+  const isPrismaPostgres = connectionString.startsWith("prisma+postgres://");
   
+  if (isPrismaPostgres) {
+    const adapter = new PrismaPg({ connectionString });
+    return new PrismaClient({
+      adapter,
+      log: process.env.NODE_ENV === "development" ? ["query", "error", "warn"] : ["error"],
+    });
+  }
+  
+  // Standard PostgreSQL connection (Render, Supabase, etc.)
   return new PrismaClient({
-    adapter,
     log: process.env.NODE_ENV === "development" ? ["query", "error", "warn"] : ["error"],
   });
 }

@@ -1,7 +1,8 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
 import { prisma } from "@/lib/db";
+import { checkRateLimit, withRateLimitHeaders } from "@/lib/rate-limit";
 
 const requestSchema = z.object({
   captchaToken: z.string().min(1),
@@ -52,14 +53,31 @@ async function verifyRecaptcha(token: string) {
   return { ok: true } as const;
 }
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
   try {
+    const limit = 10;
+    const limitInfo = checkRateLimit(req, {
+      keyPrefix: "public:tenant_requests",
+      limit,
+      windowMs: 15 * 60 * 1000,
+    });
+
+    if (!limitInfo.allowed) {
+      return withRateLimitHeaders(
+        NextResponse.json({ error: "Too many requests" }, { status: 429 }),
+        { limit, remaining: limitInfo.remaining, resetAt: limitInfo.resetAt }
+      );
+    }
+
     const json = await req.json();
     const parsed = requestSchema.safeParse(json);
     if (!parsed.success) {
-      return NextResponse.json(
-        { error: "Invalid input", details: parsed.error.flatten() },
-        { status: 400 }
+      return withRateLimitHeaders(
+        NextResponse.json(
+          { error: "Invalid input", details: parsed.error.flatten() },
+          { status: 400 }
+        ),
+        { limit, remaining: limitInfo.remaining, resetAt: limitInfo.resetAt }
       );
     }
 
@@ -67,7 +85,10 @@ export async function POST(req: Request) {
 
     const captcha = await verifyRecaptcha(input.captchaToken);
     if (!captcha.ok) {
-      return NextResponse.json({ error: captcha.error }, { status: 400 });
+      return withRateLimitHeaders(
+        NextResponse.json({ error: captcha.error }, { status: 400 }),
+        { limit, remaining: limitInfo.remaining, resetAt: limitInfo.resetAt }
+      );
     }
 
     await prisma.tenantRequest.create({
@@ -82,7 +103,11 @@ export async function POST(req: Request) {
       },
     });
 
-    return NextResponse.json({ ok: true });
+    return withRateLimitHeaders(NextResponse.json({ ok: true }), {
+      limit,
+      remaining: limitInfo.remaining,
+      resetAt: limitInfo.resetAt,
+    });
   } catch (e) {
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }

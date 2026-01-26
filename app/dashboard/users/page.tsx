@@ -1,9 +1,9 @@
-import { promises as fs } from "fs";
-import path from "path";
 import { Metadata } from "next";
 import { generateMeta } from "@/lib/utils";
 import { getAppLocale } from "@/lib/i18n/locale";
 import { getText } from "@/lib/i18n/text";
+import prisma from "@/lib/db";
+import { requireRole, type UserRole } from "@/lib/auth";
 
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -22,15 +22,37 @@ export async function generateMetadata(): Promise<Metadata>{
   });
 }
 
-async function getUsers() {
-  const data = await fs.readFile(path.join(process.cwd(), "app/dashboard/users/data.json"));
-  return JSON.parse(data.toString());
-}
-
 export default async function Page() {
   const locale = await getAppLocale();
   const t = getText(locale);
-  const users = await getUsers();
+
+  const user = await requireRole(["TENANT_ADMIN", "HR_MANAGER", "SUPER_ADMIN"] as UserRole[]);
+
+  const where = user.tenantId ? { tenantId: user.tenantId } : undefined;
+  const users = await prisma.user.findMany({
+    where,
+    orderBy: { createdAt: "desc" },
+    select: {
+      id: true,
+      firstName: true,
+      lastName: true,
+      avatar: true,
+      role: true,
+      status: true,
+      email: true,
+      lastLoginAt: true,
+    },
+  });
+
+  const tableData = users.map((u) => ({
+    id: u.id,
+    name: `${u.firstName} ${u.lastName}`.trim(),
+    image: u.avatar,
+    role: u.role,
+    status: u.status,
+    email: u.email,
+    lastLoginAt: u.lastLoginAt ? u.lastLoginAt.toISOString() : null,
+  }));
 
   return (
     <>
@@ -44,7 +66,7 @@ export default async function Page() {
       </div>
       <Card>
         <CardContent>
-          <UsersDataTable data={users} />
+          <UsersDataTable data={tableData} />
         </CardContent>
       </Card>
     </>

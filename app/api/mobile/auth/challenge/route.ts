@@ -1,13 +1,30 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import prisma from "@/lib/db";
+import { logger } from "@/lib/logger";
 import { requireMobileAuthWithDevice } from "@/lib/mobile/auth";
 import { createChallenge } from "@/lib/mobile/challenge";
+import { checkRateLimit, withRateLimitHeaders } from "@/lib/rate-limit";
 
 export async function POST(request: NextRequest) {
   try {
+    const limit = 60;
+    const limitInfo = checkRateLimit(request, {
+      keyPrefix: "mobile:auth:challenge",
+      limit,
+      windowMs: 5 * 60 * 1000,
+    });
+
+    if (!limitInfo.allowed) {
+      return withRateLimitHeaders(
+        NextResponse.json({ error: "Too many requests" }, { status: 429 }),
+        { limit, remaining: limitInfo.remaining, resetAt: limitInfo.resetAt }
+      );
+    }
+
     const payloadOrRes = await requireMobileAuthWithDevice(request);
-    if (payloadOrRes instanceof NextResponse) return payloadOrRes;
+    if (payloadOrRes instanceof NextResponse)
+      return withRateLimitHeaders(payloadOrRes, { limit, remaining: limitInfo.remaining, resetAt: limitInfo.resetAt });
 
     const device = await prisma.mobileDevice.findUnique({
       where: { userId_deviceId: { userId: payloadOrRes.userId, deviceId: payloadOrRes.deviceId } },
@@ -15,7 +32,10 @@ export async function POST(request: NextRequest) {
     });
 
     if (!device) {
-      return NextResponse.json({ error: "Device not registered" }, { status: 400 });
+      return withRateLimitHeaders(
+        NextResponse.json({ error: "Device not registered" }, { status: 400 }),
+        { limit, remaining: limitInfo.remaining, resetAt: limitInfo.resetAt }
+      );
     }
 
     const challenge = await createChallenge(prisma, {
@@ -23,9 +43,13 @@ export async function POST(request: NextRequest) {
       mobileDeviceId: device.id,
     });
 
-    return NextResponse.json({ data: challenge });
+    return withRateLimitHeaders(NextResponse.json({ data: challenge }), {
+      limit,
+      remaining: limitInfo.remaining,
+      resetAt: limitInfo.resetAt,
+    });
   } catch (error) {
-    console.error("Mobile challenge error:", error);
+    logger.error("Mobile challenge error", undefined, error);
     return NextResponse.json({ error: "Failed to create challenge" }, { status: 500 });
   }
 }

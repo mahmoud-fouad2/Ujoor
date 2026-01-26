@@ -1,14 +1,15 @@
 import { ChartAreaInteractive } from "@/components/chart-area-interactive"
-import { DataTable } from "@/components/data-table"
 import { SectionCards } from "@/components/section-cards"
 import { TenantControls } from "@/components/tenant-controls"
 import { TenantBadge } from "@/components/tenant-badge"
+import { RecentActivities } from "@/components/recent-activities"
 
-import data from "./data.json"
 import { Metadata } from "next";
 import { generateMeta } from "@/lib/utils";
 import { getAppLocale } from "@/lib/i18n/locale";
 import { getText } from "@/lib/i18n/text";
+import { requireAuth } from "@/lib/auth";
+import { getDashboardActivities, getDashboardCharts, getDashboardStats } from "@/lib/dashboard";
 
 export async function generateMetadata(): Promise<Metadata>{
   const locale = await getAppLocale();
@@ -22,6 +23,13 @@ export async function generateMetadata(): Promise<Metadata>{
 export default async function Page() {
   const locale = await getAppLocale();
   const t = getText(locale);
+  const user = await requireAuth();
+
+  const [stats, charts, activities] = await Promise.all([
+    getDashboardStats(user.tenantId),
+    getDashboardCharts({ tenantId: user.tenantId, period: "week" }),
+    getDashboardActivities({ tenantId: user.tenantId, limit: 10 }),
+  ]);
 
   return (
     <>
@@ -32,9 +40,11 @@ export default async function Page() {
           <TenantControls />
         </div>
       </div>
-      <SectionCards locale={locale} />
-        <ChartAreaInteractive />
-      <DataTable data={data} />
+      <SectionCards locale={locale} stats={stats} />
+      <div className="grid grid-cols-1 gap-4 @5xl/main:grid-cols-2">
+        <ChartAreaInteractive locale={locale} initialAttendance={charts.attendance} />
+        <RecentActivities locale={locale} activities={activities} />
+      </div>
     </>
   )
 }

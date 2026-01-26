@@ -7,6 +7,7 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 // =============================================
@@ -52,6 +53,9 @@ model Tenant {
   leaveBalances     LeaveBalance[]
   documents         Document[]
   announcements     Announcement[]
+  salaryStructures  SalaryStructure[]
+  payrollPeriods    PayrollPeriod[]
+  notifications     Notification[]
   supportTickets    SupportTicket[]
   workLocations     TenantWorkLocation[]
   attendancePolicy  TenantAttendancePolicy?
@@ -157,6 +161,11 @@ model User {
   createdTickets    SupportTicket[] @relation("CreatedTickets")
   assignedTickets   SupportTicket[] @relation("AssignedTickets")
   ticketMessages    TicketMessage[]
+
+  notifications     Notification[]
+  notificationPreference NotificationPreference?
+
+  processedPayrollPeriods PayrollPeriod[] @relation("PayrollProcessedBy")
   
   @@index([tenantId])
   @@index([email])
@@ -976,4 +985,123 @@ enum TicketPriority {
   NORMAL
   HIGH
   URGENT
+}
+
+// =============================================
+// PAYROLL (MVP)
+// =============================================
+
+model SalaryStructure {
+  id          String   @id @default(cuid())
+
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  name        String
+  nameAr      String
+  description String?
+
+  isDefault   Boolean  @default(false)
+  isActive    Boolean  @default(true)
+
+  // Store components as JSON to keep MVP flexible
+  components  Json
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([tenantId])
+  @@index([tenantId, isActive])
+  @@index([tenantId, isDefault])
+}
+
+enum PayrollPeriodStatus {
+  DRAFT
+  PROCESSING
+  PENDING_APPROVAL
+  APPROVED
+  PAID
+  CANCELLED
+}
+
+model PayrollPeriod {
+  id              String   @id @default(cuid())
+
+  tenantId        String
+  tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  name            String
+  nameAr          String
+  startDate       DateTime @db.Date
+  endDate         DateTime @db.Date
+  paymentDate     DateTime @db.Date
+
+  status          PayrollPeriodStatus @default(DRAFT)
+
+  totalGross      Decimal  @default(0) @db.Decimal(14, 2)
+  totalDeductions Decimal  @default(0) @db.Decimal(14, 2)
+  totalNet        Decimal  @default(0) @db.Decimal(14, 2)
+  employeeCount   Int      @default(0)
+
+  processedById   String?
+  processedBy     User?    @relation("PayrollProcessedBy", fields: [processedById], references: [id], onDelete: SetNull)
+  processedAt     DateTime?
+
+  notes           String?
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([tenantId])
+  @@index([tenantId, status])
+  @@index([tenantId, startDate])
+}
+
+// =============================================
+// NOTIFICATIONS (MVP)
+// =============================================
+
+model Notification {
+  id        String   @id @default(cuid())
+
+  tenantId  String?
+  tenant    Tenant?  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Keep as string to match frontend union types like "request-status"
+  type      String
+  title     String
+  message   String
+  link      String?
+
+  isRead    Boolean  @default(false)
+  readAt    DateTime?
+
+  metadata  Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([userId, isRead])
+  @@index([tenantId])
+  @@index([createdAt])
+}
+
+model NotificationPreference {
+  id        String   @id @default(cuid())
+
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  email     Boolean  @default(true)
+  push      Boolean  @default(true)
+  sms       Boolean  @default(false)
+
+  byType    Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }

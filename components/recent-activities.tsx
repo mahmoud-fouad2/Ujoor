@@ -1,0 +1,95 @@
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
+import type { DashboardActivity } from "@/lib/dashboard";
+import { getText } from "@/lib/i18n/text";
+import type { AppLocale } from "@/lib/i18n/types";
+
+function formatDateTime(locale: AppLocale, date: Date) {
+  const localeForDates = locale === "ar" ? "ar-SA" : "en-US";
+  return new Intl.DateTimeFormat(localeForDates, {
+    month: "short",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+}
+
+function initials(firstName?: string, lastName?: string) {
+  const first = firstName?.trim()?.[0] ?? "";
+  const last = lastName?.trim()?.[0] ?? "";
+  const s = `${first}${last}`.trim();
+  return s || "U";
+}
+
+export function RecentActivities({
+  locale,
+  activities,
+}: {
+  locale: AppLocale;
+  activities: DashboardActivity[];
+}) {
+  const t = getText(locale);
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>{t.dashboardActivities.title}</CardTitle>
+      </CardHeader>
+      <CardContent>
+        {activities.length === 0 ? (
+          <div className="text-muted-foreground text-sm">{t.dashboardActivities.empty}</div>
+        ) : (
+          <div className="space-y-4">
+            {activities.map((activity) => (
+              <div key={activity.id} className="flex items-start gap-3">
+                {activity.user ? (
+                  <Avatar className="mt-0.5 h-8 w-8">
+                    <AvatarImage src={activity.user.avatar ?? undefined} />
+                    <AvatarFallback>
+                      {initials(activity.user.firstName, activity.user.lastName)}
+                    </AvatarFallback>
+                  </Avatar>
+                ) : (
+                  <div className="bg-muted text-muted-foreground mt-0.5 flex h-8 w-8 items-center justify-center rounded-full text-xs">
+                    {activity.type.slice(0, 1)}
+                  </div>
+                )}
+
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <div className="truncate text-sm font-medium">{activity.title}</div>
+                    {activity.status ? (
+                      <Badge
+                        variant="outline"
+                        className={cn("text-xs", {
+                          "border-green-200 bg-green-50 text-green-700":
+                            activity.status === "APPROVED",
+                          "border-orange-200 bg-orange-50 text-orange-700":
+                            activity.status === "PENDING",
+                          "border-red-200 bg-red-50 text-red-700":
+                            activity.status === "REJECTED",
+                        })}
+                      >
+                        {activity.status}
+                      </Badge>
+                    ) : null}
+                  </div>
+
+                  <div className="text-muted-foreground line-clamp-2 text-sm">
+                    {activity.description}
+                  </div>
+
+                  <div className="text-muted-foreground mt-1 text-xs">
+                    {formatDateTime(locale, activity.createdAt)}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}

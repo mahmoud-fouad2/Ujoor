@@ -1,12 +1,12 @@
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { generateMeta } from "@/lib/utils";
 import { GithubIcon } from "lucide-react";
 import { Metadata } from "next";
 import { getAppLocale } from "@/lib/i18n/locale";
 import { getText } from "@/lib/i18n/text";
 import { LocaleToggle } from "@/components/locale-toggle";
+import { Button } from "@/components/ui/button";
+
+import { RegisterForm } from "./register-form";
 
 export async function generateMetadata(): Promise<Metadata> {
   const locale = await getAppLocale();
@@ -38,57 +38,20 @@ export default async function RegisterPage() {
             <p className="mt-2 text-sm text-gray-600">{t.register.subtitle}</p>
           </div>
 
-          <form className="mt-8 space-y-6">
-            <div className="space-y-4">
-              <div>
-                <Label htmlFor="name" className="sr-only">
-                  {t.register.name}
-                </Label>
-                <Input
-                  id="name"
-                  name="name"
-                  type="text"
-                  required
-                  className="w-full"
-                  placeholder={t.register.namePlaceholder}
-                />
-              </div>
-              <div>
-                <Label htmlFor="email" className="sr-only">
-                  {t.register.email}
-                </Label>
-                <Input
-                  id="email"
-                  name="email"
-                  type="email"
-                  autoComplete="email"
-                  required
-                  className="w-full"
-                  placeholder={t.register.emailPlaceholder}
-                />
-              </div>
-              <div>
-                <Label htmlFor="password" className="sr-only">
-                  {t.register.password}
-                </Label>
-                <Input
-                  id="password"
-                  name="password"
-                  type="password"
-                  autoComplete="current-password"
-                  required
-                  className="w-full"
-                  placeholder={t.register.passwordPlaceholder}
-                />
-              </div>
-            </div>
-
-            <div>
-              <Button type="submit" className="w-full">
-                {t.register.submit}
-              </Button>
-            </div>
-          </form>
+          <div className="mt-8 space-y-6">
+            <RegisterForm
+              locale={locale}
+              labels={{
+                name: t.register.name,
+                namePlaceholder: t.register.namePlaceholder,
+                email: t.register.email,
+                emailPlaceholder: t.register.emailPlaceholder,
+                password: t.register.password,
+                passwordPlaceholder: t.register.passwordPlaceholder,
+                submit: t.register.submit,
+              }}
+            />
+          </div>
 
           <div className="mt-6">
             <div className="relative">

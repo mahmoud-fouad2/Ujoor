@@ -26,8 +26,10 @@ export const authOptions: NextAuthOptions = {
           throw new Error("البريد الإلكتروني وكلمة المرور مطلوبان");
         }
 
+        const normalizedEmail = credentials.email.toLowerCase();
+
         const user = await prisma.user.findUnique({
-          where: { email: credentials.email.toLowerCase() },
+          where: { email: normalizedEmail },
           include: {
             tenant: {
               select: {
@@ -56,6 +58,57 @@ export const authOptions: NextAuthOptions = {
         });
 
         if (!user) {
+          // Bootstrap: if DB has zero users, allow creating the first SUPER_ADMIN
+          // using Render env vars. This avoids being blocked when seeding isn't run.
+          const bootstrapEmail = process.env.SUPER_ADMIN_EMAIL?.toLowerCase();
+          const bootstrapPassword = process.env.SUPER_ADMIN_PASSWORD;
+
+          if (bootstrapEmail && bootstrapPassword) {
+            const usersCount = await prisma.user.count();
+            const isBootstrapMatch =
+              usersCount === 0 &&
+              normalizedEmail === bootstrapEmail &&
+              credentials.password === bootstrapPassword;
+
+            if (isBootstrapMatch) {
+              const created = await prisma.user.create({
+                data: {
+                  email: bootstrapEmail,
+                  password: await hash(credentials.password, 12),
+                  firstName: "Super",
+                  lastName: "Admin",
+                  role: "SUPER_ADMIN",
+                  status: "ACTIVE",
+                  permissions: [],
+                  lastLoginAt: new Date(),
+                },
+              });
+
+              await prisma.auditLog.create({
+                data: {
+                  tenantId: null,
+                  userId: created.id,
+                  action: "BOOTSTRAP_CREATE_SUPER_ADMIN",
+                  entity: "User",
+                  entityId: created.id,
+                },
+              });
+
+              return {
+                id: created.id,
+                email: created.email,
+                firstName: created.firstName,
+                lastName: created.lastName,
+                avatar: created.avatar,
+                role: created.role,
+                permissions: created.permissions,
+                tenantId: created.tenantId,
+                tenant: null,
+                employee: null,
+              };
+            }
+          }
+
           throw new Error("البريد الإلكتروني أو كلمة المرور غير صحيحة");
         }
 

@@ -49,14 +49,13 @@ import { cn } from "@/lib/utils";
 import { Checkbox } from "@/components/ui/checkbox";
 
 export type User = {
-  id: number;
+  id: string;
   name: string;
-  image: string;
-  country: string;
+  image?: string | null;
   status: string;
-  plan_name: string;
   role: string;
   email: string;
+  lastLoginAt?: string | null;
 };
 
 // TODO: Replace with API calls for users CRUD operations
@@ -73,16 +72,29 @@ export default function UsersDataTable({ data }: { data: User[] }) {
   const [rowSelection, setRowSelection] = React.useState({});
 
   // TODO: Replace with API call to delete user
-  const handleDelete = (userId: number) => {
+  const handleDelete = (userId: string) => {
     setTableData((prev) => prev.filter((u) => u.id !== userId));
   };
 
   const statusLabel = (value: string) => {
     if (!isRtl) return value;
-    if (value === "active") return "نشط";
-    if (value === "pending") return "قيد المراجعة";
-    if (value === "inactive") return "غير نشط";
+    if (value === "ACTIVE") return "نشط";
+    if (value === "PENDING_VERIFICATION") return "بانتظار التفعيل";
+    if (value === "INACTIVE") return "غير نشط";
+    if (value === "SUSPENDED") return "موقوف";
     return value;
+  };
+
+  const formatLastLogin = (iso: string | null | undefined) => {
+    if (!iso) return "-";
+    const date = new Date(iso);
+    if (Number.isNaN(date.getTime())) return "-";
+    return date.toLocaleString(isRtl ? "ar-SA" : "en-US", {
+      month: "short",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
   };
 
   const columns = React.useMemo<ColumnDef<User>[]>(() => {
@@ -98,7 +110,7 @@ export default function UsersDataTable({ data }: { data: User[] }) {
         cell: ({ row }) => (
           <div className="flex items-center gap-4">
             <Avatar>
-              <AvatarImage src={row.original.image} alt={row.original.name} />
+              <AvatarImage src={row.original.image ?? undefined} alt={row.original.name} />
               <AvatarFallback>U</AvatarFallback>
             </Avatar>
             <div className="capitalize">{row.getValue("name")}</div>
@@ -122,22 +134,6 @@ export default function UsersDataTable({ data }: { data: User[] }) {
         cell: ({ row }) => row.getValue("role"),
       },
       {
-        accessorKey: "plan_name",
-        header: ({ column }) => {
-          return (
-            <Button
-              className="-ms-3"
-              variant="ghost"
-              onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-            >
-              {isRtl ? "الخطة" : "Plan"}
-              <ArrowUpDown className="ms-2 h-4 w-4" />
-            </Button>
-          );
-        },
-        cell: ({ row }) => row.getValue("plan_name"),
-      },
-      {
         accessorKey: "email",
         header: ({ column }) => {
           return (
@@ -152,22 +148,6 @@ export default function UsersDataTable({ data }: { data: User[] }) {
           );
         },
         cell: ({ row }) => row.getValue("email"),
-      },
-      {
-        accessorKey: "country",
-        header: ({ column }) => {
-          return (
-            <Button
-              className="-ms-3"
-              variant="ghost"
-              onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-            >
-              {isRtl ? "الدولة" : "Country"}
-              <ArrowUpDown className="ms-2 h-4 w-4" />
-            </Button>
-          );
-        },
-        cell: ({ row }) => row.getValue("country"),
       },
       {
         accessorKey: "status",
@@ -186,39 +166,60 @@ export default function UsersDataTable({ data }: { data: User[] }) {
         cell: ({ row }) => {
           const status = row.original.status;
           const label = statusLabel(status);
-          if (status === "active") {
+          if (status === "ACTIVE") {
             return (
               <Badge
                 className={cn("capitalize", {
-                  "bg-green-100 text-green-700 hover:bg-green-100": status === "active",
+                  "bg-green-100 text-green-700 hover:bg-green-100": status === "ACTIVE",
                 })}
               >
                 {label}
               </Badge>
             );
-          } else if (status === "pending") {
+          } else if (status === "PENDING_VERIFICATION") {
             return (
               <Badge
                 className={cn("capitalize", {
-                  "bg-orange-100 text-orange-700 hover:bg-orange-100": status === "pending",
+                  "bg-orange-100 text-orange-700 hover:bg-orange-100":
+                    status === "PENDING_VERIFICATION",
                 })}
               >
                 {label}
               </Badge>
             );
-          } else if (status === "inactive") {
+          } else if (status === "INACTIVE") {
             return (
               <Badge
                 className={cn("capitalize", {
-                  "bg-gray-100 text-gray-700 hover:bg-gray-100": status === "inactive",
+                  "bg-gray-100 text-gray-700 hover:bg-gray-100": status === "INACTIVE",
                 })}
               >
                 {label}
               </Badge>
+            );
+          } else if (status === "SUSPENDED") {
+            return (
+              <Badge className="bg-red-100 text-red-700 hover:bg-red-100">{label}</Badge>
             );
           }
           return <span className="capitalize">{label}</span>;
         },
+      },
+      {
+        accessorKey: "lastLoginAt",
+        header: ({ column }) => {
+          return (
+            <Button
+              className="-ms-3"
+              variant="ghost"
+              onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+            >
+              {isRtl ? "آخر دخول" : "Last login"}
+              <ArrowUpDown className="ms-2 h-4 w-4" />
+            </Button>
+          );
+        },
+        cell: ({ row }) => formatLastLogin(row.original.lastLoginAt),
       },
       {
         id: "actions",

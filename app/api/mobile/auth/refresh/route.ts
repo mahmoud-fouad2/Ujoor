@@ -2,9 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
 import prisma from "@/lib/db";
+import { logger } from "@/lib/logger";
 import { getMobileDeviceHeaders } from "@/lib/mobile/device";
 import { rotateRefreshToken } from "@/lib/mobile/refresh-tokens";
 import { issueMobileAccessToken } from "@/lib/mobile/jwt";
+import { checkRateLimit, withRateLimitHeaders } from "@/lib/rate-limit";
 
 const schema = z.object({
   refreshToken: z.string().min(10),
@@ -12,17 +14,37 @@ const schema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
+    const limit = 30;
+    const limitInfo = checkRateLimit(request, {
+      keyPrefix: "mobile:auth:refresh",
+      limit,
+      windowMs: 5 * 60 * 1000,
+    });
+
+    if (!limitInfo.allowed) {
+      return withRateLimitHeaders(
+        NextResponse.json({ error: "Too many requests" }, { status: 429 }),
+        { limit, remaining: limitInfo.remaining, resetAt: limitInfo.resetAt }
+      );
+    }
+
     let deviceHeaders;
     try {
       deviceHeaders = getMobileDeviceHeaders(request);
     } catch {
-      return NextResponse.json({ error: "Missing or invalid device" }, { status: 400 });
+      return withRateLimitHeaders(
+        NextResponse.json({ error: "Missing or invalid device" }, { status: 400 }),
+        { limit, remaining: limitInfo.remaining, resetAt: limitInfo.resetAt }
+      );
     }
 
     const body = await request.json();
     const parsed = schema.safeParse(body);
     if (!parsed.success) {
-      return NextResponse.json({ error: "Invalid payload", issues: parsed.error.issues }, { status: 400 });
+      return withRateLimitHeaders(
+        NextResponse.json({ error: "Invalid payload", issues: parsed.error.issues }, { status: 400 }),
+        { limit, remaining: limitInfo.remaining, resetAt: limitInfo.resetAt }
+      );
     }
 
     const xff = request.headers.get("x-forwarded-for") ?? undefined;
@@ -36,7 +58,10 @@ export async function POST(request: NextRequest) {
     });
 
     if (!rotated.ok) {
-      return NextResponse.json({ error: "Invalid refresh token" }, { status: 401 });
+      return withRateLimitHeaders(
+        NextResponse.json({ error: "Invalid refresh token" }, { status: 401 }),
+        { limit, remaining: limitInfo.remaining, resetAt: limitInfo.resetAt }
+      );
     }
 
     await prisma.mobileDevice.update({
@@ -56,18 +81,31 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!user)
+      return withRateLimitHeaders(
+        NextResponse.json({ error: "Unauthorized" }, { status: 401 }),
+        { limit, remaining: limitInfo.remaining, resetAt: limitInfo.resetAt }
+      );
 
     if (user.status === "INACTIVE" || user.status === "SUSPENDED") {
-      return NextResponse.json({ error: "Account is disabled" }, { status: 403 });
+      return withRateLimitHeaders(
+        NextResponse.json({ error: "Account is disabled" }, { status: 403 }),
+        { limit, remaining: limitInfo.remaining, resetAt: limitInfo.resetAt }
+      );
     }
 
     if (user.status === "PENDING_VERIFICATION") {
-      return NextResponse.json({ error: "Email verification required" }, { status: 403 });
+      return withRateLimitHeaders(
+        NextResponse.json({ error: "Email verification required" }, { status: 403 }),
+        { limit, remaining: limitInfo.remaining, resetAt: limitInfo.resetAt }
+      );
     }
 
     if (user.tenant && user.tenant.status !== "ACTIVE" && user.role !== "SUPER_ADMIN") {
-      return NextResponse.json({ error: "Tenant is not active" }, { status: 403 });
+      return withRateLimitHeaders(
+        NextResponse.json({ error: "Tenant is not active" }, { status: 403 }),
+        { limit, remaining: limitInfo.remaining, resetAt: limitInfo.resetAt }
+      );
     }
 
     await prisma.auditLog.create({
@@ -88,14 +126,17 @@ export async function POST(request: NextRequest) {
       deviceId: deviceHeaders.deviceId,
     });
 
-    return NextResponse.json({
-      data: {
-        accessToken,
-        refreshToken: rotated.refreshToken,
-      },
-    });
+    return withRateLimitHeaders(
+      NextResponse.json({
+        data: {
+          accessToken,
+          refreshToken: rotated.refreshToken,
+        },
+      }),
+      { limit, remaining: limitInfo.remaining, resetAt: limitInfo.resetAt }
+    );
   } catch (error) {
-    console.error("Mobile refresh error:", error);
+    logger.error("Mobile refresh error", undefined, error);
     return NextResponse.json({ error: "Failed to refresh" }, { status: 500 });
   }
 }

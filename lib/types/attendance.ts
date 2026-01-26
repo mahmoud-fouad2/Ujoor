@@ -44,6 +44,7 @@ export interface Shift {
 
 // ===== Attendance Record =====
 export type AttendanceStatus = 
+  | "pending"      // بانتظار/غير مكتمل
   | "present"      // حاضر
   | "absent"       // غائب
   | "late"         // متأخر
@@ -165,6 +166,7 @@ export interface Holiday {
 
 // ===== Labels =====
 export const attendanceStatusLabels: Record<AttendanceStatus, { ar: string; en: string }> = {
+  pending: { ar: "قيد المعالجة", en: "Pending" },
   present: { ar: "حاضر", en: "Present" },
   absent: { ar: "غائب", en: "Absent" },
   late: { ar: "متأخر", en: "Late" },

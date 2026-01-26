@@ -1,13 +1,30 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import prisma from "@/lib/db";
+import { logger } from "@/lib/logger";
 import { requireMobileAuthWithDevice } from "@/lib/mobile/auth";
 import { revokeAllRefreshTokensForUser } from "@/lib/mobile/refresh-tokens";
+import { checkRateLimit, withRateLimitHeaders } from "@/lib/rate-limit";
 
 export async function POST(request: NextRequest) {
   try {
+    const limit = 20;
+    const limitInfo = checkRateLimit(request, {
+      keyPrefix: "mobile:auth:logout_all",
+      limit,
+      windowMs: 5 * 60 * 1000,
+    });
+
+    if (!limitInfo.allowed) {
+      return withRateLimitHeaders(
+        NextResponse.json({ error: "Too many requests" }, { status: 429 }),
+        { limit, remaining: limitInfo.remaining, resetAt: limitInfo.resetAt }
+      );
+    }
+
     const payloadOrRes = await requireMobileAuthWithDevice(request);
-    if (payloadOrRes instanceof NextResponse) return payloadOrRes;
+    if (payloadOrRes instanceof NextResponse)
+      return withRateLimitHeaders(payloadOrRes, { limit, remaining: limitInfo.remaining, resetAt: limitInfo.resetAt });
 
     const count = await revokeAllRefreshTokensForUser(prisma, payloadOrRes.userId);
 
@@ -21,9 +38,13 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    return NextResponse.json({ data: { ok: true, revoked: count } });
+    return withRateLimitHeaders(NextResponse.json({ data: { ok: true, revoked: count } }), {
+      limit,
+      remaining: limitInfo.remaining,
+      resetAt: limitInfo.resetAt,
+    });
   } catch (error) {
-    console.error("Mobile logout-all error:", error);
+    logger.error("Mobile logout-all error", undefined, error);
     return NextResponse.json({ error: "Failed to logout" }, { status: 500 });
   }
 }
