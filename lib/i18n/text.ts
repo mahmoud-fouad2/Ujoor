@@ -1,4 +1,4 @@
-import type { AppLocale } from "./locale";
+import type { AppLocale } from "./types";
 
 const text = {
   ar: {

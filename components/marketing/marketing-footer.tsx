@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 
 import { getAppLocale } from "@/lib/i18n/locale";
+import { t } from "@/lib/i18n/messages";
 
 export async function MarketingFooter() {
   const year = new Date().getFullYear();
@@ -31,7 +32,7 @@ export async function MarketingFooter() {
                 />
               </span>
               <span className="text-sm text-muted-foreground">
-                {isAr ? "تطوير: ma-fo.info" : "Developed by ma-fo.info"}
+                {t(locale, "footer.developedBy")}
               </span>
             </Link>
           </div>
@@ -40,15 +41,15 @@ export async function MarketingFooter() {
           <div className="order-2 text-center">
             <div className="flex flex-wrap justify-center gap-x-5 gap-y-2 text-xs text-muted-foreground">
               <Link href={`${p}/privacy`} className="hover:text-foreground">
-                {isAr ? "سياسة الخصوصية" : "Privacy"}
+                {t(locale, "footer.privacy")}
               </Link>
               <span className="opacity-40">•</span>
               <Link href={`${p}/terms`} className="hover:text-foreground">
-                {isAr ? "الشروط والأحكام" : "Terms"}
+                {t(locale, "footer.terms")}
               </Link>
               <span className="opacity-40">•</span>
               <Link href={`${p}/support`} className="hover:text-foreground">
-                {isAr ? "الدعم" : "Support"}
+                {t(locale, "footer.support")}
               </Link>
             </div>
           </div>
@@ -56,10 +57,10 @@ export async function MarketingFooter() {
           {/* Copyright (right) */}
           <div className="order-1 text-center sm:order-3 sm:text-end">
             <p className="text-sm text-muted-foreground">
-              © {year} {isAr ? "أجور (Ujoors). جميع الحقوق محفوظة." : "Ujoors. All rights reserved."}
+              © {year} {t(locale, "footer.rights")}
             </p>
             <p className="mt-1 text-xs text-muted-foreground">
-              {isAr ? "موارد بشرية • رواتب • حضور • امتثال سعودي" : "HR • Payroll • Attendance • Saudi Compliance"}
+              {isAr ? t(locale, "footer.stack.ar") : t(locale, "footer.stack.en")}
             </p>
           </div>
         </div>

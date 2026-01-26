@@ -1,6 +1,6 @@
 import { cookies, headers } from "next/headers";
 
-export type AppLocale = "ar" | "en";
+import type { AppLocale } from "./types";
 
 export async function getAppLocale(): Promise<AppLocale> {
   const headerStore = await headers();

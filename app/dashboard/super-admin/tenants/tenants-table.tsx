@@ -41,6 +41,7 @@ import {
 import type { Tenant, TenantStatus } from "@/lib/types/tenant";
 import { buildTenantUrl } from "@/lib/tenant";
 import { tenantsService } from "@/lib/api";
+import { TableSkeleton } from "@/components/skeletons/table-skeleton";
 
 const statusConfig: Record<TenantStatus, { label: string; variant: "default" | "secondary" | "destructive" | "outline"; icon: React.ReactNode }> = {
   active: { 
@@ -105,9 +106,7 @@ export function TenantsTable() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center py-10 text-muted-foreground">
-        جاري تحميل الشركات...
-      </div>
+      <TableSkeleton rows={7} columns={8} />
     );
   }
 

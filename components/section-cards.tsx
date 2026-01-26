@@ -9,7 +9,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import type { AppLocale } from "@/lib/i18n/locale";
+import type { AppLocale } from "@/lib/i18n/types";
 import { getText } from "@/lib/i18n/text";
 
 export function SectionCards({ locale }: { locale: AppLocale }) {

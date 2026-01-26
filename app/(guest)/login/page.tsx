@@ -68,7 +68,7 @@ export default async function LoginPageV1() {
               <p className="mt-6 max-w-md text-sm leading-relaxed text-white/80">{t.login.rightLead}</p>
 
               <div className="mt-6 space-y-2 text-lg font-semibold">
-                {t.login.rightBullets.map((line) => (
+                {t.login.rightBullets.map((line: string) => (
                   <div key={line}>{line}</div>
                 ))}
               </div>

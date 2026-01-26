@@ -37,6 +37,7 @@ import {
 } from "@/components/ui/table";
 import type { SubscriptionRequest } from "@/lib/types/tenant";
 import { tenantsService } from "@/lib/api";
+import { TableSkeleton } from "@/components/skeletons/table-skeleton";
 
 const statusConfig: Record<SubscriptionRequest["status"], { label: string; variant: "default" | "secondary" | "destructive"; icon: React.ReactNode }> = {
   pending: { 
@@ -90,9 +91,7 @@ export function RequestsTable() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center py-10 text-muted-foreground">
-        جاري تحميل الطلبات...
-      </div>
+      <TableSkeleton rows={7} columns={6} />
     );
   }
 

@@ -81,12 +81,6 @@ export default async function ScreenshotsPage() {
         </div>
 
           <ScreenshotsGallery locale={locale} desktop={desktopShots} mobile={mobileShots} />
-
-          <p className="mx-auto mt-8 max-w-3xl text-center text-xs text-muted-foreground">
-            {isAr
-              ? "ملاحظة: بعضها معاينات من المشروع (PNG) والباقي لقطات توضيحية (SVG). لو عندك لقطات حقيقية من الداشبورد/الموبايل ابعتها وأنا أستبدلها فورًا."
-              : "Note: This gallery mixes real previews (PNG) and illustrative shots (SVG). If you have real production screenshots, send them and we’ll replace the placeholders."}
-          </p>
         </div>
       </section>
     </main>

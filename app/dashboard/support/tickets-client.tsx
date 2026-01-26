@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { SupportTicketsSkeleton } from "@/components/skeletons/support-tickets-skeleton";
 
 type Ticket = {
   id: string;
@@ -234,7 +235,9 @@ export function SupportTicketsClient({
           <CardTitle className="text-base">{locale === "ar" ? "التذاكر" : "Tickets"}</CardTitle>
         </CardHeader>
         <CardContent>
-          {items.length === 0 ? (
+          {loading ? (
+            <SupportTicketsSkeleton />
+          ) : items.length === 0 ? (
             <div className="py-10 text-center text-sm text-muted-foreground">{emptyText}</div>
           ) : (
             <div className="grid gap-3">

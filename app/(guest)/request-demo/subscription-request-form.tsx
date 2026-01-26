@@ -10,6 +10,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Loader2, CheckCircle2 } from "lucide-react";
+import ReCAPTCHA from "react-google-recaptcha";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -21,6 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { t } from "@/lib/i18n/messages";
 
 function getLocaleFromCookie(): "ar" | "en" {
   if (typeof document === "undefined") return "ar";
@@ -29,14 +31,21 @@ function getLocaleFromCookie(): "ar" | "en" {
 }
 
 function createRequestSchema(isAr: boolean) {
+  const phoneRegex = /^\+?\d{8,15}$/;
   return z.object({
     companyName: z.string().min(2, isAr ? "اسم الشركة مطلوب" : "Company name is required"),
     companyNameAr: z.string().optional(),
     contactName: z.string().min(2, isAr ? "اسم المسؤول مطلوب" : "Contact name is required"),
     contactEmail: z.string().email(isAr ? "البريد الإلكتروني غير صحيح" : "Invalid email address"),
-    contactPhone: z.string().optional(),
+    contactPhone: z
+      .string()
+      .optional()
+      .refine((v) => !v || phoneRegex.test(v), isAr ? "رقم الهاتف غير صحيح" : "Invalid phone number"),
     employeesCount: z.string().min(1, isAr ? "اختر عدد الموظفين" : "Select employee count"),
-    message: z.string().optional(),
+    message: z
+      .string()
+      .optional()
+      .refine((v) => !v || v.length <= 2000, isAr ? "الرسالة طويلة جدًا" : "Message is too long"),
   });
 }
 
@@ -45,9 +54,13 @@ type RequestInput = z.infer<ReturnType<typeof createRequestSchema>>;
 export function SubscriptionRequestForm() {
   const [isLoading, setIsLoading] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [locale] = useState<"ar" | "en">(() => getLocaleFromCookie());
   const isAr = locale === "ar";
   const prefix = locale === "en" ? "/en" : "";
+
+  const siteKey = process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY;
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
 
   const requestSchema = useMemo(() => createRequestSchema(isAr), [isAr]);
 
@@ -61,16 +74,41 @@ export function SubscriptionRequestForm() {
   });
 
   const onSubmit = async (data: RequestInput) => {
+    setSubmitError(null);
+
+    if (!siteKey) {
+      setSubmitError(t(locale, "captcha.missingConfig"));
+      return;
+    }
+
+    if (!captchaToken) {
+      setSubmitError(t(locale, "captcha.required"));
+      return;
+    }
+
     setIsLoading(true);
 
-    // TODO: Call API to submit request
-    console.log("Submitting request:", data);
+    try {
+      const res = await fetch("/api/public/tenant-requests", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...data,
+          captchaToken,
+        }),
+      });
 
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1500));
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(json?.error || (isAr ? "تعذر إرسال الطلب" : "Failed to submit request"));
+      }
 
-    setIsLoading(false);
-    setIsSuccess(true);
+      setIsSuccess(true);
+    } catch (e) {
+      setSubmitError(e instanceof Error ? e.message : isAr ? "تعذر إرسال الطلب" : "Failed to submit request");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   if (isSuccess) {
@@ -188,20 +226,37 @@ export function SubscriptionRequestForm() {
         />
       </div>
 
+      <div className="space-y-2">
+        <Label>{isAr ? "التحقق" : "Verification"}</Label>
+        {siteKey ? (
+          <div className="flex justify-center sm:justify-start">
+            <ReCAPTCHA
+              sitekey={siteKey}
+              onChange={(token: string | null) => setCaptchaToken(token)}
+              onExpired={() => setCaptchaToken(null)}
+            />
+          </div>
+        ) : (
+          <p className="text-sm text-destructive">{t(locale, "captcha.missingConfig")}</p>
+        )}
+      </div>
+
+      {submitError ? <p className="text-sm text-destructive">{submitError}</p> : null}
+
       {/* Submit */}
       <Button type="submit" className="w-full" disabled={isLoading}>
         {isLoading && <Loader2 className="me-2 h-4 w-4 animate-spin" />}
-        {isLoading ? (isAr ? "جاري الإرسال..." : "Submitting..." ) : isAr ? "إرسال الطلب" : "Submit request"}
+        {isLoading ? t(locale, "form.submitting") : t(locale, "form.submit")}
       </Button>
 
       <p className="text-center text-xs text-muted-foreground">
-        {isAr ? "بإرسال هذا النموذج، أنت توافق على " : "By submitting this form, you agree to the "}
+        {t(locale, "form.agreePrefix")}
         <a href={`${prefix}/privacy`} className="text-primary hover:underline">
-          {isAr ? "سياسة الخصوصية" : "Privacy Policy"}
+          {t(locale, "form.privacyPolicy")}
         </a>{" "}
-        {isAr ? "و" : "and "}
+        {t(locale, "form.and")}
         <a href={`${prefix}/terms`} className="text-primary hover:underline">
-          {isAr ? "شروط الاستخدام" : "Terms"}
+          {t(locale, "form.terms")}
         </a>
       </p>
     </form>
