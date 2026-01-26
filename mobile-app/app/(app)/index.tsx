@@ -5,6 +5,7 @@ import { Button, Card, Chip, Text, useTheme } from "react-native-paper";
 import { apiFetch } from "../../lib/api";
 import { useAuth } from "../../state/auth";
 import { submitAttendance } from "../../lib/attendance";
+import { promptBiometrics } from "../../lib/biometrics";
 
 type TodayData = {
   date: string;
@@ -63,6 +64,11 @@ export default function HomeScreen() {
     if (!token) {
       Alert.alert("Session", "Please sign in again.");
       return;
+    }
+
+    if (auth.biometricsEnabled) {
+      const ok = await promptBiometrics("Confirm attendance");
+      if (!ok) return;
     }
 
     setActing(type);
