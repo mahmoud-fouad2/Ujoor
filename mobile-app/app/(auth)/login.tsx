@@ -1,23 +1,61 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { KeyboardAvoidingView, Platform, View } from "react-native";
 import { useRouter } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
-import { Button, Text, TextInput, useTheme } from "react-native-paper";
+import { Button, Divider, Text, TextInput, useTheme } from "react-native-paper";
+import NetInfo from "@react-native-community/netinfo";
 
 import { useAuth } from "../../state/auth";
+import { getApiBaseUrl } from "../../lib/config";
+import { apiFetch } from "../../lib/api";
 
 export default function LoginScreen() {
   const theme = useTheme();
   const router = useRouter();
   const auth = useAuth();
 
+  const apiBaseUrl = useMemo(() => getApiBaseUrl(), []);
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [diag, setDiag] = useState<string | null>(null);
+  const [testing, setTesting] = useState(false);
+
+  const isProbablyWrongForPhone =
+    apiBaseUrl.includes("10.0.2.2") || apiBaseUrl.includes("localhost") || apiBaseUrl.includes("127.0.0.1");
+
+  async function testConnection() {
+    setDiag(null);
+    setTesting(true);
+    try {
+      const net = await NetInfo.fetch();
+      if (!net.isConnected) {
+        setDiag("No internet connection detected.");
+        return;
+      }
+
+      const res = await apiFetch<{ ok: boolean }>("/api/health");
+      if (!res.ok) {
+        setDiag(`API unreachable: ${res.error}`);
+        return;
+      }
+      setDiag("✅ Backend reachable");
+    } finally {
+      setTesting(false);
+    }
+  }
 
   async function onSubmit() {
     setError(null);
+    setDiag(null);
+
+    if (!email.trim() || !password) {
+      setError("Email and password are required");
+      return;
+    }
+
     setLoading(true);
     try {
       const res = await auth.signIn(email.trim(), password);
@@ -26,6 +64,8 @@ export default function LoginScreen() {
         return;
       }
       router.replace("/(app)");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Login failed");
     } finally {
       setLoading(false);
     }
@@ -88,6 +128,21 @@ export default function LoginScreen() {
             <Text style={{ color: theme.colors.error, marginTop: 10 }}>{error}</Text>
           ) : null}
 
+          {diag ? (
+            <Text style={{ color: "rgba(255,255,255,0.8)", marginTop: 10 }}>{diag}</Text>
+          ) : null}
+
+          <Divider style={{ marginTop: 16, backgroundColor: "rgba(255,255,255,0.12)" }} />
+
+          <Text style={{ color: "rgba(255,255,255,0.65)", marginTop: 12, fontSize: 12 }}>
+            API: {apiBaseUrl}
+          </Text>
+          {isProbablyWrongForPhone ? (
+            <Text style={{ color: "rgba(255,255,255,0.65)", marginTop: 6, fontSize: 12 }}>
+              Hint: this URL works for Android emulator only. For a real phone, use your Render HTTPS domain.
+            </Text>
+          ) : null}
+
           <View style={{ height: 16 }} />
 
           <Button
@@ -99,6 +154,19 @@ export default function LoginScreen() {
             style={{ borderRadius: 12 }}
           >
             Sign in
+          </Button>
+
+          <View style={{ height: 10 }} />
+
+          <Button
+            mode="outlined"
+            onPress={testConnection}
+            loading={testing}
+            disabled={testing}
+            textColor="white"
+            style={{ borderRadius: 12, borderColor: "rgba(255,255,255,0.25)" }}
+          >
+            Test connection
           </Button>
         </View>
       </LinearGradient>
