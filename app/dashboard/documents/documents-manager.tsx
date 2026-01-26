@@ -61,6 +61,17 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { TableSkeleton } from "@/components/skeletons/table-skeleton";
+import { TableEmptyRow } from "@/components/empty-states/table-empty-row";
+import {
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -552,78 +563,103 @@ export function DocumentsManager() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>الملف</TableHead>
-                <TableHead>الموظف</TableHead>
-                <TableHead>التصنيف</TableHead>
-                <TableHead>الحالة</TableHead>
-                <TableHead>تاريخ الرفع</TableHead>
-                <TableHead>تاريخ الانتهاء</TableHead>
-                <TableHead className="text-start">إجراءات</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isLoading ? (
-                <TableRow>
-                  <TableCell colSpan={7} className="text-center py-8">
-                    <p className="text-muted-foreground">جاري التحميل...</p>
-                  </TableCell>
-                </TableRow>
-              ) : filteredDocuments.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={7} className="text-center py-8">
-                    <IconFile className="mx-auto h-12 w-12 text-muted-foreground mb-2" />
-                    <p className="text-muted-foreground">لا توجد مستندات</p>
-                  </TableCell>
-                </TableRow>
-              ) : (
-                filteredDocuments.map((doc) => (
-                  <TableRow key={doc.id}>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <FileIconComponent mimeType={doc.mimeType} />
-                        <div>
-                          <p className="font-medium text-sm">{doc.titleAr || doc.title}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {formatFileSize(doc.size)}
-                          </p>
+          {/* Mobile: Cards */}
+          <div className="md:hidden space-y-3">
+            {isLoading ? (
+              Array.from({ length: 6 }).map((_, i) => (
+                <Card key={i} className="overflow-hidden">
+                  <CardContent className="p-4 space-y-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <Skeleton className="h-9 w-9 rounded-lg" />
+                        <div className="min-w-0 space-y-2">
+                          <Skeleton className="h-4 w-40" />
+                          <Skeleton className="h-3 w-24" />
                         </div>
                       </div>
-                    </TableCell>
-                    <TableCell>{getEmployeeName(doc.employeeId)}</TableCell>
-                    <TableCell>
-                      <Badge variant="outline">
-                        {documentCategoryLabels[doc.category].ar}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={getStatusVariant(doc.status)}>
-                        {documentStatusLabels[doc.status].ar}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-sm">
-                      {new Date(doc.uploadedAt).toLocaleDateString("ar-SA")}
-                    </TableCell>
-                    <TableCell>
-                      {doc.expiryDate ? (
-                        <span
-                          className={
-                            isDocumentExpired(doc)
-                              ? "text-red-600"
-                              : "text-muted-foreground"
-                          }
-                        >
-                          {new Date(doc.expiryDate).toLocaleDateString("ar-SA")}
-                        </span>
-                      ) : (
-                        <span className="text-muted-foreground">-</span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-1">
-                        {/* Preview */}
+                      <div className="flex flex-col gap-2">
+                        <Skeleton className="h-8 w-8 rounded-md" />
+                        <Skeleton className="h-8 w-8 rounded-md" />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-x-3 gap-y-2">
+                      <Skeleton className="h-3 w-16" />
+                      <Skeleton className="h-4 w-24" />
+                      <Skeleton className="h-3 w-16" />
+                      <Skeleton className="h-4 w-28" />
+                      <Skeleton className="h-3 w-16" />
+                      <Skeleton className="h-4 w-20" />
+                    </div>
+                  </CardContent>
+                </Card>
+              ))
+            ) : filteredDocuments.length === 0 ? (
+              <Empty className="border rounded-lg">
+                <EmptyHeader>
+                  <EmptyMedia variant="icon">
+                    <IconFile className="size-5" />
+                  </EmptyMedia>
+                  <EmptyTitle>لا توجد مستندات</EmptyTitle>
+                  <EmptyDescription>
+                    ارفع مستندًا للموظفين ليظهر هنا مع الحالة والتصنيف.
+                  </EmptyDescription>
+                </EmptyHeader>
+                <EmptyContent>
+                  <Button onClick={() => setIsUploadOpen(true)}>
+                    <IconUpload className="ms-2 h-4 w-4" />
+                    رفع مستند
+                  </Button>
+                </EmptyContent>
+              </Empty>
+            ) : (
+              filteredDocuments.map((doc) => (
+                <Card key={doc.id} className="overflow-hidden">
+                  <CardContent className="p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <div className="size-9 rounded-lg bg-muted flex items-center justify-center shrink-0">
+                            <FileIconComponent mimeType={doc.mimeType} />
+                          </div>
+                          <div className="min-w-0">
+                            <div className="font-medium text-sm truncate">{doc.titleAr || doc.title}</div>
+                            <div className="text-xs text-muted-foreground truncate">{formatFileSize(doc.size)}</div>
+                          </div>
+                        </div>
+
+                        <div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 text-sm">
+                          <div className="text-muted-foreground">الموظف</div>
+                          <div className="text-start truncate">{getEmployeeName(doc.employeeId)}</div>
+
+                          <div className="text-muted-foreground">التصنيف</div>
+                          <div className="text-start">
+                            <Badge variant="outline">{documentCategoryLabels[doc.category].ar}</Badge>
+                          </div>
+
+                          <div className="text-muted-foreground">الحالة</div>
+                          <div className="text-start">
+                            <Badge variant={getStatusVariant(doc.status)}>
+                              {documentStatusLabels[doc.status].ar}
+                            </Badge>
+                          </div>
+
+                          <div className="text-muted-foreground">تاريخ الرفع</div>
+                          <div className="text-start text-sm">{new Date(doc.uploadedAt).toLocaleDateString("ar-SA")}</div>
+
+                          <div className="text-muted-foreground">تاريخ الانتهاء</div>
+                          <div className="text-start">
+                            {doc.expiryDate ? (
+                              <span className={isDocumentExpired(doc) ? "text-red-600" : "text-muted-foreground"}>
+                                {new Date(doc.expiryDate).toLocaleDateString("ar-SA")}
+                              </span>
+                            ) : (
+                              <span className="text-muted-foreground">-</span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-col items-center gap-1 shrink-0">
                         <Button
                           variant="ghost"
                           size="icon"
@@ -635,17 +671,11 @@ export function DocumentsManager() {
                           <IconEye className="h-4 w-4" />
                         </Button>
 
-                        {/* Download */}
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleDownload(doc)}
-                        >
+                        <Button variant="ghost" size="icon" onClick={() => handleDownload(doc)}>
                           <IconDownload className="h-4 w-4" />
                         </Button>
 
-                        {/* Approve/Reject (if pending) */}
-                        {doc.status === "pending" && (
+                        {doc.status === "pending" ? (
                           <>
                             <Button
                               variant="ghost"
@@ -664,9 +694,8 @@ export function DocumentsManager() {
                               <IconX className="h-4 w-4" />
                             </Button>
                           </>
-                        )}
+                        ) : null}
 
-                        {/* Delete */}
                         <AlertDialog>
                           <AlertDialogTrigger asChild>
                             <Button variant="ghost" size="icon" className="text-destructive">
@@ -692,12 +721,160 @@ export function DocumentsManager() {
                           </AlertDialogContent>
                         </AlertDialog>
                       </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))
+            )}
+          </div>
+
+          {/* Desktop: Table */}
+          <div className="hidden md:block">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>الملف</TableHead>
+                  <TableHead>الموظف</TableHead>
+                  <TableHead>التصنيف</TableHead>
+                  <TableHead>الحالة</TableHead>
+                  <TableHead>تاريخ الرفع</TableHead>
+                  <TableHead>تاريخ الانتهاء</TableHead>
+                  <TableHead className="text-start">إجراءات</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {isLoading ? (
+                  <TableRow>
+                    <TableCell colSpan={7} className="py-6">
+                      <TableSkeleton columns={7} rows={6} showHeader={false} />
                     </TableCell>
                   </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
+                ) : filteredDocuments.length === 0 ? (
+                  <TableEmptyRow
+                    colSpan={7}
+                    title="لا توجد مستندات"
+                    description="ارفع مستندًا للموظفين ليظهر هنا مع الحالة والتصنيف."
+                    icon={<IconFile className="size-5" />}
+                    actionLabel="رفع مستند"
+                    onAction={() => setIsUploadOpen(true)}
+                  />
+                ) : (
+                  filteredDocuments.map((doc) => (
+                    <TableRow key={doc.id}>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <FileIconComponent mimeType={doc.mimeType} />
+                          <div>
+                            <p className="font-medium text-sm">{doc.titleAr || doc.title}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {formatFileSize(doc.size)}
+                            </p>
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell>{getEmployeeName(doc.employeeId)}</TableCell>
+                      <TableCell>
+                        <Badge variant="outline">
+                          {documentCategoryLabels[doc.category].ar}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={getStatusVariant(doc.status)}>
+                          {documentStatusLabels[doc.status].ar}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-sm">
+                        {new Date(doc.uploadedAt).toLocaleDateString("ar-SA")}
+                      </TableCell>
+                      <TableCell>
+                        {doc.expiryDate ? (
+                          <span
+                            className={
+                              isDocumentExpired(doc)
+                                ? "text-red-600"
+                                : "text-muted-foreground"
+                            }
+                          >
+                            {new Date(doc.expiryDate).toLocaleDateString("ar-SA")}
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground">-</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => {
+                              setSelectedDocument(doc);
+                              setIsPreviewOpen(true);
+                            }}
+                          >
+                            <IconEye className="h-4 w-4" />
+                          </Button>
+
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleDownload(doc)}
+                          >
+                            <IconDownload className="h-4 w-4" />
+                          </Button>
+
+                          {doc.status === "pending" && (
+                            <>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="text-green-600"
+                                onClick={() => handleStatusChange(doc.id, "approved")}
+                              >
+                                <IconCheck className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="text-red-600"
+                                onClick={() => handleStatusChange(doc.id, "rejected")}
+                              >
+                                <IconX className="h-4 w-4" />
+                              </Button>
+                            </>
+                          )}
+
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button variant="ghost" size="icon" className="text-destructive">
+                                <IconTrash className="h-4 w-4" />
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>حذف المستند</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  هل أنت متأكد من حذف "{doc.titleAr || doc.title}"؟
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>إلغاء</AlertDialogCancel>
+                                <AlertDialogAction
+                                  onClick={() => handleDelete(doc.id)}
+                                  className="bg-destructive"
+                                >
+                                  حذف
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
         </CardContent>
       </Card>
 
