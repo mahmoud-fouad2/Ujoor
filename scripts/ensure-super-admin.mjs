@@ -10,6 +10,7 @@ if (!connectionString) {
 
 const superAdminEmailRaw = process.env.SUPER_ADMIN_EMAIL;
 const superAdminPassword = process.env.SUPER_ADMIN_PASSWORD;
+const force = process.env.SUPER_ADMIN_FORCE === "1" || process.env.SUPER_ADMIN_FORCE === "true";
 
 if (!superAdminEmailRaw || !superAdminPassword) {
   console.log(
@@ -26,18 +27,32 @@ const prisma = new PrismaClient({ adapter });
 async function main() {
   const usersCount = await prisma.user.count();
 
-  if (usersCount > 0) {
-    console.log(`[ensure-super-admin] Users already exist (${usersCount}); skipping.`);
+  const existing = await prisma.user.findUnique({ where: { email: superAdminEmail } });
+  if (usersCount > 0 && !force) {
+    console.log(`[ensure-super-admin] Users already exist (${usersCount}); set SUPER_ADMIN_FORCE=1 to reset/create super admin.`);
     return;
   }
 
-  const existing = await prisma.user.findUnique({ where: { email: superAdminEmail } });
-  if (existing) {
+  if (existing && !force) {
     console.log("[ensure-super-admin] Super admin already exists; skipping.");
     return;
   }
 
   const passwordHash = await hash(superAdminPassword, 12);
+
+  if (existing) {
+    const updated = await prisma.user.update({
+      where: { email: superAdminEmail },
+      data: {
+        password: passwordHash,
+        role: "SUPER_ADMIN",
+        status: "ACTIVE",
+      },
+      select: { id: true, email: true },
+    });
+    console.log(`[ensure-super-admin] Updated super admin password: ${updated.email}`);
+    return;
+  }
 
   const created = await prisma.user.create({
     data: {

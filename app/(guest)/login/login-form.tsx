@@ -46,7 +46,12 @@ export function LoginForm({ locale, labels }: LoginFormProps) {
       });
 
       if (!res || res.error) {
-        setError(res?.error || (locale === "ar" ? "تعذر تسجيل الدخول" : "Unable to sign in"));
+		const raw = res?.error;
+		if (raw === "CredentialsSignin") {
+			setError(locale === "ar" ? "البريد الإلكتروني أو كلمة المرور غير صحيحة" : "Invalid email or password");
+		} else {
+			setError(raw || (locale === "ar" ? "تعذر تسجيل الدخول" : "Unable to sign in"));
+		}
         return;
       }
 
