@@ -6,18 +6,43 @@ import { checkRateLimit, withRateLimitHeaders } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 
-const handler = NextAuth(authOptions);
+type RouteContext = {
+	params: Promise<{
+		nextauth?: string | string[];
+	}>;
+};
 
-export async function GET(req: Request) {
-	return handler(req);
+async function getNextAuthSegments(ctx: RouteContext | undefined) {
+	if (!ctx) return [];
+	const params = await ctx.params;
+	const raw = params?.nextauth;
+	if (!raw) return [];
+	return Array.isArray(raw) ? raw : [raw];
 }
 
-export async function POST(req: Request) {
-	const path = new URL(req.url).pathname;
-	const isCredentials = path.includes("/callback/credentials") || path.includes("/signin/credentials");
+async function isCredentialsRequest(ctx: RouteContext | undefined) {
+	const segments = await getNextAuthSegments(ctx);
+	return (
+		(segments[0] === "callback" && segments[1] === "credentials") ||
+		(segments[0] === "signin" && segments[1] === "credentials")
+	);
+}
 
-	if (!isCredentials) {
-		return handler(req);
+export async function GET(req: Request, ctx: RouteContext) {
+	return (NextAuth as unknown as (req: Request, ctx: RouteContext, options: typeof authOptions) => Promise<Response>)(
+		req,
+		ctx,
+		authOptions
+	);
+}
+
+export async function POST(req: Request, ctx: RouteContext) {
+	if (!(await isCredentialsRequest(ctx))) {
+		return (NextAuth as unknown as (req: Request, ctx: RouteContext, options: typeof authOptions) => Promise<Response>)(
+			req,
+			ctx,
+			authOptions
+		);
 	}
 
 	const limit = 10;
@@ -34,6 +59,10 @@ export async function POST(req: Request) {
 		);
 	}
 
-	const res = await handler(req);
+	const res = await (NextAuth as unknown as (req: Request, ctx: RouteContext, options: typeof authOptions) => Promise<Response>)(
+		req,
+		ctx,
+		authOptions
+	);
 	return withRateLimitHeaders(res, { limit, remaining: limitInfo.remaining, resetAt: limitInfo.resetAt });
 }
