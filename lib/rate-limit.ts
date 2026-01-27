@@ -1,5 +1,3 @@
-import type { NextRequest } from "next/server";
-
 type RateLimitOptions = {
   limit: number;
   windowMs: number;
@@ -17,7 +15,7 @@ function now() {
   return Date.now();
 }
 
-export function getClientIp(req: NextRequest): string {
+export function getClientIp(req: Request): string {
   // Prefer x-forwarded-for (Render / proxies)
   const xff = req.headers.get("x-forwarded-for");
   if (xff) {
@@ -31,7 +29,7 @@ export function getClientIp(req: NextRequest): string {
   return "unknown";
 }
 
-export function checkRateLimit(req: NextRequest, options: RateLimitOptions): {
+export function checkRateLimit(req: Request, options: RateLimitOptions): {
   allowed: boolean;
   remaining: number;
   resetAt: number;

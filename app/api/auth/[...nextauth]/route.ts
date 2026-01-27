@@ -1,17 +1,19 @@
 import NextAuth from "next-auth";
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 
 import { authOptions } from "@/lib/auth";
 import { checkRateLimit, withRateLimitHeaders } from "@/lib/rate-limit";
 
+export const runtime = "nodejs";
+
 const handler = NextAuth(authOptions);
 
-export async function GET(req: NextRequest) {
+export async function GET(req: Request) {
 	return handler(req);
 }
 
-export async function POST(req: NextRequest) {
-	const path = req.nextUrl.pathname;
+export async function POST(req: Request) {
+	const path = new URL(req.url).pathname;
 	const isCredentials = path.includes("/callback/credentials") || path.includes("/signin/credentials");
 
 	if (!isCredentials) {
