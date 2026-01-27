@@ -32,15 +32,9 @@ services:
       - key: NEXTAUTH_SECRET
         generateValue: true
       - key: NEXTAUTH_URL
-        fromService:
-          type: web
-          name: ujoor
-          property: host
+        value: https://ujoor.onrender.com
       - key: NEXT_PUBLIC_APP_URL
-        fromService:
-          type: web
-          name: ujoor
-          property: host
+        value: https://ujoor.onrender.com
       - key: NEXT_PUBLIC_RECAPTCHA_SITE_KEY
         sync: false
       - key: RECAPTCHA_SECRET_KEY
