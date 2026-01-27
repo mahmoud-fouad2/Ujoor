@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { signIn } from "next-auth/react";
+import { getSession, signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
@@ -55,7 +55,9 @@ export function LoginForm({ locale, labels }: LoginFormProps) {
         return;
       }
 
-      router.push("/dashboard");
+    const session = await getSession();
+    const role = (session?.user as any)?.role as string | undefined;
+    router.push(role === "SUPER_ADMIN" ? "/dashboard/super-admin" : "/dashboard");
       router.refresh();
     } finally {
       setIsLoading(false);

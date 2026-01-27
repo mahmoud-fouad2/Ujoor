@@ -14,8 +14,8 @@ export async function MarketingFooter() {
     <footer className="border-t">
       <div className="container mx-auto px-4 py-12">
         <div className="grid gap-6 sm:grid-cols-3 sm:items-center">
-          {/* Developer (always left on desktop) */}
-          <div className="order-3 flex justify-center sm:order-1 sm:justify-start">
+          {/* Developer */}
+          <div className="order-3 flex justify-center sm:order-1 sm:justify-start rtl:sm:justify-end">
             <Link
               href="https://ma-fo.info"
               className="inline-flex items-center gap-3 opacity-90 hover:opacity-100"
@@ -55,7 +55,7 @@ export async function MarketingFooter() {
           </div>
 
           {/* Copyright (right) */}
-          <div className="order-1 text-center sm:order-3 sm:text-end">
+          <div className="order-1 text-center sm:order-3 sm:text-end rtl:sm:text-start">
             <p className="text-sm text-muted-foreground">
               © {year} {t(locale, "footer.rights")}
             </p>
