@@ -40,7 +40,7 @@ services:
       - key: RECAPTCHA_SECRET_KEY
         sync: false
       - key: SUPER_ADMIN_EMAIL
-        value: admin@ujoor.com
+        sync: false
       - key: SUPER_ADMIN_PASSWORD
         sync: false
 
