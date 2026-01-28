@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { Bell, HelpCircle, LogOut, User, KeyRound, ChevronLeft, ChevronRight } from "lucide-react";
+import { getSession } from "next-auth/react";
 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -29,6 +30,27 @@ export function DashboardHeaderActions({
   const p = locale === "en" ? "/en" : "";
   // TODO: Replace with API call to get user avatar from R2 storage
   const [avatarSrc] = useState<string>("/images/avatars/1.png");
+
+  const [role, setRole] = useState<string | undefined>(undefined);
+  const [hasTenant, setHasTenant] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      const tenant = document.cookie
+        .split(";")
+        .map((c) => c.trim())
+        .find((c) => c.startsWith("ujoors_tenant="));
+      if (mounted) setHasTenant(Boolean(tenant));
+      const session = await getSession();
+      if (mounted) setRole((session?.user as any)?.role);
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const isSuperAdminNoTenant = role === "SUPER_ADMIN" && !hasTenant;
 
   const [notifications, setNotifications] = useState<Notification[]>([]);
   // TODO: Replace with API call to get read notification IDs
@@ -114,56 +136,71 @@ export function DashboardHeaderActions({
           <DropdownMenuLabel>{t.common.helpCenter}</DropdownMenuLabel>
           <DropdownMenuSeparator />
           <DropdownMenuGroup>
-            <DropdownMenuItem asChild>
-              <Link href={`${p}/dashboard/help-center`} className="flex items-center justify-between">
-                <span>{t.common.helpCenter}</span>
-                {locale === "ar" ? (
-                  <ChevronLeft className="h-4 w-4 opacity-60" />
-                ) : (
-                  <ChevronRight className="h-4 w-4 opacity-60" />
-                )}
-              </Link>
-            </DropdownMenuItem>
-            <DropdownMenuItem asChild>
-              <Link href={`${p}/dashboard/academy`} className="flex items-center justify-between">
-                <span>{t.common.academy}</span>
-                {locale === "ar" ? (
-                  <ChevronLeft className="h-4 w-4 opacity-60" />
-                ) : (
-                  <ChevronRight className="h-4 w-4 opacity-60" />
-                )}
-              </Link>
-            </DropdownMenuItem>
-            <DropdownMenuItem asChild>
-              <Link href={`${p}/dashboard/support`} className="flex items-center justify-between">
-                <span>{locale === "ar" ? "الدعم الفني" : "Support"}</span>
-                {locale === "ar" ? (
-                  <ChevronLeft className="h-4 w-4 opacity-60" />
-                ) : (
-                  <ChevronRight className="h-4 w-4 opacity-60" />
-                )}
-              </Link>
-            </DropdownMenuItem>
-            <DropdownMenuItem asChild>
-              <Link href={`${p}/dashboard/ideas`} className="flex items-center justify-between">
-                <span>{t.common.shareIdeas}</span>
-                {locale === "ar" ? (
-                  <ChevronLeft className="h-4 w-4 opacity-60" />
-                ) : (
-                  <ChevronRight className="h-4 w-4 opacity-60" />
-                )}
-              </Link>
-            </DropdownMenuItem>
-            <DropdownMenuItem asChild>
-              <Link href={`${p}/dashboard/whats-new`} className="flex items-center justify-between">
-                <span>{t.common.whatsNew}</span>
-                {locale === "ar" ? (
-                  <ChevronLeft className="h-4 w-4 opacity-60" />
-                ) : (
-                  <ChevronRight className="h-4 w-4 opacity-60" />
-                )}
-              </Link>
-            </DropdownMenuItem>
+            {isSuperAdminNoTenant ? (
+              <DropdownMenuItem asChild>
+                <Link href={`${p}/dashboard/super-admin/tenants`} className="flex items-center justify-between">
+                  <span>{locale === "ar" ? "اختيار شركة" : "Choose tenant"}</span>
+                  {locale === "ar" ? (
+                    <ChevronLeft className="h-4 w-4 opacity-60" />
+                  ) : (
+                    <ChevronRight className="h-4 w-4 opacity-60" />
+                  )}
+                </Link>
+              </DropdownMenuItem>
+            ) : (
+              <>
+                <DropdownMenuItem asChild>
+                  <Link href={`${p}/dashboard/help-center`} className="flex items-center justify-between">
+                    <span>{t.common.helpCenter}</span>
+                    {locale === "ar" ? (
+                      <ChevronLeft className="h-4 w-4 opacity-60" />
+                    ) : (
+                      <ChevronRight className="h-4 w-4 opacity-60" />
+                    )}
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link href={`${p}/dashboard/academy`} className="flex items-center justify-between">
+                    <span>{t.common.academy}</span>
+                    {locale === "ar" ? (
+                      <ChevronLeft className="h-4 w-4 opacity-60" />
+                    ) : (
+                      <ChevronRight className="h-4 w-4 opacity-60" />
+                    )}
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link href={`${p}/dashboard/support`} className="flex items-center justify-between">
+                    <span>{locale === "ar" ? "الدعم الفني" : "Support"}</span>
+                    {locale === "ar" ? (
+                      <ChevronLeft className="h-4 w-4 opacity-60" />
+                    ) : (
+                      <ChevronRight className="h-4 w-4 opacity-60" />
+                    )}
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link href={`${p}/dashboard/ideas`} className="flex items-center justify-between">
+                    <span>{t.common.shareIdeas}</span>
+                    {locale === "ar" ? (
+                      <ChevronLeft className="h-4 w-4 opacity-60" />
+                    ) : (
+                      <ChevronRight className="h-4 w-4 opacity-60" />
+                    )}
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link href={`${p}/dashboard/whats-new`} className="flex items-center justify-between">
+                    <span>{t.common.whatsNew}</span>
+                    {locale === "ar" ? (
+                      <ChevronLeft className="h-4 w-4 opacity-60" />
+                    ) : (
+                      <ChevronRight className="h-4 w-4 opacity-60" />
+                    )}
+                  </Link>
+                </DropdownMenuItem>
+              </>
+            )}
           </DropdownMenuGroup>
         </DropdownMenuContent>
       </DropdownMenu>

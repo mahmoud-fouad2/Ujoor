@@ -7,27 +7,54 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Building2, Users, Clock, AlertCircle, TrendingUp, CheckCircle2 } from "lucide-react";
 import Link from "next/link";
+import { getServerSession } from "next-auth";
 
-// بيانات تجريبية - ستأتي من الـ API لاحقًا
-const stats = {
-  totalTenants: 12,
-  activeTenants: 10,
-  pendingRequests: 3,
-  totalUsers: 248,
-};
+import { authOptions } from "@/lib/auth";
+import { prisma } from "@/lib/db";
 
-const recentTenants = [
-  { id: "1", name: "شركة النخبة للتقنية", slug: "elite-tech", status: "active", usersCount: 45, createdAt: "2026-01-20" },
-  { id: "2", name: "مؤسسة الرياض التجارية", slug: "riyadh-trading", status: "active", usersCount: 32, createdAt: "2026-01-18" },
-  { id: "3", name: "شركة المستقبل", slug: "future-co", status: "pending", usersCount: 0, createdAt: "2026-01-22" },
-];
+export default async function SuperAdminPage() {
+  const session = await getServerSession(authOptions);
+  if (!session?.user || session.user.role !== "SUPER_ADMIN") {
+    // Keep the page non-disclosing and consistent with admin APIs.
+    return (
+      <div className="space-y-6">
+        <h1 className="text-2xl font-bold">غير مصرح</h1>
+        <p className="text-muted-foreground">هذه الصفحة مخصصة للسوبر أدمن فقط.</p>
+      </div>
+    );
+  }
 
-const pendingRequests = [
-  { id: "1", companyName: "شركة الابتكار", email: "admin@innovation.sa", requestedAt: "2026-01-23" },
-  { id: "2", companyName: "مجموعة التميز", email: "info@excellence.sa", requestedAt: "2026-01-24" },
-];
+  const [
+    totalTenants,
+    activeTenants,
+    pendingRequestsCount,
+    totalUsers,
+    recentTenants,
+    pendingRequests,
+  ] = await Promise.all([
+    prisma.tenant.count(),
+    prisma.tenant.count({ where: { status: "ACTIVE" } }),
+    prisma.tenantRequest.count({ where: { status: "PENDING" } }),
+    prisma.user.count(),
+    prisma.tenant.findMany({
+      orderBy: { createdAt: "desc" },
+      take: 3,
+      include: { _count: { select: { users: true } } },
+    }),
+    prisma.tenantRequest.findMany({
+      where: { status: "PENDING" },
+      orderBy: { createdAt: "desc" },
+      take: 5,
+    }),
+  ]);
 
-export default function SuperAdminPage() {
+  const stats = {
+    totalTenants,
+    activeTenants,
+    pendingRequests: pendingRequestsCount,
+    totalUsers,
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -123,16 +150,16 @@ export default function SuperAdminPage() {
                       href={`/dashboard/super-admin/tenants/${tenant.id}`}
                       className="font-medium hover:text-primary"
                     >
-                      {tenant.name}
+                      {tenant.nameAr ?? tenant.name}
                     </Link>
                     <p className="text-sm text-muted-foreground">
-                      {tenant.slug}.ujoors.com • {tenant.usersCount} مستخدم
+                      {tenant.slug}.ujoors.com • {tenant._count.users} مستخدم
                     </p>
                   </div>
                   <Badge
-                    variant={tenant.status === "active" ? "default" : "secondary"}
+                    variant={tenant.status === "ACTIVE" ? "default" : "secondary"}
                   >
-                    {tenant.status === "active" ? (
+                    {tenant.status === "ACTIVE" ? (
                       <><CheckCircle2 className="h-3 w-3 me-1" /> نشط</>
                     ) : (
                       <><Clock className="h-3 w-3 me-1" /> معلق</>
@@ -168,9 +195,9 @@ export default function SuperAdminPage() {
                     className="flex items-center justify-between border-b pb-4 last:border-0 last:pb-0"
                   >
                     <div className="space-y-1">
-                      <p className="font-medium">{request.companyName}</p>
+                      <p className="font-medium">{request.companyNameAr ?? request.companyName}</p>
                       <p className="text-sm text-muted-foreground">
-                        {request.email}
+                        {request.contactEmail}
                       </p>
                     </div>
                     <div className="flex gap-2">

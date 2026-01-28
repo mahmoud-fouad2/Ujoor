@@ -58,12 +58,32 @@ export function AttendanceManager() {
   const [shifts, setShifts] = React.useState<{ id: string; nameAr?: string; name?: string }[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
+  const [currentEmployeeId, setCurrentEmployeeId] = React.useState<string | null>(null);
+  const [isProfileLoading, setIsProfileLoading] = React.useState(true);
   const [selectedDate, setSelectedDate] = React.useState(new Date());
   const [statusFilter, setStatusFilter] = React.useState<AttendanceStatus | "all">("all");
   const [employeeFilter, setEmployeeFilter] = React.useState<string>("all");
   const [viewMode, setViewMode] = React.useState<"day" | "month">("month");
 
-  const currentUserId = employees[0]?.id;
+  React.useEffect(() => {
+    let mounted = true;
+    (async () => {
+      setIsProfileLoading(true);
+      try {
+        const res = await fetch("/api/profile", { cache: "no-store" });
+        const json = await res.json();
+        const employeeId = json?.data?.employee?.id;
+        if (mounted) setCurrentEmployeeId(typeof employeeId === "string" ? employeeId : null);
+      } catch {
+        if (mounted) setCurrentEmployeeId(null);
+      } finally {
+        if (mounted) setIsProfileLoading(false);
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   const startDate = React.useMemo(() => {
     const y = selectedDate.getFullYear();
@@ -201,20 +221,36 @@ export function AttendanceManager() {
   };
 
   const handleQuickCheckIn = async () => {
-    if (!currentUserId) {
-      setError("لا يوجد موظف مسجل لاستخدام التسجيل السريع");
+    if (isProfileLoading) {
+      return;
+    }
+
+    if (!currentEmployeeId) {
+      setError("حسابك غير مرتبط بموظف لتسجيل البصمة");
       return;
     }
 
     const today = new Date().toISOString().split("T")[0];
-    const existingRecord = records.find((r) => r.date === today && r.employeeId === currentUserId);
+    const existingRecord = records.find((r) => r.date === today && r.employeeId === currentEmployeeId);
+
+    const getLocation = async (): Promise<{ lat: number; lng: number } | undefined> => {
+      if (typeof navigator === "undefined" || !navigator.geolocation) return undefined;
+      return new Promise((resolve) => {
+        navigator.geolocation.getCurrentPosition(
+          (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+          () => resolve(undefined),
+          { enableHighAccuracy: true, timeout: 8000 }
+        );
+      });
+    };
 
     try {
       setError(null);
+      const location = await getLocation();
       if (existingRecord && !existingRecord.checkOutTime) {
-        await attendanceService.checkOut({ employeeId: currentUserId });
+        await attendanceService.checkOut({ employeeId: currentEmployeeId, location });
       } else if (!existingRecord) {
-        await attendanceService.checkIn({ employeeId: currentUserId });
+        await attendanceService.checkIn({ employeeId: currentEmployeeId, location });
       }
       await fetchMonthData();
     } catch (e) {
@@ -224,8 +260,8 @@ export function AttendanceManager() {
 
   // Get today's record for current user
   const today = new Date().toISOString().split("T")[0];
-  const todayRecord = currentUserId
-    ? records.find((r) => r.date === today && r.employeeId === currentUserId)
+  const todayRecord = currentEmployeeId
+    ? records.find((r) => r.date === today && r.employeeId === currentEmployeeId)
     : undefined;
 
   return (

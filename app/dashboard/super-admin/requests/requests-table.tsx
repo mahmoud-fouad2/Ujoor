@@ -7,6 +7,7 @@
 
 import Link from "next/link";
 import * as React from "react";
+import { toast } from "sonner";
 import { 
   MoreHorizontal, 
   CheckCircle2, 
@@ -61,6 +62,7 @@ export function RequestsTable() {
   const [requests, setRequests] = React.useState<SubscriptionRequest[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
+  const [actingId, setActingId] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     let mounted = true;
@@ -114,6 +116,42 @@ export function RequestsTable() {
       </div>
     );
   }
+
+  const approve = async (id: string) => {
+    setActingId(id);
+    try {
+      const res = await tenantsService.approveRequest(id, {});
+      if (!res.success) {
+        toast.error(res.error || "تعذر قبول الطلب");
+        return;
+      }
+      toast.success("تم قبول الطلب");
+      setRequests((prev) => prev.map((r) => (r.id === id ? { ...r, status: "approved" } : r)));
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "تعذر قبول الطلب");
+    } finally {
+      setActingId(null);
+    }
+  };
+
+  const reject = async (id: string) => {
+    const reason = window.prompt("سبب الرفض (اختياري):") ?? "";
+
+    setActingId(id);
+    try {
+      const res = await tenantsService.rejectRequest(id, reason);
+      if (!res.success) {
+        toast.error(res.error || "تعذر رفض الطلب");
+        return;
+      }
+      toast.success("تم رفض الطلب");
+      setRequests((prev) => prev.map((r) => (r.id === id ? { ...r, status: "rejected" } : r)));
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "تعذر رفض الطلب");
+    } finally {
+      setActingId(null);
+    }
+  };
 
   return (
     <Table>
@@ -171,11 +209,23 @@ export function RequestsTable() {
             <TableCell>
               {request.status === "pending" ? (
                 <div className="flex gap-2">
-                  <Button size="sm" variant="default" className="h-8">
+                  <Button
+                    size="sm"
+                    variant="default"
+                    className="h-8"
+                    disabled={actingId === request.id}
+                    onClick={() => approve(request.id)}
+                  >
                     <CheckCircle2 className="me-1 h-3 w-3" />
                     قبول
                   </Button>
-                  <Button size="sm" variant="outline" className="h-8">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-8"
+                    disabled={actingId === request.id}
+                    onClick={() => reject(request.id)}
+                  >
                     <XCircle className="me-1 h-3 w-3" />
                     رفض
                   </Button>
@@ -190,7 +240,9 @@ export function RequestsTable() {
                   <DropdownMenuContent align="end">
                     <DropdownMenuLabel>الإجراءات</DropdownMenuLabel>
                     <DropdownMenuSeparator />
-                    <DropdownMenuItem>عرض التفاصيل</DropdownMenuItem>
+                    <DropdownMenuItem asChild>
+                      <Link href={`/dashboard/super-admin/requests/${request.id}`}>عرض التفاصيل</Link>
+                    </DropdownMenuItem>
                     {request.status === "approved" && (
                       <DropdownMenuItem>
                         <Building2 className="me-2 h-4 w-4" />

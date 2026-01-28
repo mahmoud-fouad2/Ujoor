@@ -100,6 +100,10 @@ export function proxy(request: NextRequest) {
   // Dashboard needs tenant context (except super-admin area)
   const isDashboard = pathname.startsWith("/dashboard");
   const isSuperAdmin = pathname.startsWith("/dashboard/super-admin");
+  const isTenantOptionalDashboardPath =
+    pathname.startsWith("/dashboard/my-profile") ||
+    pathname.startsWith("/dashboard/notifications") ||
+    pathname.startsWith("/dashboard/account");
 
   // Root should always render the marketing landing page
   if (pathname === "/") {
@@ -107,7 +111,7 @@ export function proxy(request: NextRequest) {
   }
 
   // Enforce tenant context for dashboard (except super-admin)
-  if (isDashboard && !isSuperAdmin && !effectiveTenant) {
+  if (isDashboard && !isSuperAdmin && !isTenantOptionalDashboardPath && !effectiveTenant) {
     // Allow localhost/IP for dev
     const cleanHost = stripPort(host).toLowerCase();
     const isLocalDev = cleanHost === "localhost" || /^[0-9.]+$/.test(cleanHost);
