@@ -9,6 +9,15 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import type { Tenant, TenantStatus } from "@/lib/types/tenant";
 
+function mapPlanToDb(plan: unknown): "TRIAL" | "BASIC" | "PROFESSIONAL" | "ENTERPRISE" {
+  const v = String(plan ?? "").toLowerCase();
+  if (v === "starter" || v === "basic") return "BASIC";
+  if (v === "business" || v === "professional") return "PROFESSIONAL";
+  if (v === "enterprise") return "ENTERPRISE";
+  if (v === "trial") return "TRIAL";
+  return "TRIAL";
+}
+
 // Map DB tenant to client format
 function mapTenant(t: any): Tenant {
   return {
@@ -159,7 +168,7 @@ export async function POST(request: NextRequest) {
         timezone: body.timezone || "Asia/Riyadh",
         currency: body.currency || "SAR",
         weekStartDay: body.weekStartDay || 0,
-        plan: (body.plan || "TRIAL").toUpperCase(),
+        plan: mapPlanToDb(body.plan),
         planExpiresAt: body.planExpiresAt
           ? new Date(body.planExpiresAt)
           : new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),

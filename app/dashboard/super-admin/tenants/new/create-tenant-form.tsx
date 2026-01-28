@@ -11,6 +11,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Loader2, Building2, User, Settings } from "lucide-react";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -89,15 +90,44 @@ export function CreateTenantForm() {
 
   const onSubmit = async (data: CreateTenantInput) => {
     setIsLoading(true);
-    
-    // TODO: Call API to create tenant
-    console.log("Creating tenant:", data);
-    
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-    
-    // Redirect to tenants list
-    router.push("/dashboard/super-admin/tenants?created=true");
+    try {
+      const res = await fetch("/api/admin/tenants", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: data.name,
+          nameAr: data.nameAr,
+          slug: data.slug,
+          plan: data.plan,
+          // Prisma model stores settings as Json
+          settings: {
+            defaultLocale: data.defaultLocale,
+            defaultTheme: data.defaultTheme,
+            companyEmail: data.email,
+            companyPhone: data.phone,
+            commercialRegister: data.commercialRegister,
+            adminName: data.adminName,
+            adminEmail: data.adminEmail,
+            sendInvite: data.sendInvite,
+          },
+        }),
+      });
+
+      const json = await res.json().catch(() => ({} as any));
+
+      if (!res.ok || json?.success === false) {
+        const msg = json?.error || json?.message || "فشل إنشاء الشركة";
+        toast.error(msg);
+        return;
+      }
+
+      toast.success("تم إنشاء الشركة بنجاح");
+      router.push("/dashboard/super-admin/tenants?created=true");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "فشل الاتصال بالخادم");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
