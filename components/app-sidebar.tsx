@@ -11,6 +11,7 @@ import {
   IconUsers,
 } from "@tabler/icons-react";
 import Link from "next/link";
+import { getSession } from "next-auth/react";
 
 import { NavMain } from "@/components/nav-main"
 import {
@@ -27,8 +28,42 @@ function getLocale(): "ar" | "en" {
   return document.documentElement.lang === "en" ? "en" : "ar";
 }
 
-function getNav(locale: "ar" | "en") {
+function getCookieValue(cookieName: string): string | undefined {
+  if (typeof document === "undefined") return undefined;
+  const match = document.cookie
+    .split(";")
+    .map((c) => c.trim())
+    .find((c) => c.startsWith(`${cookieName}=`));
+  if (!match) return undefined;
+  return decodeURIComponent(match.split("=").slice(1).join("="));
+}
+
+type NavItem = { title: string; url: string; icon: any };
+
+function getNav(locale: "ar" | "en", role?: string, hasTenant?: boolean): NavItem[] {
   const p = locale === "en" ? "/en" : "";
+
+  // SUPER_ADMIN without tenant context: avoid tenant-only pages that will redirect to landing.
+  if (role === "SUPER_ADMIN" && !hasTenant) {
+    return [
+      {
+        title: locale === "ar" ? "لوحة تحكم السوبر أدمن" : "Super Admin",
+        url: `${p}/dashboard/super-admin`,
+        icon: IconDashboard,
+      },
+      {
+        title: locale === "ar" ? "طلبات الاشتراك (Super Admin)" : "Subscription Requests (Super Admin)",
+        url: `${p}/dashboard/super-admin/requests`,
+        icon: IconListDetails,
+      },
+      {
+        title: locale === "ar" ? "الشركات (Super Admin)" : "Tenants (Super Admin)",
+        url: `${p}/dashboard/super-admin/tenants`,
+        icon: IconUsers,
+      },
+    ];
+  }
+
   return [
     {
       title: locale === "ar" ? "الرئيسية" : "Dashboard",
@@ -91,6 +126,24 @@ function getNav(locale: "ar" | "en") {
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const locale = getLocale();
   const p = locale === "en" ? "/en" : "";
+  const [role, setRole] = React.useState<string | undefined>(undefined);
+  const [hasTenant, setHasTenant] = React.useState<boolean>(false);
+
+  React.useEffect(() => {
+    let mounted = true;
+    (async () => {
+      const tenant = getCookieValue("ujoors_tenant");
+      if (mounted) setHasTenant(Boolean(tenant));
+      const session = await getSession();
+      if (mounted) setRole((session?.user as any)?.role);
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const navItems = React.useMemo(() => getNav(locale, role, hasTenant), [locale, role, hasTenant]);
+  const homeUrl = role === "SUPER_ADMIN" && !hasTenant ? `${p}/dashboard/super-admin` : `${p}/dashboard`;
 
   return (
     <Sidebar collapsible="icon" {...props}>
@@ -102,7 +155,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               asChild
               className="data-[slot=sidebar-menu-button]:!p-1.5"
             >
-              <Link href={`${p}/dashboard`}>
+              <Link href={homeUrl}>
                 <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
                   <span className="text-sm font-bold">U</span>
                 </div>
@@ -116,7 +169,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         </SidebarMenu>
       </SidebarHeader>
       <SidebarContent>
-        <NavMain items={getNav(locale)} />
+        <NavMain items={navItems} />
       </SidebarContent>
     </Sidebar>
   )
