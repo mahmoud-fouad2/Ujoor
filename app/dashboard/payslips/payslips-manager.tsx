@@ -15,6 +15,7 @@ import {
   IconCalendar,
   IconFileInvoice,
 } from "@tabler/icons-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -51,71 +52,64 @@ import {
   type Payslip,
   type PayslipStatus,
   formatCurrency,
-  mockPayrollPeriods,
+  type PayrollPeriod,
 } from "@/lib/types/payroll";
-import { mockEmployees, getEmployeeFullName } from "@/lib/types/core-hr";
-import { mockDepartments } from "@/lib/types/core-hr";
 
-// Generate mock payslips
-const generateMockPayslips = (): Payslip[] => {
-  return mockEmployees.slice(0, 10).map((emp, index) => {
-    const dept = mockDepartments.find((d) => d.id === emp.departmentId);
-    const basicSalary = emp.basicSalary || 8000 + index * 1000;
-    const housingAllowance = basicSalary * 0.25;
-    const transportAllowance = basicSalary * 0.1;
-    const totalEarnings = basicSalary + housingAllowance + transportAllowance;
-    const gosiEmployee = Math.round((basicSalary + housingAllowance) * 0.0975);
-    const totalDeductions = gosiEmployee;
-    const netSalary = totalEarnings - totalDeductions;
-
-    return {
-      id: `payslip-${emp.id}`,
-      payrollPeriodId: "payroll-2024-02",
-      employeeId: emp.id,
-      employeeName: `${emp.firstName} ${emp.lastName}`,
-      employeeNameAr: `${emp.firstNameAr || emp.firstName} ${emp.lastNameAr || emp.lastName}`,
-      employeeNumber: emp.employeeNumber,
-      department: dept?.name || "N/A",
-      departmentAr: dept?.nameAr || "غير محدد",
-      jobTitle: "Job Title", // From jobTitleId lookup in real implementation
-      jobTitleAr: "المسمى الوظيفي", // From jobTitleId lookup in real implementation
-      basicSalary,
-      earnings: [
-        { type: "basic", name: "Basic Salary", nameAr: "الراتب الأساسي", amount: basicSalary },
-        { type: "housing", name: "Housing Allowance", nameAr: "بدل السكن", amount: housingAllowance },
-        { type: "transport", name: "Transport Allowance", nameAr: "بدل المواصلات", amount: transportAllowance },
-      ],
-      totalEarnings,
-      deductions: [
-        { type: "gosi", name: "GOSI", nameAr: "التأمينات الاجتماعية", amount: gosiEmployee },
-      ],
-      totalDeductions,
-      netSalary,
-      workingDays: 22,
-      actualWorkDays: 21,
-      absentDays: 1,
-      lateDays: 2,
-      overtimeHours: index % 3 === 0 ? 8 : 0,
-      gosiEmployee,
-      gosiEmployer: Math.round((basicSalary + housingAllowance) * 0.1175),
-      status: index < 3 ? "sent" : index < 6 ? "generated" : "draft",
-      sentAt: index < 3 ? new Date().toISOString() : undefined,
-      viewedAt: index < 2 ? new Date().toISOString() : undefined,
-      paymentMethod: "bank_transfer",
-      bankName: "البنك الأهلي السعودي",
-      accountNumber: `SA${Math.random().toString().slice(2, 20)}`,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    } as Payslip;
-  });
-};
+async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(url, { cache: "no-store", ...init });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(json?.error || "Request failed");
+  }
+  return json as T;
+}
 
 export function PayslipsManager() {
-  const [payslips, setPayslips] = React.useState<Payslip[]>(generateMockPayslips);
+  const [periods, setPeriods] = React.useState<PayrollPeriod[]>([]);
+  const [payslips, setPayslips] = React.useState<Payslip[]>([]);
   const [searchQuery, setSearchQuery] = React.useState("");
-  const [periodFilter, setPeriodFilter] = React.useState("payroll-2024-02");
+  const [periodFilter, setPeriodFilter] = React.useState("");
   const [statusFilter, setStatusFilter] = React.useState<PayslipStatus | "all">("all");
   const [selectedPayslip, setSelectedPayslip] = React.useState<Payslip | null>(null);
+  const [isLoading, setIsLoading] = React.useState(false);
+  const [isSendingAll, setIsSendingAll] = React.useState(false);
+
+  const loadPeriods = React.useCallback(async () => {
+    const year = new Date().getFullYear();
+    const { data } = await fetchJson<{ data: PayrollPeriod[] }>(`/api/payroll/periods?year=${year}`);
+    setPeriods(data);
+    if (!periodFilter && data.length > 0) {
+      setPeriodFilter(data[0].id);
+    }
+  }, [periodFilter]);
+
+  const loadPayslips = React.useCallback(async (periodId: string) => {
+    if (!periodId) return;
+    setIsLoading(true);
+    try {
+      const { data } = await fetchJson<{ data: { payslips: Payslip[] } }>(
+        `/api/payroll/payslips?periodId=${encodeURIComponent(periodId)}`
+      );
+      setPayslips(data.payslips);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  React.useEffect(() => {
+    loadPeriods().catch((e) => {
+      console.error(e);
+      toast.error(e?.message || "فشل تحميل فترات الرواتب");
+    });
+  }, [loadPeriods]);
+
+  React.useEffect(() => {
+    if (!periodFilter) return;
+    loadPayslips(periodFilter).catch((e) => {
+      console.error(e);
+      toast.error(e?.message || "فشل تحميل قسائم الرواتب");
+    });
+  }, [periodFilter, loadPayslips]);
 
   const filteredPayslips = payslips.filter((p) => {
     const matchesSearch =
@@ -134,24 +128,36 @@ export function PayslipsManager() {
     totalNet: payslips.reduce((sum, p) => sum + p.netSalary, 0),
   };
 
-  const handleSendPayslip = (payslipId: string) => {
-    setPayslips((prev) =>
-      prev.map((p) =>
-        p.id === payslipId
-          ? { ...p, status: "sent" as PayslipStatus, sentAt: new Date().toISOString() }
-          : p
-      )
-    );
+  const handleSendPayslip = async (payslipId: string) => {
+    try {
+      await fetchJson(`/api/payroll/payslips/${encodeURIComponent(payslipId)}/send`, {
+        method: "POST",
+      });
+      toast.success("تم إرسال القسيمة");
+      await loadPayslips(periodFilter);
+    } catch (e: any) {
+      console.error(e);
+      toast.error(e?.message || "فشل إرسال القسيمة");
+    }
   };
 
-  const handleSendAll = () => {
-    setPayslips((prev) =>
-      prev.map((p) =>
-        p.status === "generated" || p.status === "draft"
-          ? { ...p, status: "sent" as PayslipStatus, sentAt: new Date().toISOString() }
-          : p
-      )
-    );
+  const handleSendAll = async () => {
+    if (!periodFilter) return;
+    setIsSendingAll(true);
+    try {
+      await fetchJson("/api/payroll/payslips", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ periodId: periodFilter }),
+      });
+      toast.success("تم إرسال جميع القسائم");
+      await loadPayslips(periodFilter);
+    } catch (e: any) {
+      console.error(e);
+      toast.error(e?.message || "فشل إرسال جميع القسائم");
+    } finally {
+      setIsSendingAll(false);
+    }
   };
 
   const getStatusBadge = (status: PayslipStatus) => {
@@ -164,7 +170,7 @@ export function PayslipsManager() {
     return <Badge variant={labels[status].variant}>{labels[status].label}</Badge>;
   };
 
-  const currentPeriod = mockPayrollPeriods.find((p) => p.id === periodFilter);
+  const currentPeriod = periods.find((p) => p.id === periodFilter);
 
   return (
     <div className="space-y-6">
@@ -226,7 +232,7 @@ export function PayslipsManager() {
               <SelectValue placeholder="الفترة" />
             </SelectTrigger>
             <SelectContent>
-              {mockPayrollPeriods.map((period) => (
+              {periods.map((period) => (
                 <SelectItem key={period.id} value={period.id}>
                   {period.nameAr}
                 </SelectItem>
@@ -253,7 +259,7 @@ export function PayslipsManager() {
         </div>
 
         <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={handleSendAll}>
+          <Button variant="outline" onClick={handleSendAll} disabled={!periodFilter || isSendingAll}>
             <IconSend className="ms-2 h-4 w-4" />
             إرسال الكل
           </Button>
@@ -302,7 +308,13 @@ export function PayslipsManager() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredPayslips.length === 0 ? (
+              {isLoading ? (
+                <TableRow>
+                  <TableCell colSpan={7} className="text-center py-8">
+                    <p className="text-muted-foreground">جاري التحميل...</p>
+                  </TableCell>
+                </TableRow>
+              ) : filteredPayslips.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={7} className="text-center py-8">
                     <IconFileInvoice className="mx-auto h-12 w-12 text-muted-foreground mb-2" />

@@ -1,17 +1,113 @@
 /**
  * Employees Data Hook - Centralized employee data management
- * TODO: Replace mock data with actual API calls when backend is ready
  */
 
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
 import type { Employee, Department } from "@/lib/types/core-hr";
-import { employeesService, departmentsService } from "@/lib/api";
 
-// Temporary initial data - will be fetched from API
 const INITIAL_EMPLOYEES: Employee[] = [];
 const INITIAL_DEPARTMENTS: Department[] = [];
+
+type EmployeesApiResponse = {
+  data?: Array<any>;
+  error?: string;
+  pagination?: { page: number; limit: number; total: number; totalPages: number };
+};
+
+type DepartmentsApiResponse = {
+  data?: Array<any>;
+  error?: string;
+};
+
+function mapEmploymentTypeToContractType(value: string | null | undefined): Employee["contractType"] {
+  switch (value) {
+    case "FULL_TIME":
+      return "full_time";
+    case "PART_TIME":
+      return "part_time";
+    case "CONTRACT":
+      return "contract";
+    case "INTERN":
+      return "intern";
+    default:
+      return "full_time";
+  }
+}
+
+function mapEmployeeStatusToUi(value: string | null | undefined): Employee["status"] {
+  switch (value) {
+    case "ACTIVE":
+      return "active";
+    case "ON_LEAVE":
+      return "on_leave";
+    case "TERMINATED":
+      return "terminated";
+    default:
+      return "active";
+  }
+}
+
+function mapEmployeeFromApi(emp: any): Employee {
+  return {
+    id: String(emp.id),
+    employeeNumber: String(emp.employeeNumber ?? ""),
+    firstName: String(emp.firstName ?? ""),
+    firstNameAr: emp.firstNameAr ?? undefined,
+    lastName: String(emp.lastName ?? ""),
+    lastNameAr: emp.lastNameAr ?? undefined,
+    email: String(emp.email ?? ""),
+    phone: emp.phone ?? undefined,
+    nationalId: emp.nationalId ?? undefined,
+    nationality: emp.nationality ?? undefined,
+    dateOfBirth: emp.dateOfBirth ? new Date(emp.dateOfBirth).toISOString().slice(0, 10) : undefined,
+    gender: emp.gender === "FEMALE" ? "female" : emp.gender === "MALE" ? "male" : undefined,
+    maritalStatus:
+      emp.maritalStatus === "SINGLE"
+        ? "single"
+        : emp.maritalStatus === "MARRIED"
+          ? "married"
+          : emp.maritalStatus === "DIVORCED"
+            ? "divorced"
+            : emp.maritalStatus === "WIDOWED"
+              ? "widowed"
+              : undefined,
+    departmentId: String(emp.departmentId ?? ""),
+    jobTitleId: String(emp.jobTitleId ?? ""),
+    managerId: emp.managerId ?? undefined,
+    branchId: undefined,
+    hireDate: emp.hireDate ? new Date(emp.hireDate).toISOString().slice(0, 10) : "",
+    contractType: mapEmploymentTypeToContractType(emp.employmentType),
+    probationEndDate: emp.probationEndDate ? new Date(emp.probationEndDate).toISOString().slice(0, 10) : undefined,
+    status: mapEmployeeStatusToUi(emp.status),
+    terminationDate: emp.terminationDate ? new Date(emp.terminationDate).toISOString().slice(0, 10) : undefined,
+    terminationReason: undefined,
+    basicSalary: emp.baseSalary != null ? Number(emp.baseSalary) : undefined,
+    currency: emp.currency ?? undefined,
+    tenantId: String(emp.tenantId ?? ""),
+    createdAt: emp.createdAt ? new Date(emp.createdAt).toISOString() : new Date().toISOString(),
+    updatedAt: emp.updatedAt ? new Date(emp.updatedAt).toISOString() : new Date().toISOString(),
+    createdBy: emp.userId ? String(emp.userId) : "",
+  };
+}
+
+function mapDepartmentFromApi(dept: any, employees: Employee[]): Department {
+  const id = String(dept.id);
+  return {
+    id,
+    name: String(dept.name ?? ""),
+    nameAr: dept.nameAr ?? undefined,
+    code: dept.code ?? undefined,
+    description: dept.description ?? undefined,
+    parentId: dept.parentId ?? undefined,
+    managerId: dept.managerId ?? undefined,
+    employeesCount: employees.filter((e) => e.departmentId === id).length,
+    tenantId: String(dept.tenantId ?? ""),
+    createdAt: dept.createdAt ? new Date(dept.createdAt).toISOString() : new Date().toISOString(),
+    updatedAt: dept.updatedAt ? new Date(dept.updatedAt).toISOString() : new Date().toISOString(),
+  };
+}
 
 interface UseEmployeesOptions {
   departmentId?: string;
@@ -42,22 +138,43 @@ export function useEmployees(options: UseEmployeesOptions = {}): UseEmployeesRet
     setError(null);
 
     try {
-      // TODO: Replace with actual API calls
-      const [empResponse, deptResponse] = await Promise.all([
-        employeesService.getAll({
-          departmentId: options.departmentId,
-          status: options.status,
-          search: options.search,
-        }),
-        departmentsService.getAll(),
+      const [empRes, deptRes] = await Promise.all([
+        fetch(
+          `/api/employees?limit=1000&search=${encodeURIComponent(options.search || "")}` +
+            (options.departmentId ? `&departmentId=${encodeURIComponent(options.departmentId)}` : "") +
+            (options.status
+              ? `&status=${encodeURIComponent(
+                  options.status === "active"
+                    ? "ACTIVE"
+                    : options.status === "on_leave"
+                      ? "ON_LEAVE"
+                      : options.status === "terminated"
+                        ? "TERMINATED"
+                        : "ACTIVE"
+                )}`
+              : ""),
+          { cache: "no-store" }
+        ),
+        fetch("/api/departments", { cache: "no-store" }),
       ]);
 
-      if (empResponse.success && empResponse.data) {
-        setEmployees(empResponse.data.employees);
+      const empJson = (await empRes.json()) as EmployeesApiResponse;
+      const deptJson = (await deptRes.json()) as DepartmentsApiResponse;
+
+      if (!empRes.ok) {
+        throw new Error(empJson.error || "فشل تحميل الموظفين");
       }
-      if (deptResponse.success && deptResponse.data) {
-        setDepartments(deptResponse.data);
+      if (!deptRes.ok) {
+        throw new Error(deptJson.error || "فشل تحميل الأقسام");
       }
+
+      const mappedEmployees = Array.isArray(empJson.data) ? empJson.data.map(mapEmployeeFromApi) : [];
+      setEmployees(mappedEmployees);
+
+      const mappedDepartments = Array.isArray(deptJson.data)
+        ? deptJson.data.map((d) => mapDepartmentFromApi(d, mappedEmployees))
+        : [];
+      setDepartments(mappedDepartments);
     } catch (err) {
       setError(err instanceof Error ? err.message : "فشل تحميل البيانات");
     } finally {

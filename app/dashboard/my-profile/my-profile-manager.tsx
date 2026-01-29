@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { 
   User, Mail, Phone, MapPin, Building2, Calendar, CreditCard,
   Shield, Edit, Save, X, Camera, FileText, AlertCircle
@@ -20,22 +20,262 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { mockEmployeeProfile, type EmployeeProfile } from '@/lib/types/self-service';
+import { toast } from 'sonner';
+import type { EmployeeDocument, EmployeeProfile } from '@/lib/types/self-service';
+
+type ProfileApiResponse = {
+  data?: {
+    id: string;
+    email: string;
+    firstName: string;
+    lastName: string;
+    avatar: string | null;
+    phone: string | null;
+    role: string;
+    status: string;
+    lastLoginAt: string | null;
+    employee?: {
+      id: string;
+      employeeNumber: string;
+      firstNameAr: string | null;
+      lastNameAr: string | null;
+      nationalId: string | null;
+      dateOfBirth: string | null;
+      gender: 'MALE' | 'FEMALE' | null;
+      nationality: string | null;
+      maritalStatus: 'SINGLE' | 'MARRIED' | 'DIVORCED' | 'WIDOWED' | null;
+      hireDate: string;
+      employmentType: string;
+      workLocation: string | null;
+      department?: { id: string; name: string; nameAr: string | null } | null;
+      jobTitle?: { id: string; name: string; nameAr: string | null } | null;
+      manager?: { id: string; firstName: string; lastName: string } | null;
+    } | null;
+    tenant?: { id: string; name: string; nameAr: string | null; logo: string | null } | null;
+  };
+  error?: string;
+};
+
+type DocumentsApiResponse = {
+  data?: Array<{
+    id: string;
+    title: string;
+    titleAr: string | null;
+    url: string;
+    expiryDate: string | null;
+    createdAt: string;
+    category: string;
+  }>;
+  error?: string;
+};
+
+type DocumentItem = NonNullable<DocumentsApiResponse['data']>[number];
+
+function mapGenderToUi(value: 'MALE' | 'FEMALE' | null | undefined): 'male' | 'female' {
+  if (value === 'FEMALE') return 'female';
+  return 'male';
+}
+
+function mapMaritalStatusToUi(
+  value: 'SINGLE' | 'MARRIED' | 'DIVORCED' | 'WIDOWED' | null | undefined
+): EmployeeProfile['maritalStatus'] {
+  switch (value) {
+    case 'SINGLE':
+      return 'single';
+    case 'MARRIED':
+      return 'married';
+    case 'DIVORCED':
+      return 'divorced';
+    case 'WIDOWED':
+      return 'widowed';
+    default:
+      return undefined;
+  }
+}
+
+function mapUiGenderToDb(value: 'male' | 'female'): 'MALE' | 'FEMALE' {
+  return value === 'female' ? 'FEMALE' : 'MALE';
+}
+
+function mapUiMaritalStatusToDb(
+  value: EmployeeProfile['maritalStatus']
+): 'SINGLE' | 'MARRIED' | 'DIVORCED' | 'WIDOWED' | null {
+  switch (value) {
+    case 'single':
+      return 'SINGLE';
+    case 'married':
+      return 'MARRIED';
+    case 'divorced':
+      return 'DIVORCED';
+    case 'widowed':
+      return 'WIDOWED';
+    default:
+      return null;
+  }
+}
+
+function mapDocumentToEmployeeDocument(doc: DocumentItem): EmployeeDocument {
+  return {
+    id: doc.id,
+    name: doc.titleAr || doc.title,
+    type: 'other',
+    fileUrl: doc.url,
+    expiryDate: doc.expiryDate || undefined,
+    uploadedAt: doc.createdAt,
+  };
+}
+
+function mapProfileApiToEmployeeProfile(api: NonNullable<ProfileApiResponse['data']>, documents: EmployeeDocument[]): EmployeeProfile {
+  const employee = api.employee;
+
+  return {
+    id: employee?.id ?? api.id,
+    employeeNumber: employee?.employeeNumber ?? '-',
+    firstName: employee?.firstNameAr || api.firstName,
+    lastName: employee?.lastNameAr || api.lastName,
+    firstNameEn: api.firstName,
+    lastNameEn: api.lastName,
+    email: api.email,
+    phone: api.phone ?? '',
+    avatar: api.avatar ?? undefined,
+    departmentId: employee?.department?.id ?? '',
+    departmentName: employee?.department?.nameAr || employee?.department?.name || '-',
+    jobTitleId: employee?.jobTitle?.id ?? '',
+    jobTitle: employee?.jobTitle?.nameAr || employee?.jobTitle?.name || '-',
+    managerId: employee?.manager?.id ?? undefined,
+    managerName: employee?.manager ? `${employee.manager.firstName} ${employee.manager.lastName}` : undefined,
+    hireDate: employee?.hireDate ?? new Date().toISOString(),
+    birthDate: employee?.dateOfBirth ?? undefined,
+    gender: mapGenderToUi(employee?.gender ?? null),
+    maritalStatus: mapMaritalStatusToUi(employee?.maritalStatus ?? null),
+    nationality: employee?.nationality ?? undefined,
+    nationalId: employee?.nationalId ?? undefined,
+    documents,
+  };
+}
 
 export default function MyProfileManager() {
-  // TODO: Replace with API call + R2 for avatar
-  const [profile, setProfile] = useState<EmployeeProfile>(mockEmployeeProfile);
+  const [profile, setProfile] = useState<EmployeeProfile | null>(null);
   const [isEditing, setIsEditing] = useState(false);
-  const [editedProfile, setEditedProfile] = useState<EmployeeProfile>(mockEmployeeProfile);
+  const [editedProfile, setEditedProfile] = useState<EmployeeProfile | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isUploadingDoc, setIsUploadingDoc] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const documentInputRef = useRef<HTMLInputElement | null>(null);
 
-  const handleSave = () => {
-    // TODO: API call to save profile + upload avatar to R2
-    setProfile(editedProfile);
-    setIsEditing(false);
+  const employeeIdForDocs = useMemo(() => {
+    if (!profile) return null;
+    // If user has no employee record, profile.id is userId.
+    if (profile.employeeNumber === '-' || !profile.employeeNumber) return null;
+    return profile.id;
+  }, [profile]);
+
+  async function loadProfile() {
+    setIsLoading(true);
+    try {
+      const res = await fetch('/api/profile', { cache: 'no-store' });
+      const json = (await res.json()) as ProfileApiResponse;
+
+      if (!res.ok) {
+        throw new Error(json.error || 'Failed to fetch profile');
+      }
+
+      if (!json.data) {
+        throw new Error('Invalid profile response');
+      }
+
+      let documents: EmployeeDocument[] = [];
+      const employeeId = json.data.employee?.id;
+      if (employeeId) {
+        const docsRes = await fetch(`/api/documents?employeeId=${encodeURIComponent(employeeId)}`, {
+          cache: 'no-store',
+        });
+        const docsJson = (await docsRes.json()) as DocumentsApiResponse;
+        if (docsRes.ok && Array.isArray(docsJson.data)) {
+          documents = docsJson.data.map(mapDocumentToEmployeeDocument);
+        }
+      }
+
+      const mapped = mapProfileApiToEmployeeProfile(json.data, documents);
+      setProfile(mapped);
+      setEditedProfile(mapped);
+    } catch (e) {
+      const message = e instanceof Error ? e.message : 'Failed to load profile';
+      toast.error(message);
+      setProfile(null);
+      setEditedProfile(null);
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    void loadProfile();
+  }, []);
+
+  const handleSave = async () => {
+    if (!editedProfile || !profile) return;
+    setIsSaving(true);
+    try {
+      // Update user-level fields
+      const userPayload = {
+        firstName: editedProfile.firstNameEn || editedProfile.firstName,
+        lastName: editedProfile.lastNameEn || editedProfile.lastName,
+        phone: editedProfile.phone,
+        avatar: editedProfile.avatar,
+      };
+
+      const userRes = await fetch('/api/profile', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(userPayload),
+      });
+
+      const userJson = await userRes.json();
+      if (!userRes.ok) {
+        throw new Error(userJson.error || 'Failed to update profile');
+      }
+
+      // Update employee-level fields when employee exists
+      const hasEmployee = profile.employeeNumber !== '-' && !!profile.employeeNumber;
+      if (hasEmployee) {
+        const employeePayload = {
+          firstNameAr: editedProfile.firstName,
+          lastNameAr: editedProfile.lastName,
+          phone: editedProfile.phone,
+          email: editedProfile.email,
+          nationalId: editedProfile.nationalId,
+          dateOfBirth: editedProfile.birthDate || null,
+          gender: mapUiGenderToDb(editedProfile.gender),
+          maritalStatus: mapUiMaritalStatusToDb(editedProfile.maritalStatus),
+          nationality: editedProfile.nationality || null,
+        };
+
+        const empRes = await fetch(`/api/employees/${encodeURIComponent(profile.id)}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(employeePayload),
+        });
+        const empJson = await empRes.json();
+        if (!empRes.ok) {
+          throw new Error(empJson.error || 'Failed to update employee profile');
+        }
+      }
+
+      toast.success('تم حفظ التغييرات');
+      setIsEditing(false);
+      await loadProfile();
+    } catch (e) {
+      const message = e instanceof Error ? e.message : 'Failed to save';
+      toast.error(message);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleCancel = () => {
+    if (!profile) return;
     setEditedProfile(profile);
     setIsEditing(false);
   };
@@ -45,6 +285,7 @@ export default function MyProfileManager() {
   };
 
   const onAvatarSelected: React.ChangeEventHandler<HTMLInputElement> = (e) => {
+    if (!editedProfile) return;
     const file = e.target.files?.[0];
     if (!file) return;
     if (!file.type.startsWith('image/')) return;
@@ -54,10 +295,83 @@ export default function MyProfileManager() {
     reader.onload = () => {
       const dataUrl = typeof reader.result === 'string' ? reader.result : null;
       if (!dataUrl) return;
-      setEditedProfile((p) => ({ ...p, avatar: dataUrl }));
+      setEditedProfile((p) => (p ? { ...p, avatar: dataUrl } : p));
     };
     reader.readAsDataURL(file);
   };
+
+  const openDocumentPicker = () => {
+    if (!employeeIdForDocs) {
+      toast.error('لا يوجد ملف موظف مرتبط بهذا الحساب');
+      return;
+    }
+    documentInputRef.current?.click();
+  };
+
+  const onDocumentSelected: React.ChangeEventHandler<HTMLInputElement> = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!employeeIdForDocs) {
+      toast.error('لا يوجد ملف موظف مرتبط بهذا الحساب');
+      return;
+    }
+
+    setIsUploadingDoc(true);
+    try {
+      const formData = new FormData();
+      formData.set('file', file);
+      formData.set('employeeId', employeeIdForDocs);
+      formData.set('title', file.name);
+      formData.set('category', 'PERSONAL');
+
+      const res = await fetch('/api/documents', {
+        method: 'POST',
+        body: formData,
+      });
+      const json = await res.json();
+
+      if (!res.ok) {
+        throw new Error(json.error || 'فشل رفع المستند');
+      }
+
+      toast.success('تم رفع المستند');
+      await loadProfile();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'فشل رفع المستند';
+      toast.error(message);
+    } finally {
+      setIsUploadingDoc(false);
+      if (e.target) e.target.value = '';
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold">ملفي الشخصي</h1>
+          <p className="text-muted-foreground">جاري تحميل البيانات...</p>
+        </div>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="h-24" />
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (!profile || !editedProfile) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold">ملفي الشخصي</h1>
+          <p className="text-muted-foreground">تعذر تحميل الملف الشخصي</p>
+        </div>
+        <Button variant="outline" onClick={() => void loadProfile()}>إعادة المحاولة</Button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -74,9 +388,9 @@ export default function MyProfileManager() {
                 <X className="h-4 w-4 me-2" />
                 إلغاء
               </Button>
-              <Button onClick={handleSave}>
+              <Button onClick={handleSave} disabled={isSaving}>
                 <Save className="h-4 w-4 me-2" />
-                حفظ التغييرات
+                {isSaving ? 'جاري الحفظ...' : 'حفظ التغييرات'}
               </Button>
             </>
           ) : (
@@ -114,6 +428,7 @@ export default function MyProfileManager() {
                 type="file"
                 accept="image/*"
                 className="hidden"
+                aria-label="اختيار صورة الملف الشخصي"
                 onChange={onAvatarSelected}
               />
             </div>
@@ -328,7 +643,7 @@ export default function MyProfileManager() {
                     value={editedProfile.address?.street || ''}
                     onChange={(e) => setEditedProfile({
                       ...editedProfile, 
-                      address: {...editedProfile.address, street: e.target.value}
+                      address: { ...(editedProfile.address || {}), street: e.target.value }
                     })}
                   />
                 ) : (
@@ -342,7 +657,7 @@ export default function MyProfileManager() {
                     value={editedProfile.address?.city || ''}
                     onChange={(e) => setEditedProfile({
                       ...editedProfile, 
-                      address: {...editedProfile.address, city: e.target.value}
+                      address: { ...(editedProfile.address || {}), city: e.target.value }
                     })}
                   />
                 ) : (
@@ -356,7 +671,7 @@ export default function MyProfileManager() {
                     value={editedProfile.address?.country || ''}
                     onChange={(e) => setEditedProfile({
                       ...editedProfile, 
-                      address: {...editedProfile.address, country: e.target.value}
+                      address: { ...(editedProfile.address || {}), country: e.target.value }
                     })}
                   />
                 ) : (
@@ -370,7 +685,7 @@ export default function MyProfileManager() {
                     value={editedProfile.address?.postalCode || ''}
                     onChange={(e) => setEditedProfile({
                       ...editedProfile, 
-                      address: {...editedProfile.address, postalCode: e.target.value}
+                      address: { ...(editedProfile.address || {}), postalCode: e.target.value }
                     })}
                   />
                 ) : (
@@ -391,7 +706,7 @@ export default function MyProfileManager() {
                     value={editedProfile.emergencyContact?.name || ''}
                     onChange={(e) => setEditedProfile({
                       ...editedProfile, 
-                      emergencyContact: {...editedProfile.emergencyContact!, name: e.target.value}
+                      emergencyContact: { ...(editedProfile.emergencyContact || { name: '', relationship: '', phone: '' }), name: e.target.value }
                     })}
                   />
                 ) : (
@@ -405,7 +720,7 @@ export default function MyProfileManager() {
                     value={editedProfile.emergencyContact?.relationship || ''}
                     onChange={(e) => setEditedProfile({
                       ...editedProfile, 
-                      emergencyContact: {...editedProfile.emergencyContact!, relationship: e.target.value}
+                      emergencyContact: { ...(editedProfile.emergencyContact || { name: '', relationship: '', phone: '' }), relationship: e.target.value }
                     })}
                   />
                 ) : (
@@ -419,7 +734,7 @@ export default function MyProfileManager() {
                     value={editedProfile.emergencyContact?.phone || ''}
                     onChange={(e) => setEditedProfile({
                       ...editedProfile, 
-                      emergencyContact: {...editedProfile.emergencyContact!, phone: e.target.value}
+                      emergencyContact: { ...(editedProfile.emergencyContact || { name: '', relationship: '', phone: '' }), phone: e.target.value }
                     })}
                   />
                 ) : (
@@ -481,31 +796,45 @@ export default function MyProfileManager() {
             </CardHeader>
             <CardContent>
               <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                {[
-                  { name: 'صورة الهوية', type: 'id', status: 'valid' },
-                  { name: 'صورة جواز السفر', type: 'passport', status: 'expiring' },
-                  { name: 'عقد العمل', type: 'contract', status: 'valid' },
-                  { name: 'شهادات التدريب', type: 'certificate', status: 'valid' },
-                ].map((doc, index) => (
-                  <div key={index} className="border rounded-lg p-4 flex items-center gap-3">
-                    <div className="h-10 w-10 rounded bg-muted flex items-center justify-center">
-                      <FileText className="h-5 w-5 text-muted-foreground" />
-                    </div>
-                    <div className="flex-1">
-                      <p className="font-medium text-sm">{doc.name}</p>
-                      <Badge variant={doc.status === 'valid' ? 'outline' : 'destructive'} className="text-xs mt-1">
-                        {doc.status === 'valid' ? 'سارية' : 'تنتهي قريباً'}
-                      </Badge>
-                    </div>
-                    <Button variant="ghost" size="sm">عرض</Button>
+                {(profile.documents || []).length === 0 ? (
+                  <div className="md:col-span-2 lg:col-span-3 text-sm text-muted-foreground">
+                    لا توجد مستندات بعد.
                   </div>
-                ))}
+                ) : (
+                  (profile.documents || []).map((doc) => (
+                    <div key={doc.id} className="border rounded-lg p-4 flex items-center gap-3">
+                      <div className="h-10 w-10 rounded bg-muted flex items-center justify-center">
+                        <FileText className="h-5 w-5 text-muted-foreground" />
+                      </div>
+                      <div className="flex-1">
+                        <p className="font-medium text-sm">{doc.name}</p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {doc.expiryDate ? `ينتهي: ${new Date(doc.expiryDate).toLocaleDateString('ar-SA')}` : '—'}
+                        </p>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => window.open(doc.fileUrl, '_blank', 'noopener,noreferrer')}
+                      >
+                        عرض
+                      </Button>
+                    </div>
+                  ))
+                )}
               </div>
               <div className="mt-4">
-                <Button variant="outline" className="w-full">
+                <Button variant="outline" className="w-full" onClick={openDocumentPicker} disabled={isUploadingDoc}>
                   <Camera className="h-4 w-4 me-2" />
-                  رفع مستند جديد
+                  {isUploadingDoc ? 'جاري الرفع...' : 'رفع مستند جديد'}
                 </Button>
+                <input
+                  ref={documentInputRef}
+                  type="file"
+                  className="hidden"
+                  aria-label="رفع مستند جديد"
+                  onChange={(e) => void onDocumentSelected(e)}
+                />
               </div>
             </CardContent>
           </Card>

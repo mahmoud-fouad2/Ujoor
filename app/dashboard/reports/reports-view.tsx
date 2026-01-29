@@ -37,11 +37,48 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import {
-  mockAttendanceRecords,
-  mockShifts,
   formatMinutesToHours,
 } from "@/lib/types/attendance";
-import { mockEmployees, mockDepartments, getEmployeeFullName } from "@/lib/types/core-hr";
+function getEmployeeFullNameSafe(emp: ApiEmployee, locale: "ar" | "en" = "ar") {
+  if (locale === "ar" && emp.firstNameAr && emp.lastNameAr) {
+    return `${emp.firstNameAr} ${emp.lastNameAr}`;
+  }
+  return `${emp.firstName} ${emp.lastName}`;
+}
+
+async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(url, { cache: "no-store", ...init });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(json?.error || "Request failed");
+  }
+  return json as T;
+}
+
+type ApiDepartment = {
+  id: string;
+  name: string;
+  nameAr: string;
+};
+
+type ApiEmployee = {
+  id: string;
+  firstName: string;
+  lastName: string;
+  firstNameAr?: string | null;
+  lastNameAr?: string | null;
+  departmentId?: string | null;
+  department?: ApiDepartment | null;
+};
+
+type ApiAttendanceRecord = {
+  id: string;
+  employeeId: string;
+  date: string; // YYYY-MM-DD
+  status: string;
+  lateMinutes?: number;
+  totalWorkMinutes?: number;
+};
 
 export function ReportsView() {
   const [reportType, setReportType] = React.useState<"summary" | "department" | "individual">(
@@ -52,14 +89,62 @@ export function ReportsView() {
   );
   const [selectedDepartment, setSelectedDepartment] = React.useState<string>("all");
 
+  const [departments, setDepartments] = React.useState<ApiDepartment[]>([]);
+  const [employees, setEmployees] = React.useState<ApiEmployee[]>([]);
+  const [attendanceRecords, setAttendanceRecords] = React.useState<ApiAttendanceRecord[]>([]);
+  const [isLoading, setIsLoading] = React.useState(false);
+
   // Parse selected month
   const [year, month] = selectedMonth.split("-").map(Number);
 
-  // Filter records for selected month
-  const monthRecords = mockAttendanceRecords.filter((r) => {
-    const recordDate = new Date(r.date);
-    return recordDate.getMonth() === month - 1 && recordDate.getFullYear() === year;
-  });
+  const startDate = React.useMemo(() => {
+    const d = new Date(year, month - 1, 1);
+    return d.toISOString().split("T")[0];
+  }, [year, month]);
+
+  const endDate = React.useMemo(() => {
+    const d = new Date(year, month, 0);
+    return d.toISOString().split("T")[0];
+  }, [year, month]);
+
+  React.useEffect(() => {
+    let cancelled = false;
+
+    async function load() {
+      setIsLoading(true);
+      try {
+        const [deptRes, empRes, attRes] = await Promise.all([
+          fetchJson<{ data: ApiDepartment[] }>("/api/departments"),
+          fetchJson<{ data: ApiEmployee[] }>("/api/employees?limit=1000"),
+          fetchJson<{ data: ApiAttendanceRecord[] }>(
+            `/api/attendance?startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(endDate)}&limit=10000&page=1`
+          ),
+        ]);
+
+        if (cancelled) return;
+        setDepartments(deptRes.data ?? []);
+        setEmployees(empRes.data ?? []);
+        setAttendanceRecords(attRes.data ?? []);
+      } catch (e) {
+        console.error(e);
+        if (!cancelled) {
+          setDepartments([]);
+          setEmployees([]);
+          setAttendanceRecords([]);
+        }
+      } finally {
+        if (!cancelled) setIsLoading(false);
+      }
+    }
+
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, [startDate, endDate]);
+
+  // Records are fetched already filtered by month
+  const monthRecords = attendanceRecords;
 
   // Calculate summary stats
   const totalWorkDays = monthRecords.filter(
@@ -79,7 +164,7 @@ export function ReportsView() {
     : 0;
 
   // Calculate per-employee stats
-  const employeeStats = mockEmployees.map((emp) => {
+  const employeeStats = employees.map((emp) => {
     const empRecords = monthRecords.filter((r) => r.employeeId === emp.id);
     const workDays = empRecords.filter((r) => !["weekend", "holiday"].includes(r.status)).length;
     const present = empRecords.filter((r) => r.status === "present").length;
@@ -101,8 +186,8 @@ export function ReportsView() {
   });
 
   // Calculate per-department stats
-  const departmentStats = mockDepartments.map((dept) => {
-    const deptEmployees = mockEmployees.filter((e) => e.departmentId === dept.id);
+  const departmentStats = departments.map((dept) => {
+    const deptEmployees = employees.filter((e) => e.departmentId === dept.id);
     const deptRecords = monthRecords.filter((r) =>
       deptEmployees.some((e) => e.id === r.employeeId)
     );
@@ -140,7 +225,7 @@ export function ReportsView() {
       "نسبة الحضور",
     ];
     const rows = filteredEmployeeStats.map((s) => [
-      getEmployeeFullName(s.employee, "ar"),
+      getEmployeeFullNameSafe(s.employee, "ar"),
       s.workDays,
       s.present,
       s.late,
@@ -244,7 +329,7 @@ export function ReportsView() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">كل الأقسام</SelectItem>
-              {mockDepartments.map((dept) => (
+              {departments.map((dept) => (
                 <SelectItem key={dept.id} value={dept.id}>
                   {dept.nameAr}
                 </SelectItem>
@@ -312,7 +397,13 @@ export function ReportsView() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredEmployeeStats.length === 0 ? (
+              {isLoading ? (
+                <TableRow>
+                  <TableCell colSpan={9} className="text-center py-8">
+                    <p className="text-muted-foreground">جاري التحميل...</p>
+                  </TableCell>
+                </TableRow>
+              ) : filteredEmployeeStats.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={9} className="text-center py-8">
                     <IconUsers className="mx-auto h-12 w-12 text-muted-foreground mb-2" />
@@ -321,13 +412,11 @@ export function ReportsView() {
                 </TableRow>
               ) : (
                 filteredEmployeeStats.map((stat) => {
-                  const dept = mockDepartments.find(
-                    (d) => d.id === stat.employee.departmentId
-                  );
+                  const dept = departments.find((d) => d.id === stat.employee.departmentId);
                   return (
                     <TableRow key={stat.employee.id}>
                       <TableCell className="font-medium">
-                        {getEmployeeFullName(stat.employee, "ar")}
+                        {getEmployeeFullNameSafe(stat.employee, "ar")}
                       </TableCell>
                       <TableCell>
                         <Badge variant="outline">{dept?.nameAr || "-"}</Badge>

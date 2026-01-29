@@ -1,12 +1,12 @@
 /**
  * Notifications Data Hook - Centralized notification management
- * TODO: Replace with actual API calls when backend is ready
  */
 
 "use client";
 
 import { useState, useCallback, useMemo } from "react";
 import type { Notification, NotificationType } from "@/lib/types/self-service";
+import { notificationsService } from "@/lib/api";
 
 interface UseNotificationsOptions {
   filter?: NotificationType | "all" | "unread";
@@ -24,7 +24,6 @@ interface UseNotificationsReturn {
 }
 
 export function useNotifications(options: UseNotificationsOptions = {}): UseNotificationsReturn {
-  // TODO: Replace with API call
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [readIds, setReadIds] = useState<Set<string>>(new Set());
   const [deletedIds, setDeletedIds] = useState<Set<string>>(new Set());
@@ -35,11 +34,13 @@ export function useNotifications(options: UseNotificationsOptions = {}): UseNoti
     setIsLoading(true);
     setError(null);
     try {
-      // TODO: Replace with actual API call
-      // const response = await notificationsService.getAll();
-      // if (response.success && response.data) {
-      //   setNotifications(response.data);
-      // }
+      const response = await notificationsService.getAll({ page: 1, pageSize: 100 });
+      if (response.success && response.data) {
+        setNotifications(response.data.notifications);
+      }
+      if (!response.success) {
+        setError(response.error || "فشل تحميل الإشعارات");
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "فشل تحميل الإشعارات");
     } finally {
@@ -50,18 +51,18 @@ export function useNotifications(options: UseNotificationsOptions = {}): UseNoti
   const markAsRead = useCallback((id: string) => {
     if (!id) return;
     setReadIds((prev) => new Set([...prev, id]));
-    // TODO: API call to mark notification as read
+    void notificationsService.markAsRead(id);
   }, []);
 
   const markAllAsRead = useCallback(() => {
     setReadIds(new Set(notifications.map((n) => n.id)));
-    // TODO: API call to mark all as read
+    void notificationsService.markAllAsRead();
   }, [notifications]);
 
   const deleteNotification = useCallback((id: string) => {
     if (!id) return;
     setDeletedIds((prev) => new Set([...prev, id]));
-    // TODO: API call to delete notification
+    void notificationsService.delete(id);
   }, []);
 
   const processedNotifications = useMemo(() => {

@@ -6,6 +6,7 @@ import { getAppLocale } from "@/lib/i18n/locale";
 import { getText } from "@/lib/i18n/text";
 import { Metadata } from "next";
 import { LocaleToggle } from "@/components/locale-toggle";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { LoginForm } from "./login-form";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -26,7 +27,8 @@ export default async function LoginPageV1() {
       <div className="grid min-h-screen grid-cols-1 lg:grid-cols-2">
         {/* Left: form */}
         <div className="relative flex items-center justify-center px-6 py-10 lg:px-12">
-          <div className={locale === "ar" ? "absolute left-6 top-6" : "absolute right-6 top-6"}>
+          <div className={`absolute top-6 ${locale === "ar" ? "left-6" : "right-6"} flex gap-2`}>
+            <ThemeToggle variant="ghost" />
             <LocaleToggle variant="ghost" />
           </div>
 

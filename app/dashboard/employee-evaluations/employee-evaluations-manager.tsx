@@ -63,8 +63,6 @@ import {
   EmployeeEvaluationStatus,
   employeeEvaluationStatusLabels,
   employeeEvaluationStatusColors,
-  mockEmployeeEvaluations,
-  mockEvaluationCycles,
   formatScore,
   getRatingByScore,
   defaultPerformanceRatings,
@@ -73,7 +71,7 @@ import { format } from "date-fns";
 import { ar } from "date-fns/locale";
 
 export function EmployeeEvaluationsManager() {
-  const [evaluations, setEvaluations] = useState<EmployeeEvaluation[]>(mockEmployeeEvaluations);
+  const [evaluations, setEvaluations] = useState<EmployeeEvaluation[]>([]);
   const [selectedEvaluation, setSelectedEvaluation] = useState<EmployeeEvaluation | null>(null);
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
   const [isReviewDialogOpen, setIsReviewDialogOpen] = useState(false);
@@ -261,11 +259,6 @@ export function EmployeeEvaluationsManager() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">جميع الدورات</SelectItem>
-            {mockEvaluationCycles.map((cycle) => (
-              <SelectItem key={cycle.id} value={cycle.id}>
-                {cycle.name}
-              </SelectItem>
-            ))}
           </SelectContent>
         </Select>
         <Select

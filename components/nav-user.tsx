@@ -5,8 +5,11 @@ import {
   IconLogout,
   IconNotification,
   IconUserCircle,
+  IconMoon,
+  IconSun,
 } from "@tabler/icons-react"
 import Link from "next/link";
+import { useTheme } from "next-themes";
 
 import {
   Avatar,
@@ -39,6 +42,7 @@ export function NavUser({
   }
 }) {
   const { isMobile, state } = useSidebar()
+  const { theme, setTheme } = useTheme()
   const locale = typeof document !== "undefined" && document.documentElement.lang === "en" ? "en" : "ar";
 
   const toggleLocale = () => {
@@ -46,6 +50,10 @@ export function NavUser({
     const maxAge = 60 * 60 * 24 * 365;
     document.cookie = `ujoors_locale=${next}; path=/; max-age=${maxAge}; samesite=lax`;
     window.location.reload();
+  };
+
+  const toggleTheme = () => {
+    setTheme(theme === "dark" ? "light" : "dark");
   };
 
   const handleLogout = () => {
@@ -112,6 +120,18 @@ export function NavUser({
                   <IconNotification />
                   {locale === "ar" ? "الإشعارات" : "Notifications"}
                 </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={(e) => {
+                e.preventDefault();
+                toggleTheme();
+              }}>
+                <span className="inline-flex items-center gap-2">
+                  {theme === "dark" ? <IconSun className="size-5" /> : <IconMoon className="size-5" />}
+                  {theme === "dark" 
+                    ? (locale === "ar" ? "الوضع النهاري" : "Light Mode")
+                    : (locale === "ar" ? "الوضع الليلي" : "Dark Mode")
+                  }
+                </span>
               </DropdownMenuItem>
               <DropdownMenuItem onSelect={(e) => {
                 e.preventDefault();

@@ -7,6 +7,23 @@ import prisma from "@/lib/db";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 
+function isSuperAdmin(role: string | undefined) {
+  return role === "SUPER_ADMIN";
+}
+
+function parseRequiredString(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const s = value.trim();
+  return s.length ? s : null;
+}
+
+function parseOptionalInt(value: unknown): number | null {
+  if (value === null || value === undefined || value === "") return null;
+  const n = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(n)) return null;
+  return Math.trunc(n);
+}
+
 export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
@@ -15,12 +32,18 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const tenantId = session.user.tenantId;
+    const { searchParams } = new URL(request.url);
+    const requestedTenantId = searchParams.get("tenantId") ?? undefined;
 
-    const where: any = {};
-    if (tenantId) {
-      where.tenantId = tenantId;
+    const tenantId = isSuperAdmin(session.user.role)
+      ? requestedTenantId ?? session.user.tenantId
+      : session.user.tenantId;
+
+    if (!tenantId) {
+      return NextResponse.json({ error: "Tenant required" }, { status: 400 });
     }
+
+    const where: any = { tenantId };
 
     const leaveTypes = await prisma.leaveType.findMany({
       where,
@@ -45,32 +68,47 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const tenantId = session.user.tenantId;
-    
+    const { searchParams } = new URL(request.url);
+    const requestedTenantId = searchParams.get("tenantId") ?? undefined;
+
+    const body = (await request.json()) as any;
+
+    const tenantId = isSuperAdmin(session.user.role)
+      ? (typeof body.tenantId === "string" ? body.tenantId : requestedTenantId ?? session.user.tenantId)
+      : session.user.tenantId;
+
     if (!tenantId) {
       return NextResponse.json({ error: "Tenant required" }, { status: 400 });
     }
 
-    const body = await request.json();
+    const name = parseRequiredString(body.name);
+    const code = parseRequiredString(body.code);
+
+    if (!name) {
+      return NextResponse.json({ error: "Name is required" }, { status: 400 });
+    }
+    if (!code) {
+      return NextResponse.json({ error: "Code is required" }, { status: 400 });
+    }
 
     const leaveType = await prisma.leaveType.create({
       data: {
         tenantId,
-        name: body.name,
+        name,
         nameAr: body.nameAr,
-        code: body.code,
+        code,
         description: body.description,
-        defaultDays: body.defaultDays || 0,
-        maxDays: body.maxDays,
-        carryOverDays: body.carryOverDays || 0,
-        carryOverExpiry: body.carryOverExpiry,
+        defaultDays: parseOptionalInt(body.defaultDays) ?? 0,
+        maxDays: parseOptionalInt(body.maxDays),
+        carryOverDays: parseOptionalInt(body.carryOverDays) ?? 0,
+        carryOverExpiry: parseOptionalInt(body.carryOverExpiry),
         isPaid: body.isPaid ?? true,
         requiresApproval: body.requiresApproval ?? true,
         requiresAttachment: body.requiresAttachment ?? false,
-        minServiceMonths: body.minServiceMonths || 0,
-        applicableGenders: body.applicableGenders || [],
+        minServiceMonths: parseOptionalInt(body.minServiceMonths) ?? 0,
+        applicableGenders: Array.isArray(body.applicableGenders) ? body.applicableGenders : [],
         color: body.color || "#3B82F6",
-        isActive: true,
+        isActive: body.isActive ?? true,
       },
     });
 

@@ -7,6 +7,10 @@ import prisma from "@/lib/db";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 
+function isSuperAdmin(role: string | undefined) {
+  return role === "SUPER_ADMIN";
+}
+
 interface RouteParams {
   params: Promise<{ id: string }>;
 }
@@ -20,8 +24,16 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const leaveRequest = await prisma.leaveRequest.findUnique({
-      where: { id },
+    const tenantId = session.user.tenantId;
+    if (!tenantId && !isSuperAdmin(session.user.role)) {
+      return NextResponse.json({ error: "Tenant required" }, { status: 400 });
+    }
+
+    const leaveRequest = await prisma.leaveRequest.findFirst({
+      where: {
+        id,
+        ...(tenantId ? { tenantId } : {}),
+      },
       include: {
         employee: {
           include: {
@@ -58,39 +70,66 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 
     const body = await request.json();
 
-    // Handle approval/rejection
-    if (body.action === "approve" || body.action === "reject") {
-      const leaveRequest = await prisma.leaveRequest.update({
-        where: { id },
-        data: {
-          status: body.action === "approve" ? "APPROVED" : "REJECTED",
-          approvedById: session.user.id,
-          approvedAt: new Date(),
-          rejectionReason: body.rejectionReason,
-        },
-      });
+    const tenantId = session.user.tenantId;
+    if (!tenantId && !isSuperAdmin(session.user.role)) {
+      return NextResponse.json({ error: "Tenant required" }, { status: 400 });
+    }
 
-      // If approved, update leave balance
-      if (body.action === "approve") {
-        const lr = await prisma.leaveRequest.findUnique({
+    const existing = await prisma.leaveRequest.findFirst({
+      where: {
+        id,
+        ...(tenantId ? { tenantId } : {}),
+      },
+    });
+
+    if (!existing) {
+      return NextResponse.json({ error: "Leave request not found" }, { status: 404 });
+    }
+
+    // Handle approval/rejection
+    const actionRaw = typeof body.action === "string" ? body.action : "";
+    const action = actionRaw.toLowerCase();
+    if (action === "approve" || action === "reject") {
+      const year = existing.startDate.getFullYear();
+      const totalDays = Number(existing.totalDays);
+
+      const leaveRequest = await prisma.$transaction(async (tx) => {
+        const updated = await tx.leaveRequest.update({
           where: { id },
-          include: { leaveType: true },
+          data: {
+            status: action === "approve" ? "APPROVED" : "REJECTED",
+            approvedById: session.user.id,
+            approvedAt: new Date(),
+            rejectionReason: action === "reject" ? body.rejectionReason : null,
+          },
         });
 
-        if (lr) {
-          await prisma.leaveBalance.updateMany({
+        // If approved, move days from pending -> used
+        if (action === "approve") {
+          await tx.leaveBalance.upsert({
             where: {
-              employeeId: lr.employeeId,
-              leaveTypeId: lr.leaveTypeId,
-              year: new Date().getFullYear(),
+              employeeId_leaveTypeId_year: {
+                employeeId: existing.employeeId,
+                leaveTypeId: existing.leaveTypeId,
+                year,
+              },
             },
-            data: {
-              used: { increment: Number(lr.totalDays) },
-              pending: { decrement: Number(lr.totalDays) },
+            update: {
+              used: { increment: totalDays },
+              pending: { decrement: totalDays },
+            },
+            create: {
+              tenantId: existing.tenantId,
+              employeeId: existing.employeeId,
+              leaveTypeId: existing.leaveTypeId,
+              year,
+              used: totalDays,
             },
           });
         }
-      }
+
+        return updated;
+      });
 
       return NextResponse.json({ data: leaveRequest });
     }
@@ -125,8 +164,16 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const existing = await prisma.leaveRequest.findUnique({
-      where: { id },
+    const tenantId = session.user.tenantId;
+    if (!tenantId && !isSuperAdmin(session.user.role)) {
+      return NextResponse.json({ error: "Tenant required" }, { status: 400 });
+    }
+
+    const existing = await prisma.leaveRequest.findFirst({
+      where: {
+        id,
+        ...(tenantId ? { tenantId } : {}),
+      },
     });
 
     if (!existing) {
@@ -140,9 +187,26 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    await prisma.leaveRequest.update({
-      where: { id },
-      data: { status: "CANCELLED" },
+    const year = existing.startDate.getFullYear();
+    const totalDays = Number(existing.totalDays);
+
+    await prisma.$transaction(async (tx) => {
+      await tx.leaveRequest.update({
+        where: { id },
+        data: { status: "CANCELLED" },
+      });
+
+      // Remove pending from balance
+      await tx.leaveBalance.updateMany({
+        where: {
+          employeeId: existing.employeeId,
+          leaveTypeId: existing.leaveTypeId,
+          year,
+        },
+        data: {
+          pending: { decrement: totalDays },
+        },
+      });
     });
 
     return NextResponse.json({ success: true });

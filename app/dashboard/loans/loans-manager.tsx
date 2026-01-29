@@ -69,13 +69,12 @@ import {
   type LoanStatus,
   loanStatusLabels,
   loanTypeLabels,
-  mockLoans,
   formatCurrency,
 } from "@/lib/types/payroll";
-import { mockEmployees, getEmployeeFullName } from "@/lib/types/core-hr";
+import { getEmployeeFullName } from "@/lib/types/core-hr";
 
 export function LoansManager() {
-  const [loans, setLoans] = React.useState<Loan[]>(mockLoans);
+  const [loans, setLoans] = React.useState<Loan[]>([]);
   const [searchQuery, setSearchQuery] = React.useState("");
   const [statusFilter, setStatusFilter] = React.useState<LoanStatus | "all">("all");
   const [isFormOpen, setIsFormOpen] = React.useState(false);
@@ -91,9 +90,7 @@ export function LoansManager() {
   const [formReason, setFormReason] = React.useState("");
 
   const filteredLoans = loans.filter((loan) => {
-    const employee = mockEmployees.find((e) => e.id === loan.employeeId);
-    const employeeName = employee ? getEmployeeFullName(employee, "ar") : "";
-    const matchesSearch = employeeName.includes(searchQuery);
+    const matchesSearch = searchQuery === "";
     const matchesStatus = statusFilter === "all" || loan.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
@@ -207,8 +204,7 @@ export function LoansManager() {
   };
 
   const getEmployeeName = (employeeId: string) => {
-    const emp = mockEmployees.find((e) => e.id === employeeId);
-    return emp ? getEmployeeFullName(emp, "ar") : "غير معروف";
+    return "غير معروف";
   };
 
   const getStatusBadge = (status: LoanStatus) => {
@@ -338,11 +334,6 @@ export function LoansManager() {
                     <SelectValue placeholder="اختر الموظف" />
                   </SelectTrigger>
                   <SelectContent>
-                    {mockEmployees.map((emp) => (
-                      <SelectItem key={emp.id} value={emp.id}>
-                        {getEmployeeFullName(emp, "ar")}
-                      </SelectItem>
-                    ))}
                   </SelectContent>
                 </Select>
               </div>

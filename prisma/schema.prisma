@@ -54,10 +54,19 @@ model Tenant {
   announcements     Announcement[]
   salaryStructures  SalaryStructure[]
   payrollPeriods    PayrollPeriod[]
+  payrollPayslips   PayrollPayslip[]
+  trainingCourses   TrainingCourse[]
+  trainingEnrollments TrainingEnrollment[]
+  evaluationCycles  EvaluationCycle[]
+  employeeEvaluations EmployeeEvaluation[]
+  performanceGoals  PerformanceGoal[]
   notifications     Notification[]
   supportTickets    SupportTicket[]
   workLocations     TenantWorkLocation[]
   attendancePolicy  TenantAttendancePolicy?
+  jobPostings       JobPosting[]
+  applicants        Applicant[]
+  interviews        Interview[]
   
   @@index([slug])
   @@index([status])
@@ -165,6 +174,10 @@ model User {
   notificationPreference NotificationPreference?
 
   processedPayrollPeriods PayrollPeriod[] @relation("PayrollProcessedBy")
+
+  createdTrainingCourses TrainingCourse[] @relation("TrainingCourseCreatedBy")
+  createdEvaluationCycles EvaluationCycle[] @relation("EvaluationCycleCreatedBy")
+  createdJobPostings JobPosting[]
   
   @@index([tenantId])
   @@index([email])
@@ -344,12 +357,290 @@ model Employee {
   leaveRequests     LeaveRequest[]
   leaveBalances     LeaveBalance[]
   documents         Document[]
+  payrollPayslips    PayrollPayslip[]
+  trainingEnrollments TrainingEnrollment[]
+  evaluations       EmployeeEvaluation[]
+  evaluationsAsEvaluator EmployeeEvaluation[] @relation("EvaluatorEvaluations")
+  performanceGoals  PerformanceGoal[]
+  managedGoals      PerformanceGoal[] @relation("ManagerGoals")
+  interviews        Interview[]
   
   @@unique([tenantId, employeeNumber])
   @@index([tenantId])
   @@index([departmentId])
   @@index([managerId])
   @@index([status])
+}
+
+// =============================================
+// TRAINING & DEVELOPMENT (MVP)
+// =============================================
+
+enum TrainingCourseStatus {
+  DRAFT
+  SCHEDULED
+  ONGOING
+  COMPLETED
+  CANCELLED
+}
+
+enum TrainingCourseType {
+  IN_PERSON
+  ONLINE
+  HYBRID
+  SELF_PACED
+  WORKSHOP
+  CONFERENCE
+}
+
+enum TrainingCourseCategory {
+  TECHNICAL
+  SOFT_SKILLS
+  LEADERSHIP
+  COMPLIANCE
+  SAFETY
+  ONBOARDING
+  OTHER
+}
+
+enum TrainingEnrollmentStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  ENROLLED
+  IN_PROGRESS
+  COMPLETED
+  FAILED
+  WITHDRAWN
+}
+
+model TrainingCourse {
+  id                  String   @id @default(cuid())
+
+  tenantId            String
+  tenant              Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  title               String
+  titleEn             String?
+  description         String
+  descriptionEn       String?
+
+  category            TrainingCourseCategory @default(OTHER)
+  type                TrainingCourseType     @default(IN_PERSON)
+  status              TrainingCourseStatus   @default(DRAFT)
+
+  provider            String?
+  instructorName      String?
+
+  durationHours       Int      @default(1)
+  maxParticipants     Int?
+
+  startDate           DateTime?
+  endDate             DateTime?
+  location            String?
+  meetingLink         String?
+
+  objectives          Json     @default("[]")
+  prerequisites       Json     @default("[]")
+  targetDepartments   String[] @default([])
+  targetRoles         String[] @default([])
+
+  cost                Decimal? @db.Decimal(12, 2)
+  currency            String   @default("SAR")
+  isMandatory         Boolean  @default(false)
+
+  createdByUserId     String?
+  createdByUser       User?    @relation("TrainingCourseCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  enrollments         TrainingEnrollment[]
+
+  @@index([tenantId])
+  @@index([tenantId, status])
+  @@index([tenantId, category])
+}
+
+model TrainingEnrollment {
+  id            String   @id @default(cuid())
+
+  tenantId      String
+  tenant        Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  courseId      String
+  course        TrainingCourse @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  employeeId    String
+  employee      Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  status        TrainingEnrollmentStatus @default(PENDING)
+  progress      Int      @default(0)
+  score         Decimal? @db.Decimal(5, 2)
+  feedback      String?
+
+  enrolledAt    DateTime @default(now())
+  approvedAt    DateTime?
+  completedAt   DateTime?
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([tenantId, courseId, employeeId])
+  @@index([tenantId])
+  @@index([tenantId, courseId])
+  @@index([tenantId, employeeId])
+  @@index([tenantId, status])
+}
+
+// =============================================
+// PERFORMANCE MANAGEMENT
+// =============================================
+
+enum EvaluationCycleStatus {
+  DRAFT
+  ACTIVE
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum EvaluationStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  PENDING_REVIEW
+  COMPLETED
+  CANCELLED
+}
+
+enum GoalStatus {
+  DRAFT
+  ACTIVE
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  OVERDUE
+}
+
+enum GoalPriority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+model EvaluationCycle {
+  id                String   @id @default(cuid())
+
+  tenantId          String
+  tenant            Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  name              String
+  nameAr            String?
+  description       String?
+  
+  startDate         DateTime
+  endDate           DateTime
+  reviewDeadline    DateTime?
+  
+  status            EvaluationCycleStatus @default(DRAFT)
+  
+  templateId        String?
+  
+  targetDepartments String[] @default([])
+  targetEmployees   String[] @default([])
+  
+  createdByUserId   String?
+  createdByUser     User?    @relation("EvaluationCycleCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  evaluations       EmployeeEvaluation[]
+  
+  @@index([tenantId])
+  @@index([tenantId, status])
+}
+
+model EmployeeEvaluation {
+  id                String   @id @default(cuid())
+
+  tenantId          String
+  tenant            Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  cycleId           String
+  cycle             EvaluationCycle @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+
+  employeeId        String
+  employee          Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  evaluatorId       String?
+  evaluator         Employee? @relation("EvaluatorEvaluations", fields: [evaluatorId], references: [id], onDelete: SetNull)
+
+  status            EvaluationStatus @default(NOT_STARTED)
+  
+  overallScore      Decimal? @db.Decimal(5, 2)
+  overallRating     String?
+  
+  scores            Json     @default("[]")
+  strengths         String?
+  areasForImprovement String?
+  comments          String?
+  
+  employeeComments  String?
+  employeeAcknowledgedAt DateTime?
+  
+  submittedAt       DateTime?
+  reviewedAt        DateTime?
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@unique([tenantId, cycleId, employeeId])
+  @@index([tenantId])
+  @@index([tenantId, cycleId])
+  @@index([tenantId, employeeId])
+  @@index([tenantId, status])
+}
+
+model PerformanceGoal {
+  id                String   @id @default(cuid())
+
+  tenantId          String
+  tenant            Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  employeeId        String
+  employee          Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  title             String
+  titleAr           String?
+  description       String
+  
+  category          String   @default("performance")
+  priority          GoalPriority @default(MEDIUM)
+  status            GoalStatus @default(DRAFT)
+  
+  targetValue       String?
+  currentValue      String?
+  unit              String?
+  
+  startDate         DateTime
+  dueDate           DateTime
+  completedAt       DateTime?
+  
+  progress          Int      @default(0)
+  
+  managerId         String?
+  manager           Employee? @relation("ManagerGoals", fields: [managerId], references: [id], onDelete: SetNull)
+  
+  notes             String?
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([tenantId])
+  @@index([tenantId, employeeId])
+  @@index([tenantId, status])
 }
 
 enum Gender {
@@ -402,6 +693,7 @@ model Department {
   updatedAt   DateTime @updatedAt
   
   employees   Employee[]
+  jobPostings JobPosting[]
   
   @@unique([tenantId, code])
   @@index([tenantId])
@@ -428,6 +720,7 @@ model JobTitle {
   updatedAt   DateTime @updatedAt
   
   employees   Employee[]
+  jobPostings JobPosting[]
   
   @@unique([tenantId, code])
   @@index([tenantId])
@@ -1023,6 +1316,13 @@ enum PayrollPeriodStatus {
   CANCELLED
 }
 
+enum PayslipStatus {
+  DRAFT
+  GENERATED
+  SENT
+  VIEWED
+}
+
 model PayrollPeriod {
   id              String   @id @default(cuid())
 
@@ -1048,12 +1348,66 @@ model PayrollPeriod {
 
   notes           String?
 
+  payslips         PayrollPayslip[]
+
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
   @@index([tenantId])
   @@index([tenantId, status])
   @@index([tenantId, startDate])
+}
+
+model PayrollPayslip {
+  id              String   @id @default(cuid())
+
+  tenantId        String
+  tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  payrollPeriodId String
+  payrollPeriod   PayrollPeriod @relation(fields: [payrollPeriodId], references: [id], onDelete: Cascade)
+
+  employeeId      String
+  employee        Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  status          PayslipStatus @default(GENERATED)
+  sentAt          DateTime?
+  viewedAt        DateTime?
+
+  currency        String @default("SAR")
+  paymentMethod   String @default("bank_transfer")
+  bankName        String?
+  accountNumber   String?
+
+  // Snapshot amounts (keep as stored values for reporting/audit)
+  basicSalary     Decimal @default(0) @db.Decimal(12, 2)
+  totalEarnings   Decimal @default(0) @db.Decimal(14, 2)
+  totalDeductions Decimal @default(0) @db.Decimal(14, 2)
+  netSalary       Decimal @default(0) @db.Decimal(14, 2)
+
+  // Breakdown
+  earnings        Json
+  deductions      Json
+
+  // Attendance snapshot (MVP defaults)
+  workingDays     Int @default(22)
+  actualWorkDays  Int @default(22)
+  absentDays      Int @default(0)
+  lateDays        Int @default(0)
+  overtimeHours   Int @default(0)
+
+  // GOSI snapshot
+  gosiEmployee    Int @default(0)
+  gosiEmployer    Int @default(0)
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([tenantId, payrollPeriodId, employeeId])
+  @@index([tenantId])
+  @@index([tenantId, payrollPeriodId])
+  @@index([tenantId, employeeId])
+  @@index([tenantId, status])
 }
 
 // =============================================
@@ -1103,4 +1457,180 @@ model NotificationPreference {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+// =============================================
+// RECRUITMENT (Job Postings, Applicants, Interviews)
+// =============================================
+
+enum JobPostingStatus {
+  DRAFT
+  ACTIVE
+  CLOSED
+  FILLED
+}
+
+enum JobType {
+  FULL_TIME
+  PART_TIME
+  CONTRACT
+  INTERNSHIP
+  TEMPORARY
+}
+
+enum ExperienceLevel {
+  ENTRY
+  JUNIOR
+  MID
+  SENIOR
+  LEAD
+  EXECUTIVE
+}
+
+enum ApplicationStatus {
+  NEW
+  SCREENING
+  SHORTLISTED
+  INTERVIEW
+  OFFER
+  ACCEPTED
+  REJECTED
+  WITHDRAWN
+}
+
+enum InterviewType {
+  PHONE
+  VIDEO
+  IN_PERSON
+  TECHNICAL
+  HR
+  FINAL
+}
+
+enum InterviewStatus {
+  SCHEDULED
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+}
+
+model JobPosting {
+  id                String   @id @default(cuid())
+  
+  tenantId          String
+  tenant            Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  
+  title             String
+  titleAr           String?
+  description       String
+  requirements      String?
+  responsibilities  String?
+  benefits          String?
+  
+  departmentId      String?
+  department        Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  
+  jobTitleId        String?
+  jobTitle          JobTitle? @relation(fields: [jobTitleId], references: [id], onDelete: SetNull)
+  
+  status            JobPostingStatus @default(DRAFT)
+  jobType           JobType @default(FULL_TIME)
+  experienceLevel   ExperienceLevel @default(MID)
+  
+  positions         Int      @default(1)
+  location          String?
+  
+  salaryMin         Decimal? @db.Decimal(12, 2)
+  salaryMax         Decimal? @db.Decimal(12, 2)
+  salaryCurrency    String?  @default("SAR")
+  
+  postedAt          DateTime?
+  closedAt          DateTime?
+  expiresAt         DateTime?
+  
+  createdById       String
+  createdBy         User     @relation(fields: [createdById], references: [id])
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  
+  applicants        Applicant[]
+  interviews        Interview[]
+  
+  @@index([tenantId])
+  @@index([tenantId, status])
+  @@index([tenantId, departmentId])
+  @@index([postedAt])
+}
+
+model Applicant {
+  id                String   @id @default(cuid())
+  
+  tenantId          String
+  tenant            Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  
+  jobPostingId      String
+  jobPosting        JobPosting @relation(fields: [jobPostingId], references: [id], onDelete: Cascade)
+  
+  firstName         String
+  lastName          String
+  email             String
+  phone             String?
+  
+  resumeUrl         String?
+  coverLetter       String?
+  
+  status            ApplicationStatus @default(NEW)
+  source            String?  @default("career-portal")
+  
+  rating            Int?
+  notes             String?
+  
+  appliedAt         DateTime @default(now())
+  
+  interviews        Interview[]
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  
+  @@index([tenantId])
+  @@index([tenantId, jobPostingId])
+  @@index([tenantId, status])
+  @@index([email])
+}
+
+model Interview {
+  id                String   @id @default(cuid())
+  
+  tenantId          String
+  tenant            Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  
+  applicantId       String
+  applicant         Applicant @relation(fields: [applicantId], references: [id], onDelete: Cascade)
+  
+  jobPostingId      String
+  jobPosting        JobPosting @relation(fields: [jobPostingId], references: [id], onDelete: Cascade)
+  
+  type              InterviewType @default(HR)
+  status            InterviewStatus @default(SCHEDULED)
+  
+  scheduledAt       DateTime
+  duration          Int      @default(60)
+  location          String?
+  meetingLink       String?
+  
+  interviewerId     String?
+  interviewer       Employee? @relation(fields: [interviewerId], references: [id], onDelete: SetNull)
+  
+  feedback          String?
+  rating            Int?
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  
+  @@index([tenantId])
+  @@index([tenantId, applicantId])
+  @@index([tenantId, jobPostingId])
+  @@index([tenantId, interviewerId])
+  @@index([scheduledAt])
 }

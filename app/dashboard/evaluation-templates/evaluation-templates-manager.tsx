@@ -63,11 +63,10 @@ import {
   EvaluationCriterion,
   RatingScale,
   ratingScaleLabels,
-  mockEvaluationTemplates,
 } from "@/lib/types/performance";
 
 export function EvaluationTemplatesManager() {
-  const [templates, setTemplates] = useState<EvaluationTemplate[]>(mockEvaluationTemplates);
+  const [templates, setTemplates] = useState<EvaluationTemplate[]>([]);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState<EvaluationTemplate | null>(null);

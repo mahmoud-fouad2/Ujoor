@@ -1,6 +1,7 @@
+
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { 
   Settings, Building2, Globe, Shield, Bell, Link, Database,
   Users, Calendar, Wallet, Clock, ChevronLeft, Save, RefreshCw,
@@ -31,25 +32,182 @@ import {
 } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import {
-  mockSystemSettings,
-  mockRoles,
-  mockLeaveTypes,
-  mockWorkflows,
   type SystemSettings,
   type Role,
   type LeaveTypeConfig,
   type ApprovalWorkflow,
   moduleLabels,
 } from '@/lib/types/settings';
+import { toast } from 'sonner';
+
+type LeaveTypesApiResponse = { data?: any[]; error?: string };
+
+function mapLeaveTypeConfigFromApi(t: any): LeaveTypeConfig {
+  const applicable = Array.isArray(t.applicableGenders) ? t.applicableGenders.map(String) : [];
+  const applicableGenders: Array<'male' | 'female'> = [];
+  if (applicable.includes('MALE')) applicableGenders.push('male');
+  if (applicable.includes('FEMALE')) applicableGenders.push('female');
+
+  const annualEntitlement = t.maxDays != null ? Number(t.maxDays) : t.defaultDays != null ? Number(t.defaultDays) : 0;
+
+  return {
+    id: String(t.id),
+    name: String(t.nameAr ?? t.name ?? ''),
+    nameEn: String(t.name ?? ''),
+    code: String(t.code ?? ''),
+    annualEntitlement,
+    isPaid: Boolean(t.isPaid),
+    requiresApproval: Boolean(t.requiresApproval),
+    requiresAttachment: Boolean(t.requiresAttachment),
+    maxDaysPerRequest: t.maxDays != null ? Number(t.maxDays) : undefined,
+    minNoticeDays: 0,
+    applicableGenders,
+    isActive: Boolean(t.isActive),
+  };
+}
 
 export default function SettingsManager() {
-  const [settings, setSettings] = useState<SystemSettings>(mockSystemSettings);
-  const [roles, setRoles] = useState<Role[]>(mockRoles);
-  const [leaveTypes, setLeaveTypes] = useState<LeaveTypeConfig[]>(mockLeaveTypes);
-  const [workflows, setWorkflows] = useState<ApprovalWorkflow[]>(mockWorkflows);
+  const [settings, setSettings] = useState<SystemSettings>({
+    general: {
+      companyName: '',
+      companyNameEn: '',
+      timezone: 'Asia/Riyadh',
+      dateFormat: 'DD/MM/YYYY',
+      timeFormat: '12h',
+      currency: 'SAR',
+      fiscalYearStart: '01-01',
+      weekStartDay: 0,
+    },
+    localization: {
+      defaultLanguage: 'ar',
+      supportedLanguages: ['ar', 'en'],
+      direction: 'rtl',
+      numberFormat: 'ar-SA',
+      calendarType: 'both',
+    },
+    security: {
+      passwordPolicy: {
+        minLength: 8,
+        requireUppercase: true,
+        requireLowercase: true,
+        requireNumbers: true,
+        requireSpecialChars: false,
+        expiryDays: 90,
+        preventReuse: 3,
+      },
+      sessionTimeout: 30,
+      maxLoginAttempts: 5,
+      twoFactorAuth: 'optional',
+      ipWhitelist: [],
+      auditLogging: true,
+    },
+    notifications: {
+      emailEnabled: true,
+      smsEnabled: false,
+      pushEnabled: false,
+      defaultChannels: ['email', 'in-app'],
+      digestFrequency: 'immediate',
+    },
+    integrations: {
+      gosi: { enabled: false, autoSync: false },
+      mol: { enabled: false, autoSync: false },
+      muqeem: { enabled: false, autoSync: false },
+      mudad: { enabled: false, autoSync: false },
+      erpIntegrations: [],
+    },
+    backup: {
+      autoBackup: false,
+      frequency: 'daily',
+      retentionDays: 30,
+      includeAttachments: true,
+    },
+  });
+  const [roles, setRoles] = useState<Role[]>([]);
+  const [leaveTypes, setLeaveTypes] = useState<LeaveTypeConfig[]>([]);
+  const [workflows, setWorkflows] = useState<ApprovalWorkflow[]>([]);
   const [activeSection, setActiveSection] = useState('general');
   const [isRoleDialogOpen, setIsRoleDialogOpen] = useState(false);
   const [isLeaveTypeDialogOpen, setIsLeaveTypeDialogOpen] = useState(false);
+
+  const [isBootLoading, setIsBootLoading] = useState(true);
+  const [isSavingAll, setIsSavingAll] = useState(false);
+
+  const [isLeaveTypesLoading, setIsLeaveTypesLoading] = useState(true);
+  const [leaveTypesError, setLeaveTypesError] = useState<string | null>(null);
+
+  const loadLeaveTypes = async () => {
+    setIsLeaveTypesLoading(true);
+    setLeaveTypesError(null);
+
+    try {
+      const res = await fetch('/api/leave-types', { cache: 'no-store' });
+      const json = (await res.json()) as LeaveTypesApiResponse;
+      if (!res.ok) {
+        throw new Error(json.error || 'فشل تحميل أنواع الإجازات');
+      }
+
+      const mapped = Array.isArray(json.data) ? json.data.map(mapLeaveTypeConfigFromApi) : [];
+      setLeaveTypes(mapped);
+    } catch (err) {
+      setLeaveTypesError(err instanceof Error ? err.message : 'فشل تحميل أنواع الإجازات');
+    } finally {
+      setIsLeaveTypesLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    const loadSettingsBundle = async () => {
+      setIsBootLoading(true);
+
+      try {
+        const [settingsRes, rolesRes, workflowsRes] = await Promise.all([
+          fetch('/api/settings/system', { cache: 'no-store' }),
+          fetch('/api/settings/roles', { cache: 'no-store' }),
+          fetch('/api/settings/workflows', { cache: 'no-store' }),
+        ]);
+
+        const settingsJson = (await settingsRes.json()) as { data?: SystemSettings; error?: string };
+        if (!settingsRes.ok) throw new Error(settingsJson.error || 'فشل تحميل الإعدادات');
+        if (settingsJson.data) setSettings(settingsJson.data);
+
+        const rolesJson = (await rolesRes.json()) as { data?: Role[]; error?: string };
+        if (!rolesRes.ok) throw new Error(rolesJson.error || 'فشل تحميل الأدوار');
+        setRoles(Array.isArray(rolesJson.data) ? rolesJson.data : []);
+
+        const workflowsJson = (await workflowsRes.json()) as { data?: ApprovalWorkflow[]; error?: string };
+        if (!workflowsRes.ok) throw new Error(workflowsJson.error || 'فشل تحميل سير العمل');
+        setWorkflows(Array.isArray(workflowsJson.data) ? workflowsJson.data : []);
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : 'فشل تحميل الإعدادات');
+      } finally {
+        setIsBootLoading(false);
+      }
+    };
+
+    void loadSettingsBundle();
+    void loadLeaveTypes();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const saveAllChanges = async () => {
+    setIsSavingAll(true);
+
+    try {
+      const res = await fetch('/api/settings/system', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ settings }),
+      });
+      const json = (await res.json()) as { data?: SystemSettings; error?: string };
+      if (!res.ok) throw new Error(json.error || 'فشل حفظ الإعدادات');
+      if (json.data) setSettings(json.data);
+      toast.success('تم حفظ الإعدادات');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'فشل حفظ الإعدادات');
+    } finally {
+      setIsSavingAll(false);
+    }
+  };
 
   const sections = [
     { id: 'general', label: 'الإعدادات العامة', icon: Building2 },
@@ -71,7 +229,7 @@ export default function SettingsManager() {
           <h1 className="text-2xl font-bold">الإعدادات</h1>
           <p className="text-muted-foreground">إعدادات النظام والتكوينات</p>
         </div>
-        <Button>
+        <Button onClick={saveAllChanges} disabled={isBootLoading || isSavingAll}>
           <Save className="h-4 w-4 ms-2" />
           حفظ جميع التغييرات
         </Button>
@@ -409,6 +567,18 @@ export default function SettingsManager() {
                             ? (settings.integrations[integration.key as keyof typeof settings.integrations] as {enabled: boolean}).enabled 
                             : false
                         }
+                        onCheckedChange={(checked) => {
+                          const key = integration.key as keyof typeof settings.integrations;
+                          const current = settings.integrations[key] as any;
+                          if (!current) return;
+                          setSettings({
+                            ...settings,
+                            integrations: {
+                              ...settings.integrations,
+                              [key]: { ...current, enabled: checked },
+                            },
+                          });
+                        }}
                       />
                     </div>
                     {settings.integrations[integration.key as keyof typeof settings.integrations] &&
@@ -444,7 +614,7 @@ export default function SettingsManager() {
                     </CardTitle>
                     <CardDescription>إدارة أدوار المستخدمين وصلاحياتهم</CardDescription>
                   </div>
-                  <Button onClick={() => setIsRoleDialogOpen(true)}>
+                  <Button disabled onClick={() => toast.message('إدارة الأدوار التفصيلية قيد التطوير')}>
                     <Plus className="h-4 w-4 ms-2" />
                     دور جديد
                   </Button>
@@ -452,7 +622,9 @@ export default function SettingsManager() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {roles.map((role) => (
+                  {roles.length === 0 ? (
+                    <div className="py-10 text-center text-muted-foreground">لا توجد أدوار</div>
+                  ) : roles.map((role) => (
                     <div key={role.id} className="flex items-center justify-between p-4 border rounded-lg">
                       <div className="flex items-center gap-4">
                         <div className="h-10 w-10 rounded-lg bg-muted flex items-center justify-center">
@@ -466,7 +638,7 @@ export default function SettingsManager() {
                       <div className="flex items-center gap-4">
                         <Badge variant="secondary">{role.usersCount} مستخدم</Badge>
                         {role.isSystem && <Badge variant="outline">نظام</Badge>}
-                        <Button variant="outline" size="sm">
+                        <Button variant="outline" size="sm" disabled>
                           <Edit className="h-4 w-4 ms-1" />
                           تعديل
                         </Button>
@@ -490,13 +662,22 @@ export default function SettingsManager() {
                     </CardTitle>
                     <CardDescription>إدارة أنواع الإجازات وسياساتها</CardDescription>
                   </div>
-                  <Button onClick={() => setIsLeaveTypeDialogOpen(true)}>
+                  <Button onClick={() => setIsLeaveTypeDialogOpen(true)} disabled>
                     <Plus className="h-4 w-4 ms-2" />
                     نوع إجازة جديد
                   </Button>
                 </div>
               </CardHeader>
               <CardContent>
+                {leaveTypesError && (
+                  <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                    {leaveTypesError}
+                  </div>
+                )}
+
+                {isLeaveTypesLoading ? (
+                  <div className="py-10 text-center text-muted-foreground">جارٍ التحميل...</div>
+                ) : (
                 <div className="space-y-4">
                   {leaveTypes.map((leaveType) => (
                     <div key={leaveType.id} className="flex items-center justify-between p-4 border rounded-lg">
@@ -523,10 +704,24 @@ export default function SettingsManager() {
                         </Badge>
                         <Switch 
                           checked={leaveType.isActive}
-                          onCheckedChange={(checked) => {
-                            setLeaveTypes(leaveTypes.map(lt => 
-                              lt.id === leaveType.id ? {...lt, isActive: checked} : lt
-                            ));
+                          onCheckedChange={async (checked) => {
+                            const previous = leaveTypes;
+                            setLeaveTypes(leaveTypes.map(lt => lt.id === leaveType.id ? { ...lt, isActive: checked } : lt));
+
+                            try {
+                              const res = await fetch(`/api/leave-types/${encodeURIComponent(leaveType.id)}`, {
+                                method: 'PUT',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ isActive: checked }),
+                              });
+                              const json = (await res.json()) as { data?: any; error?: string };
+                              if (!res.ok) {
+                                throw new Error(json.error || 'فشل تحديث الحالة');
+                              }
+                            } catch (err) {
+                              setLeaveTypes(previous);
+                              toast.error(err instanceof Error ? err.message : 'فشل تحديث الحالة');
+                            }
                           }}
                         />
                         <Button variant="outline" size="sm">
@@ -536,6 +731,7 @@ export default function SettingsManager() {
                     </div>
                   ))}
                 </div>
+                )}
               </CardContent>
             </Card>
           )}
@@ -552,7 +748,7 @@ export default function SettingsManager() {
                     </CardTitle>
                     <CardDescription>إدارة مسارات الموافقة والتصعيد</CardDescription>
                   </div>
-                  <Button>
+                  <Button disabled onClick={() => toast.message('إدارة سير العمل قيد التطوير')}>
                     <Plus className="h-4 w-4 ms-2" />
                     سير عمل جديد
                   </Button>
@@ -560,7 +756,9 @@ export default function SettingsManager() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {workflows.map((workflow) => (
+                  {workflows.length === 0 ? (
+                    <div className="py-10 text-center text-muted-foreground">لا يوجد سير عمل</div>
+                  ) : workflows.map((workflow) => (
                     <div key={workflow.id} className="border rounded-lg p-4">
                       <div className="flex items-center justify-between mb-4">
                         <div>
@@ -571,7 +769,7 @@ export default function SettingsManager() {
                           <Badge variant={workflow.isActive ? 'default' : 'secondary'}>
                             {workflow.isActive ? 'نشط' : 'غير نشط'}
                           </Badge>
-                          <Button variant="outline" size="sm">تعديل</Button>
+                          <Button variant="outline" size="sm" disabled>تعديل</Button>
                         </div>
                       </div>
                       <div className="flex items-center gap-2">

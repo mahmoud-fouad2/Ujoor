@@ -62,6 +62,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
+import { toast } from "sonner";
 import {
   TrainingCourse,
   CourseStatus,
@@ -71,18 +72,82 @@ import {
   courseStatusColors,
   courseTypeLabels,
   courseCategoryLabels,
-  mockCourses,
-  mockTrainingStats,
 } from "@/lib/types/training";
 
 export function TrainingCoursesManager() {
-  const [courses, setCourses] = React.useState<TrainingCourse[]>(mockCourses);
+  const [courses, setCourses] = React.useState<TrainingCourse[]>([]);
   const [searchQuery, setSearchQuery] = React.useState("");
   const [statusFilter, setStatusFilter] = React.useState<string>("all");
   const [categoryFilter, setCategoryFilter] = React.useState<string>("all");
   const [isAddSheetOpen, setIsAddSheetOpen] = React.useState(false);
   const [selectedCourse, setSelectedCourse] = React.useState<TrainingCourse | null>(null);
   const [isViewSheetOpen, setIsViewSheetOpen] = React.useState(false);
+
+  const [stats, setStats] = React.useState<{
+    totalCourses: number;
+    activeCourses: number;
+    totalEnrollments: number;
+    completedEnrollments: number;
+    totalHoursCompleted: number;
+    certificationRate: number;
+    budgetUsed: number;
+    budgetTotal: number;
+  } | null>(null);
+
+  const defaultForm = React.useMemo(
+    () => ({
+      title: "",
+      titleEn: "",
+      category: "other" as CourseCategory,
+      type: "in-person" as CourseType,
+      duration: 1,
+      maxParticipants: "",
+      startDate: "",
+      endDate: "",
+      instructorName: "",
+      locationOrLink: "",
+      description: "",
+      objectivesText: "",
+    }),
+    []
+  );
+
+  const [form, setForm] = React.useState(defaultForm);
+
+  const resetForm = React.useCallback(() => {
+    setForm(defaultForm);
+  }, [defaultForm]);
+
+  const refresh = React.useCallback(async () => {
+    try {
+      const [coursesRes, statsRes] = await Promise.all([
+        fetch("/api/training/courses", { cache: "no-store" }),
+        fetch("/api/training/stats", { cache: "no-store" }),
+      ]);
+
+      if (!coursesRes.ok) {
+        const err = await coursesRes.json().catch(() => null);
+        throw new Error(err?.error || "Failed to fetch courses");
+      }
+      if (!statsRes.ok) {
+        const err = await statsRes.json().catch(() => null);
+        throw new Error(err?.error || "Failed to fetch stats");
+      }
+
+      const coursesJson = await coursesRes.json();
+      const statsJson = await statsRes.json();
+
+      setCourses((coursesJson?.data?.courses ?? []) as TrainingCourse[]);
+      setStats((statsJson?.data ?? null) as any);
+    } catch (e: any) {
+      console.error(e);
+      toast.error(e?.message || "فشل تحميل بيانات التدريب");
+    }
+  }, []);
+
+  React.useEffect(() => {
+    refresh();
+  }, [refresh]);
 
   // فلترة الدورات
   const filteredCourses = React.useMemo(() => {
@@ -101,17 +166,79 @@ export function TrainingCoursesManager() {
     });
   }, [courses, searchQuery, statusFilter, categoryFilter]);
 
-  // إحصائيات
-  const stats = mockTrainingStats;
+  const handleCreateCourse = async (status: CourseStatus) => {
+    try {
+      const objectives = form.objectivesText
+        .split("\n")
+        .map((s) => s.trim())
+        .filter(Boolean);
+
+      const rawMax = form.maxParticipants.trim();
+      const maxParticipants = rawMax ? Number(rawMax) : null;
+
+      const locationOrLink = form.locationOrLink.trim();
+      const isUrl = /^https?:\/\//i.test(locationOrLink);
+
+      const payload = {
+        title: form.title.trim(),
+        titleEn: form.titleEn.trim() || undefined,
+        description: form.description.trim(),
+        descriptionEn: undefined,
+        category: form.category,
+        type: form.type,
+        status,
+        duration: Number.isFinite(form.duration) ? form.duration : 1,
+        maxParticipants: Number.isFinite(maxParticipants as any) ? maxParticipants : null,
+        startDate: form.startDate || null,
+        endDate: form.endDate || null,
+        instructorName: form.instructorName.trim() || null,
+        location: !isUrl ? locationOrLink || null : null,
+        meetingLink: isUrl ? locationOrLink : null,
+        objectives,
+        prerequisites: [],
+      };
+
+      const res = await fetch("/api/training/courses", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => null);
+        throw new Error(err?.error || "Failed to create course");
+      }
+
+      toast.success(status === "draft" ? "تم حفظ الدورة كمسودة" : "تم إنشاء الدورة");
+      setIsAddSheetOpen(false);
+      resetForm();
+      await refresh();
+    } catch (e: any) {
+      console.error(e);
+      toast.error(e?.message || "فشل إنشاء الدورة");
+    }
+  };
 
   const handleViewCourse = (course: TrainingCourse) => {
     setSelectedCourse(course);
     setIsViewSheetOpen(true);
   };
 
-  const handleDeleteCourse = (id: string) => {
-    if (confirm("هل أنت متأكد من حذف هذه الدورة؟")) {
-      setCourses(courses.filter((c) => c.id !== id));
+  const handleDeleteCourse = async (id: string) => {
+    try {
+      if (!confirm("هل أنت متأكد من حذف هذه الدورة؟")) return;
+
+      const res = await fetch(`/api/training/courses/${id}`, { method: "DELETE" });
+      if (!res.ok) {
+        const err = await res.json().catch(() => null);
+        throw new Error(err?.error || "Failed to delete course");
+      }
+
+      toast.success("تم حذف الدورة");
+      await refresh();
+    } catch (e: any) {
+      console.error(e);
+      toast.error(e?.message || "فشل حذف الدورة");
     }
   };
 
@@ -154,8 +281,8 @@ export function TrainingCoursesManager() {
             <IconBook className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.totalCourses}</div>
-            <p className="text-xs text-muted-foreground">{stats.activeCourses} دورة نشطة</p>
+            <div className="text-2xl font-bold">{stats?.totalCourses ?? 0}</div>
+            <p className="text-xs text-muted-foreground">{stats?.activeCourses ?? 0} دورة نشطة</p>
           </CardContent>
         </Card>
 
@@ -165,8 +292,8 @@ export function TrainingCoursesManager() {
             <IconUsers className="h-4 w-4 text-blue-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-blue-600">{stats.totalEnrollments}</div>
-            <p className="text-xs text-muted-foreground">{stats.completedEnrollments} أتموا التدريب</p>
+            <div className="text-2xl font-bold text-blue-600">{stats?.totalEnrollments ?? 0}</div>
+            <p className="text-xs text-muted-foreground">{stats?.completedEnrollments ?? 0} أتموا التدريب</p>
           </CardContent>
         </Card>
 
@@ -176,7 +303,7 @@ export function TrainingCoursesManager() {
             <IconClock className="h-4 w-4 text-green-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">{stats.totalHoursCompleted}</div>
+            <div className="text-2xl font-bold text-green-600">{stats?.totalHoursCompleted ?? 0}</div>
             <p className="text-xs text-muted-foreground">ساعة مكتملة</p>
           </CardContent>
         </Card>
@@ -187,7 +314,7 @@ export function TrainingCoursesManager() {
             <IconCertificate className="h-4 w-4 text-purple-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-purple-600">{stats.certificationRate}%</div>
+            <div className="text-2xl font-bold text-purple-600">{stats?.certificationRate ?? 0}%</div>
             <p className="text-xs text-muted-foreground">حصلوا على شهادات</p>
           </CardContent>
         </Card>
@@ -200,13 +327,16 @@ export function TrainingCoursesManager() {
         </CardHeader>
         <CardContent>
           <div className="flex items-center gap-4">
-            <Progress value={(stats.budgetUsed / stats.budgetTotal) * 100} className="h-3 flex-1" />
+            <Progress
+              value={stats?.budgetTotal ? (stats.budgetUsed / stats.budgetTotal) * 100 : 0}
+              className="h-3 flex-1"
+            />
             <span className="text-sm font-medium">
-              {stats.budgetUsed.toLocaleString()} / {stats.budgetTotal.toLocaleString()} ر.س
+              {(stats?.budgetUsed ?? 0).toLocaleString()} / {(stats?.budgetTotal ?? 0).toLocaleString()} ر.س
             </span>
           </div>
           <p className="text-xs text-muted-foreground mt-1">
-            تم استخدام {Math.round((stats.budgetUsed / stats.budgetTotal) * 100)}% من الميزانية
+            تم استخدام {stats?.budgetTotal ? Math.round((stats.budgetUsed / stats.budgetTotal) * 100) : 0}% من الميزانية
           </p>
         </CardContent>
       </Card>
@@ -236,16 +366,31 @@ export function TrainingCoursesManager() {
                 <div className="grid gap-4 py-4">
                   <div className="grid gap-2">
                     <Label htmlFor="title">عنوان الدورة</Label>
-                    <Input id="title" placeholder="مثال: مهارات التواصل الفعّال" />
+                    <Input
+                      id="title"
+                      placeholder="مثال: مهارات التواصل الفعّال"
+                      value={form.title}
+                      onChange={(e) => setForm((p) => ({ ...p, title: e.target.value }))}
+                    />
                   </div>
                   <div className="grid gap-2">
                     <Label htmlFor="titleEn">العنوان بالإنجليزية</Label>
-                    <Input id="titleEn" placeholder="e.g. Effective Communication Skills" />
+                    <Input
+                      id="titleEn"
+                      placeholder="e.g. Effective Communication Skills"
+                      value={form.titleEn}
+                      onChange={(e) => setForm((p) => ({ ...p, titleEn: e.target.value }))}
+                    />
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="grid gap-2">
                       <Label htmlFor="category">التصنيف</Label>
-                      <Select>
+                      <Select
+                        value={form.category}
+                        onValueChange={(v) =>
+                          setForm((p) => ({ ...p, category: v as CourseCategory }))
+                        }
+                      >
                         <SelectTrigger>
                           <SelectValue placeholder="اختر التصنيف" />
                         </SelectTrigger>
@@ -260,7 +405,10 @@ export function TrainingCoursesManager() {
                     </div>
                     <div className="grid gap-2">
                       <Label htmlFor="type">نوع الدورة</Label>
-                      <Select>
+                      <Select
+                        value={form.type}
+                        onValueChange={(v) => setForm((p) => ({ ...p, type: v as CourseType }))}
+                      >
                         <SelectTrigger>
                           <SelectValue placeholder="اختر النوع" />
                         </SelectTrigger>
@@ -277,30 +425,67 @@ export function TrainingCoursesManager() {
                   <div className="grid grid-cols-2 gap-4">
                     <div className="grid gap-2">
                       <Label htmlFor="duration">المدة (ساعات)</Label>
-                      <Input id="duration" type="number" placeholder="0" />
+                      <Input
+                        id="duration"
+                        type="number"
+                        placeholder="0"
+                        value={String(form.duration)}
+                        onChange={(e) =>
+                          setForm((p) => ({
+                            ...p,
+                            duration: Math.max(1, Number(e.target.value || "1")),
+                          }))
+                        }
+                      />
                     </div>
                     <div className="grid gap-2">
                       <Label htmlFor="maxParticipants">الحد الأقصى للمشاركين</Label>
-                      <Input id="maxParticipants" type="number" placeholder="20" />
+                      <Input
+                        id="maxParticipants"
+                        type="number"
+                        placeholder="20"
+                        value={form.maxParticipants}
+                        onChange={(e) => setForm((p) => ({ ...p, maxParticipants: e.target.value }))}
+                      />
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="grid gap-2">
                       <Label htmlFor="startDate">تاريخ البدء</Label>
-                      <Input id="startDate" type="date" />
+                      <Input
+                        id="startDate"
+                        type="date"
+                        value={form.startDate}
+                        onChange={(e) => setForm((p) => ({ ...p, startDate: e.target.value }))}
+                      />
                     </div>
                     <div className="grid gap-2">
                       <Label htmlFor="endDate">تاريخ الانتهاء</Label>
-                      <Input id="endDate" type="date" />
+                      <Input
+                        id="endDate"
+                        type="date"
+                        value={form.endDate}
+                        onChange={(e) => setForm((p) => ({ ...p, endDate: e.target.value }))}
+                      />
                     </div>
                   </div>
                   <div className="grid gap-2">
                     <Label htmlFor="instructor">المدرب</Label>
-                    <Input id="instructor" placeholder="اسم المدرب" />
+                    <Input
+                      id="instructor"
+                      placeholder="اسم المدرب"
+                      value={form.instructorName}
+                      onChange={(e) => setForm((p) => ({ ...p, instructorName: e.target.value }))}
+                    />
                   </div>
                   <div className="grid gap-2">
                     <Label htmlFor="location">المكان / رابط الاجتماع</Label>
-                    <Input id="location" placeholder="قاعة التدريب أو رابط Zoom" />
+                    <Input
+                      id="location"
+                      placeholder="قاعة التدريب أو رابط Zoom"
+                      value={form.locationOrLink}
+                      onChange={(e) => setForm((p) => ({ ...p, locationOrLink: e.target.value }))}
+                    />
                   </div>
                   <div className="grid gap-2">
                     <Label htmlFor="description">وصف الدورة</Label>
@@ -308,6 +493,8 @@ export function TrainingCoursesManager() {
                       id="description"
                       placeholder="وصف تفصيلي للدورة..."
                       rows={3}
+                      value={form.description}
+                      onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))}
                     />
                   </div>
                   <div className="grid gap-2">
@@ -316,13 +503,15 @@ export function TrainingCoursesManager() {
                       id="objectives"
                       placeholder="اكتب كل هدف في سطر منفصل..."
                       rows={3}
+                      value={form.objectivesText}
+                      onChange={(e) => setForm((p) => ({ ...p, objectivesText: e.target.value }))}
                     />
                   </div>
                   <div className="flex gap-2 pt-4">
-                    <Button className="flex-1" onClick={() => setIsAddSheetOpen(false)}>
+                    <Button className="flex-1" onClick={() => handleCreateCourse("draft")}>
                       حفظ كمسودة
                     </Button>
-                    <Button variant="secondary" className="flex-1" onClick={() => setIsAddSheetOpen(false)}>
+                    <Button variant="secondary" className="flex-1" onClick={() => handleCreateCourse("scheduled")}>
                       نشر الدورة
                     </Button>
                   </div>
@@ -443,11 +632,13 @@ export function TrainingCoursesManager() {
                               <IconEye className="ms-2 h-4 w-4" />
                               عرض التفاصيل
                             </DropdownMenuItem>
-                            <DropdownMenuItem>
+                            <DropdownMenuItem disabled onClick={() => toast.message("غير متاح حالياً")}
+                            >
                               <IconEdit className="ms-2 h-4 w-4" />
                               تعديل
                             </DropdownMenuItem>
-                            <DropdownMenuItem>
+                            <DropdownMenuItem disabled onClick={() => toast.message("غير متاح حالياً")}
+                            >
                               <IconUsers className="ms-2 h-4 w-4" />
                               المشاركون
                             </DropdownMenuItem>
@@ -582,11 +773,11 @@ export function TrainingCoursesManager() {
               )}
 
               <div className="flex gap-2 pt-4">
-                <Button className="flex-1">
+                <Button className="flex-1" disabled onClick={() => toast.message("غير متاح حالياً")}>
                   <IconUsers className="ms-2 h-4 w-4" />
                   إدارة المشاركين
                 </Button>
-                <Button variant="outline" className="flex-1">
+                <Button variant="outline" className="flex-1" disabled onClick={() => toast.message("غير متاح حالياً")}>
                   <IconEdit className="ms-2 h-4 w-4" />
                   تعديل الدورة
                 </Button>

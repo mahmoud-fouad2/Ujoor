@@ -73,7 +73,6 @@ import {
   goalPriorityLabels,
   goalStatusColors,
   goalPriorityColors,
-  mockPerformanceGoals,
   calculateProgress,
   determineGoalStatus,
 } from "@/lib/types/performance";
@@ -81,7 +80,7 @@ import { format } from "date-fns";
 import { ar } from "date-fns/locale";
 
 export function PerformanceGoalsManager() {
-  const [goals, setGoals] = useState<PerformanceGoal[]>(mockPerformanceGoals);
+  const [goals, setGoals] = useState<PerformanceGoal[]>([]);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [selectedGoal, setSelectedGoal] = useState<PerformanceGoal | null>(null);

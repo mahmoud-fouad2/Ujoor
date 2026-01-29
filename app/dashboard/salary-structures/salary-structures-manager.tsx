@@ -13,6 +13,7 @@ import {
   IconBuildingBank,
   IconShieldCheck,
 } from "@tabler/icons-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -67,17 +68,26 @@ import {
   type SalaryComponentItem,
   type SalaryComponent,
   salaryComponentLabels,
-  mockSalaryStructures,
   formatCurrency,
 } from "@/lib/types/payroll";
 
+async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(url, { cache: "no-store", ...init });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(json?.error || "Request failed");
+  }
+  return json as T;
+}
+
 export function SalaryStructuresManager() {
-  // TODO: Replace with API call
-  const [structures, setStructures] = React.useState<SalaryStructure[]>(mockSalaryStructures);
+  const [structures, setStructures] = React.useState<SalaryStructure[]>([]);
   const [searchQuery, setSearchQuery] = React.useState("");
   const [isFormOpen, setIsFormOpen] = React.useState(false);
   const [editingStructure, setEditingStructure] = React.useState<SalaryStructure | null>(null);
   const [selectedStructure, setSelectedStructure] = React.useState<SalaryStructure | null>(null);
+  const [isLoading, setIsLoading] = React.useState(false);
+  const [isSaving, setIsSaving] = React.useState(false);
 
   // Form state
   const [formName, setFormName] = React.useState("");
@@ -107,6 +117,23 @@ export function SalaryStructuresManager() {
     setEditingStructure(null);
   };
 
+  const loadStructures = React.useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const { data } = await fetchJson<{ data: SalaryStructure[] }>("/api/payroll/structures");
+      setStructures(data);
+    } catch (e: any) {
+      console.error(e);
+      toast.error(e?.message || "فشل تحميل هياكل الرواتب");
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  React.useEffect(() => {
+    loadStructures();
+  }, [loadStructures]);
+
   const openEditForm = (structure: SalaryStructure) => {
     setEditingStructure(structure);
     setFormName(structure.name);
@@ -118,70 +145,88 @@ export function SalaryStructuresManager() {
     setIsFormOpen(true);
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!formName || !formNameAr) return;
 
-    if (editingStructure) {
-      setStructures((prev) =>
-        prev.map((s) =>
-          s.id === editingStructure.id
-            ? {
-                ...s,
-                name: formName,
-                nameAr: formNameAr,
-                description: formDescription,
-                isDefault: formIsDefault,
-                isActive: formIsActive,
-                components: formComponents,
-                updatedAt: new Date().toISOString(),
-              }
-            : formIsDefault
-            ? { ...s, isDefault: false }
-            : s
-        )
-      );
-    } else {
-      const newStructure: SalaryStructure = {
-        id: `struct-${Date.now()}`,
-        name: formName,
-        nameAr: formNameAr,
-        description: formDescription,
-        tenantId: "tenant-1",
-        isDefault: formIsDefault,
-        isActive: formIsActive,
-        components: formComponents,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      };
-
-      if (formIsDefault) {
-        setStructures((prev) =>
-          prev.map((s) => ({ ...s, isDefault: false })).concat(newStructure)
+    setIsSaving(true);
+    try {
+      if (editingStructure) {
+        await fetchJson<{ data: SalaryStructure }>(
+          `/api/payroll/structures/${encodeURIComponent(editingStructure.id)}`,
+          {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              name: formName,
+              nameAr: formNameAr,
+              description: formDescription,
+              isDefault: formIsDefault,
+              isActive: formIsActive,
+              components: formComponents,
+            }),
+          }
         );
+        toast.success("تم حفظ التعديلات");
       } else {
-        setStructures((prev) => [...prev, newStructure]);
+        await fetchJson<{ data: SalaryStructure }>("/api/payroll/structures", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: formName,
+            nameAr: formNameAr,
+            description: formDescription,
+            isDefault: formIsDefault,
+            isActive: formIsActive,
+            components: formComponents,
+          }),
+        });
+        toast.success("تم إنشاء الهيكل");
       }
+
+      setIsFormOpen(false);
+      resetForm();
+      await loadStructures();
+    } catch (e: any) {
+      console.error(e);
+      toast.error(e?.message || "فشل حفظ الهيكل");
+    } finally {
+      setIsSaving(false);
     }
-
-    setIsFormOpen(false);
-    resetForm();
   };
 
-  const handleDelete = (id: string) => {
-    setStructures((prev) => prev.filter((s) => s.id !== id));
+  const handleDelete = async (id: string) => {
+    try {
+      await fetchJson(`/api/payroll/structures/${encodeURIComponent(id)}`, {
+        method: "DELETE",
+      });
+      toast.success("تم حذف الهيكل");
+      await loadStructures();
+    } catch (e: any) {
+      console.error(e);
+      toast.error(e?.message || "فشل حذف الهيكل");
+    }
   };
 
-  const handleDuplicate = (structure: SalaryStructure) => {
-    const newStructure: SalaryStructure = {
-      ...structure,
-      id: `struct-${Date.now()}`,
-      name: `${structure.name} (Copy)`,
-      nameAr: `${structure.nameAr} (نسخة)`,
-      isDefault: false,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-    setStructures((prev) => [...prev, newStructure]);
+  const handleDuplicate = async (structure: SalaryStructure) => {
+    try {
+      await fetchJson<{ data: SalaryStructure }>("/api/payroll/structures", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: `${structure.name} (Copy)`,
+          nameAr: `${structure.nameAr} (نسخة)`,
+          description: structure.description,
+          isDefault: false,
+          isActive: structure.isActive,
+          components: structure.components,
+        }),
+      });
+      toast.success("تم نسخ الهيكل");
+      await loadStructures();
+    } catch (e: any) {
+      console.error(e);
+      toast.error(e?.message || "فشل نسخ الهيكل");
+    }
   };
 
   const addComponent = () => {
@@ -477,7 +522,7 @@ export function SalaryStructuresManager() {
               <Button variant="outline" onClick={() => setIsFormOpen(false)}>
                 إلغاء
               </Button>
-              <Button onClick={handleSubmit} disabled={!formName || !formNameAr}>
+              <Button onClick={handleSubmit} disabled={!formName || !formNameAr || isSaving}>
                 {editingStructure ? "حفظ التعديلات" : "إنشاء الهيكل"}
               </Button>
             </DialogFooter>
@@ -503,7 +548,13 @@ export function SalaryStructuresManager() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredStructures.length === 0 ? (
+              {isLoading ? (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center py-8">
+                    <p className="text-muted-foreground">جاري التحميل...</p>
+                  </TableCell>
+                </TableRow>
+              ) : filteredStructures.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={5} className="text-center py-8">
                     <IconBuildingBank className="mx-auto h-12 w-12 text-muted-foreground mb-2" />

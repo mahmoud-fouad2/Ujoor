@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { Bell, HelpCircle, LogOut, User, KeyRound, ChevronLeft, ChevronRight } from "lucide-react";
+import { Bell, HelpCircle, LogOut, User, KeyRound, ChevronLeft, ChevronRight, Moon, Sun } from "lucide-react";
 import { getSession } from "next-auth/react";
+import { useTheme } from "next-themes";
 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -28,8 +29,8 @@ export function DashboardHeaderActions({
 }) {
   const t = getText(locale);
   const p = locale === "en" ? "/en" : "";
-  // TODO: Replace with API call to get user avatar from R2 storage
-  const [avatarSrc] = useState<string>("/images/avatars/1.png");
+  const { theme, setTheme } = useTheme();
+  const [avatarSrc, setAvatarSrc] = useState<string>("/images/avatars/1.png");
 
   const [role, setRole] = useState<string | undefined>(undefined);
   const [hasTenant, setHasTenant] = useState(false);
@@ -44,6 +45,15 @@ export function DashboardHeaderActions({
       if (mounted) setHasTenant(Boolean(tenant));
       const session = await getSession();
       if (mounted) setRole((session?.user as any)?.role);
+
+      try {
+        const res = await fetch("/api/profile", { cache: "no-store" });
+        const json = await res.json();
+        const avatar = json?.data?.avatar as string | undefined;
+        if (mounted && avatar) setAvatarSrc(avatar);
+      } catch {
+        // Keep fallback avatar
+      }
     })();
     return () => {
       mounted = false;
@@ -53,7 +63,6 @@ export function DashboardHeaderActions({
   const isSuperAdminNoTenant = role === "SUPER_ADMIN" && !hasTenant;
 
   const [notifications, setNotifications] = useState<Notification[]>([]);
-  // TODO: Replace with API call to get read notification IDs
   const [readIds, setReadIds] = useState<Set<string>>(() => new Set());
 
   useEffect(() => {
@@ -116,6 +125,10 @@ export function DashboardHeaderActions({
     const target = next === "en" ? (stripped === "/" ? "/en" : `/en${stripped}`) : stripped;
 
     window.location.href = `${target}${window.location.search}`;
+  };
+
+  const toggleTheme = () => {
+    setTheme(theme === "dark" ? "light" : "dark");
   };
 
   const logout = () => {
@@ -305,6 +318,24 @@ export function DashboardHeaderActions({
                 <KeyRound className="me-2 h-4 w-4" />
                 {t.common.changePassword}
               </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onSelect={(e: Event) => {
+                e.preventDefault();
+                toggleTheme();
+              }}
+            >
+              <span className="inline-flex items-center gap-2">
+                {theme === "dark" ? (
+                  <Sun className="me-2 h-4 w-4" />
+                ) : (
+                  <Moon className="me-2 h-4 w-4" />
+                )}
+                {theme === "dark"
+                  ? locale === "ar" ? "الوضع النهاري" : "Light Mode"
+                  : locale === "ar" ? "الوضع الليلي" : "Dark Mode"
+                }
+              </span>
             </DropdownMenuItem>
             <DropdownMenuItem
               onSelect={(e: Event) => {

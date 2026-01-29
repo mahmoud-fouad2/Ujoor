@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   IconPlus,
   IconEdit,
@@ -59,31 +59,118 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
 import { Progress } from "@/components/ui/progress";
+import { toast } from "sonner";
 import {
-  LeaveRequest,
   LeaveRequestStatus,
   leaveRequestStatusLabels,
   leaveRequestStatusColors,
-  leaveCategoryLabels,
-  mockLeaveRequests,
-  mockLeaveTypes,
-  mockLeaveBalances,
   formatDateRange,
 } from "@/lib/types/leave";
-import { mockEmployees, mockDepartments } from "@/lib/types/core-hr";
+import { useEmployees } from "@/hooks/use-employees";
+
+type ApiLeaveType = {
+  id: string;
+  name: string;
+  nameAr?: string | null;
+  code: string;
+  color?: string | null;
+  isActive: boolean;
+};
+
+type UiLeaveRequest = {
+  id: string;
+  employeeId: string;
+  employeeName: string;
+  employeeNumber: string;
+  departmentId: string;
+  departmentName: string;
+  leaveTypeId: string;
+  leaveTypeName: string;
+  startDate: string;
+  endDate: string;
+  totalDays: number;
+  isHalfDay: boolean;
+  reason: string;
+  status: LeaveRequestStatus;
+  attachmentUrl?: string | null;
+  delegateEmployeeId?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+  approvedAt?: string | null;
+  approvedById?: string | null;
+  rejectionReason?: string | null;
+};
+
+type LeavesListResponse = {
+  data?: Array<any>;
+  error?: string;
+  pagination?: { page: number; limit: number; total: number; totalPages: number };
+};
+
+type LeaveTypesResponse = {
+  data?: Array<any>;
+  error?: string;
+};
+
+function mapRequestStatusToUi(value: string | null | undefined): LeaveRequestStatus {
+  switch (value) {
+    case "PENDING":
+      return "pending";
+    case "APPROVED":
+      return "approved";
+    case "REJECTED":
+      return "rejected";
+    case "CANCELLED":
+      return "cancelled";
+    case "TAKEN":
+      return "taken";
+    default:
+      return "pending";
+  }
+}
+
+function toYmd(value: any): string {
+  if (!value) return "";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toISOString().slice(0, 10);
+}
+
+function toIso(value: any): string | undefined {
+  if (!value) return undefined;
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return undefined;
+  return d.toISOString();
+}
+
+function toNumber(value: any): number {
+  const n = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(n) ? n : 0;
+}
 
 export function LeaveRequestsManager() {
-  const [requests, setRequests] = useState<LeaveRequest[]>(mockLeaveRequests);
+  const { employees, departments, isLoading: isEmployeesLoading, error: employeesError } = useEmployees();
+
+  const [requests, setRequests] = useState<UiLeaveRequest[]>([]);
+  const [leaveTypes, setLeaveTypes] = useState<ApiLeaveType[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
   const [isApproveDialogOpen, setIsApproveDialogOpen] = useState(false);
   const [isRejectDialogOpen, setIsRejectDialogOpen] = useState(false);
-  const [selectedRequest, setSelectedRequest] = useState<LeaveRequest | null>(null);
+  const [selectedRequest, setSelectedRequest] = useState<UiLeaveRequest | null>(null);
   const [activeTab, setActiveTab] = useState<LeaveRequestStatus | "all">("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [filterDepartment, setFilterDepartment] = useState<string>("all");
   const [approvalComment, setApprovalComment] = useState("");
   const [rejectionReason, setRejectionReason] = useState("");
+
+  const leaveTypeById = useMemo(() => {
+    const map = new Map<string, ApiLeaveType>();
+    for (const t of leaveTypes) map.set(t.id, t);
+    return map;
+  }, [leaveTypes]);
 
   // Form state for new request
   const [formData, setFormData] = useState({
@@ -124,128 +211,185 @@ export function LeaveRequestsManager() {
     return isHalfDay ? 0.5 : diffDays;
   };
 
-  const handleAddRequest = () => {
-    const employee = mockEmployees.find((e) => e.id === formData.employeeId);
-    const leaveType = mockLeaveTypes.find((t) => t.id === formData.leaveTypeId);
-    const department = mockDepartments.find((d) => d.id === employee?.departmentId);
-    const delegate = mockEmployees.find((e) => e.id === formData.delegateEmployeeId);
+  const loadData = async () => {
+    setIsLoading(true);
+    setLoadError(null);
 
-    if (!employee || !leaveType) return;
+    try {
+      const [leavesRes, typesRes] = await Promise.all([
+        fetch("/api/leaves?limit=200", { cache: "no-store" }),
+        fetch("/api/leave-types", { cache: "no-store" }),
+      ]);
 
-    const newRequest: LeaveRequest = {
-      id: `lr-${Date.now()}`,
-      tenantId: "tenant-1",
-      employeeId: employee.id,
-      employeeName: `${employee.firstName} ${employee.lastName}`,
-      employeeNumber: employee.employeeNumber,
-      departmentId: employee.departmentId,
-      departmentName: department?.name || "",
-      leaveTypeId: leaveType.id,
-      leaveTypeName: leaveType.name,
-      leaveCategory: leaveType.category,
-      startDate: formData.startDate,
-      endDate: formData.endDate,
-      totalDays: calculateDays(formData.startDate, formData.endDate, formData.isHalfDay),
-      isHalfDay: formData.isHalfDay,
-      halfDayPeriod: formData.isHalfDay ? formData.halfDayPeriod : undefined,
-      reason: formData.reason,
-      attachments: [],
-      status: "pending",
-      approvalFlow: [
-        {
-          id: `apv-${Date.now()}`,
-          approverId: "mgr-001",
-          approverName: "المدير المباشر",
-          approverRole: "مدير مباشر",
-          order: 1,
-          status: "pending",
-        },
-      ],
-      currentApprover: "mgr-001",
-      delegateEmployeeId: formData.delegateEmployeeId || undefined,
-      delegateEmployeeName: delegate ? `${delegate.firstName} ${delegate.lastName}` : undefined,
-      emergencyContact: formData.emergencyContact || undefined,
-      emergencyPhone: formData.emergencyPhone || undefined,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      submittedAt: new Date().toISOString(),
-    };
+      const leavesJson = (await leavesRes.json()) as LeavesListResponse;
+      const typesJson = (await typesRes.json()) as LeaveTypesResponse;
 
-    setRequests([newRequest, ...requests]);
-    setIsAddDialogOpen(false);
-    resetForm();
+      if (!leavesRes.ok) {
+        throw new Error(leavesJson.error || "فشل تحميل طلبات الإجازات");
+      }
+      if (!typesRes.ok) {
+        throw new Error(typesJson.error || "فشل تحميل أنواع الإجازات");
+      }
+
+      const mappedTypes: ApiLeaveType[] = Array.isArray(typesJson.data)
+        ? typesJson.data.map((t: any) => ({
+            id: String(t.id),
+            name: String(t.name ?? ""),
+            nameAr: t.nameAr ?? null,
+            code: String(t.code ?? ""),
+            color: t.color ?? null,
+            isActive: Boolean(t.isActive),
+          }))
+        : [];
+      setLeaveTypes(mappedTypes);
+
+      const mappedRequests: UiLeaveRequest[] = Array.isArray(leavesJson.data)
+        ? leavesJson.data.map((r: any) => {
+            const employeeName = r?.employee
+              ? `${String(r.employee.firstName ?? "")} ${String(r.employee.lastName ?? "")}`.trim()
+              : "";
+            return {
+              id: String(r.id),
+              employeeId: String(r.employeeId ?? ""),
+              employeeName,
+              employeeNumber: String(r.employee?.employeeNumber ?? ""),
+              departmentId: String(r.employee?.departmentId ?? ""),
+              departmentName: String(r.employee?.department?.name ?? ""),
+              leaveTypeId: String(r.leaveTypeId ?? ""),
+              leaveTypeName: String(r.leaveType?.name ?? ""),
+              startDate: toYmd(r.startDate),
+              endDate: toYmd(r.endDate),
+              totalDays: toNumber(r.totalDays),
+              isHalfDay: toNumber(r.totalDays) === 0.5,
+              reason: String(r.reason ?? ""),
+              status: mapRequestStatusToUi(r.status),
+              attachmentUrl: r.attachmentUrl ?? null,
+              delegateEmployeeId: r.delegateToId ?? null,
+              createdAt: toIso(r.createdAt),
+              updatedAt: toIso(r.updatedAt),
+              approvedAt: toIso(r.approvedAt) ?? null,
+              approvedById: r.approvedById ?? null,
+              rejectionReason: r.rejectionReason ?? null,
+            };
+          })
+        : [];
+      setRequests(mappedRequests);
+    } catch (err) {
+      setLoadError(err instanceof Error ? err.message : "فشل تحميل البيانات");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handleApprove = () => {
+  useEffect(() => {
+    void loadData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const handleAddRequest = async () => {
+    try {
+      const res = await fetch("/api/leaves", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          employeeId: formData.employeeId,
+          leaveTypeId: formData.leaveTypeId,
+          startDate: formData.startDate,
+          endDate: formData.endDate,
+          reason: formData.reason,
+          isHalfDay: formData.isHalfDay,
+          delegateToId: formData.delegateEmployeeId || undefined,
+        }),
+      });
+
+      const json = (await res.json()) as { data?: any; error?: string };
+      if (!res.ok) {
+        throw new Error(json.error || "فشل إنشاء طلب الإجازة");
+      }
+
+      toast.success("تم إرسال طلب الإجازة");
+      setIsAddDialogOpen(false);
+      resetForm();
+      await loadData();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "فشل إنشاء طلب الإجازة");
+    }
+  };
+
+  const handleApprove = async () => {
     if (!selectedRequest) return;
-    setRequests(
-      requests.map((r) =>
-        r.id === selectedRequest.id
-          ? {
-              ...r,
-              status: "approved",
-              approvalFlow: r.approvalFlow.map((a) => ({
-                ...a,
-                status: "approved",
-                comment: approvalComment,
-                actionDate: new Date().toISOString(),
-              })),
-              approvedAt: new Date().toISOString(),
-              updatedAt: new Date().toISOString(),
-            }
-          : r
-      )
-    );
-    setIsApproveDialogOpen(false);
-    setSelectedRequest(null);
-    setApprovalComment("");
+    try {
+      const res = await fetch(`/api/leaves/${encodeURIComponent(selectedRequest.id)}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "approve", comment: approvalComment || undefined }),
+      });
+      const json = (await res.json()) as { data?: any; error?: string };
+      if (!res.ok) {
+        throw new Error(json.error || "فشل الموافقة على الطلب");
+      }
+      toast.success("تمت الموافقة على الطلب");
+      setIsApproveDialogOpen(false);
+      setSelectedRequest(null);
+      setApprovalComment("");
+      await loadData();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "فشل الموافقة على الطلب");
+    }
   };
 
-  const handleReject = () => {
+  const handleReject = async () => {
     if (!selectedRequest || !rejectionReason) return;
-    setRequests(
-      requests.map((r) =>
-        r.id === selectedRequest.id
-          ? {
-              ...r,
-              status: "rejected",
-              approvalFlow: r.approvalFlow.map((a) => ({
-                ...a,
-                status: "rejected",
-                comment: rejectionReason,
-                actionDate: new Date().toISOString(),
-              })),
-              rejectedAt: new Date().toISOString(),
-              updatedAt: new Date().toISOString(),
-            }
-          : r
-      )
-    );
-    setIsRejectDialogOpen(false);
-    setSelectedRequest(null);
-    setRejectionReason("");
+    try {
+      const res = await fetch(`/api/leaves/${encodeURIComponent(selectedRequest.id)}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "reject", rejectionReason }),
+      });
+      const json = (await res.json()) as { data?: any; error?: string };
+      if (!res.ok) {
+        throw new Error(json.error || "فشل رفض الطلب");
+      }
+      toast.success("تم رفض الطلب");
+      setIsRejectDialogOpen(false);
+      setSelectedRequest(null);
+      setRejectionReason("");
+      await loadData();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "فشل رفض الطلب");
+    }
   };
 
-  const handleCancel = (id: string) => {
-    setRequests(
-      requests.map((r) =>
-        r.id === id
-          ? { ...r, status: "cancelled", updatedAt: new Date().toISOString() }
-          : r
-      )
-    );
+  const handleCancel = async (id: string) => {
+    try {
+      const res = await fetch(`/api/leaves/${encodeURIComponent(id)}`, {
+        method: "DELETE",
+      });
+      const json = (await res.json()) as { success?: boolean; error?: string };
+      if (!res.ok) {
+        throw new Error(json.error || "فشل إلغاء الطلب");
+      }
+      toast.success("تم إلغاء الطلب");
+      await loadData();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "فشل إلغاء الطلب");
+    }
   };
 
   // Filter requests
-  const filteredRequests = requests.filter((r) => {
-    const matchesTab = activeTab === "all" || r.status === activeTab;
-    const matchesSearch =
-      r.employeeName.includes(searchQuery) ||
-      r.employeeNumber.includes(searchQuery) ||
-      r.leaveTypeName.includes(searchQuery);
-    const matchesDepartment = filterDepartment === "all" || r.departmentId === filterDepartment;
-    return matchesTab && matchesSearch && matchesDepartment;
-  });
+  const filteredRequests = useMemo(() => {
+    const q = searchQuery.trim();
+    return requests.filter((r) => {
+      const matchesTab = activeTab === "all" || r.status === activeTab;
+      const matchesSearch =
+        !q ||
+        r.employeeName.includes(q) ||
+        r.employeeNumber.includes(q) ||
+        r.leaveTypeName.includes(q);
+      const matchesDepartment = filterDepartment === "all" || r.departmentId === filterDepartment;
+      return matchesTab && matchesSearch && matchesDepartment;
+    });
+  }, [requests, activeTab, searchQuery, filterDepartment]);
 
   // Stats
   const stats = {
@@ -339,7 +483,7 @@ export function LeaveRequestsManager() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">جميع الأقسام</SelectItem>
-                  {mockDepartments.map((dept) => (
+                  {departments.map((dept) => (
                     <SelectItem key={dept.id} value={dept.id}>
                       {dept.name}
                     </SelectItem>
@@ -350,6 +494,22 @@ export function LeaveRequestsManager() {
           </div>
         </CardHeader>
         <CardContent>
+          {loadError && (
+            <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+              {loadError}
+            </div>
+          )}
+          {employeesError && (
+            <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+              {employeesError}
+            </div>
+          )}
+          {(isLoading || isEmployeesLoading) && (
+            <div className="mb-4 flex items-center gap-3 text-sm text-muted-foreground">
+              <Progress value={35} className="h-2 w-40" />
+              جاري التحميل...
+            </div>
+          )}
           <Table>
             <TableHeader>
               <TableRow>
@@ -390,7 +550,9 @@ export function LeaveRequestsManager() {
                       <div>
                         <div className="font-medium">{request.leaveTypeName}</div>
                         <div className="text-sm text-muted-foreground">
-                          {leaveCategoryLabels[request.leaveCategory]}
+                          {leaveTypeById.get(request.leaveTypeId)?.code
+                            ? `الرمز: ${leaveTypeById.get(request.leaveTypeId)?.code}`
+                            : ""}
                         </div>
                       </div>
                     </TableCell>
@@ -486,7 +648,7 @@ export function LeaveRequestsManager() {
                     <SelectValue placeholder="اختر الموظف" />
                   </SelectTrigger>
                   <SelectContent>
-                    {mockEmployees.map((emp) => (
+                    {employees.map((emp) => (
                       <SelectItem key={emp.id} value={emp.id}>
                         {emp.firstName} {emp.lastName} - {emp.employeeNumber}
                       </SelectItem>
@@ -504,17 +666,19 @@ export function LeaveRequestsManager() {
                     <SelectValue placeholder="اختر نوع الإجازة" />
                   </SelectTrigger>
                   <SelectContent>
-                    {mockLeaveTypes.filter((t) => t.isActive).map((type) => (
-                      <SelectItem key={type.id} value={type.id}>
-                        <div className="flex items-center gap-2">
-                          <div
-                            className="h-3 w-3 rounded-full"
-                            style={{ backgroundColor: type.color }}
-                          />
-                          {type.name}
-                        </div>
-                      </SelectItem>
-                    ))}
+                    {leaveTypes
+                      .filter((t) => t.isActive)
+                      .map((type) => (
+                        <SelectItem key={type.id} value={type.id}>
+                          <div className="flex items-center gap-2">
+                            <div
+                              className="h-3 w-3 rounded-full"
+                              style={{ backgroundColor: type.color || "#3B82F6" }}
+                            />
+                            {type.name}
+                          </div>
+                        </SelectItem>
+                      ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -599,7 +763,7 @@ export function LeaveRequestsManager() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="">بدون بديل</SelectItem>
-                  {mockEmployees
+                  {employees
                     .filter((e) => e.id !== formData.employeeId)
                     .map((emp) => (
                       <SelectItem key={emp.id} value={emp.id}>
@@ -608,26 +772,6 @@ export function LeaveRequestsManager() {
                     ))}
                 </SelectContent>
               </Select>
-            </div>
-
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <Label>جهة اتصال الطوارئ</Label>
-                <Input
-                  value={formData.emergencyContact}
-                  onChange={(e) => setFormData({ ...formData, emergencyContact: e.target.value })}
-                  placeholder="الاسم"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>رقم هاتف الطوارئ</Label>
-                <Input
-                  value={formData.emergencyPhone}
-                  onChange={(e) => setFormData({ ...formData, emergencyPhone: e.target.value })}
-                  placeholder="05xxxxxxxx"
-                  dir="ltr"
-                />
-              </div>
             </div>
           </div>
 
@@ -713,70 +857,57 @@ export function LeaveRequestsManager() {
                 <p className="rounded-lg bg-muted p-3">{selectedRequest.reason}</p>
               </div>
 
-              {selectedRequest.delegateEmployeeName && (
+              {selectedRequest.delegateEmployeeId && (
                 <div className="space-y-1">
                   <p className="text-sm text-muted-foreground">الموظف البديل</p>
-                  <p className="font-medium">{selectedRequest.delegateEmployeeName}</p>
+                  <p className="font-medium">
+                    {(() => {
+                      const emp = employees.find((e) => e.id === selectedRequest.delegateEmployeeId);
+                      return emp ? `${emp.firstName} ${emp.lastName}` : "غير معروف";
+                    })()}
+                  </p>
                 </div>
               )}
 
-              {/* Approval Flow */}
-              <div className="space-y-3">
-                <p className="font-medium">مسار الموافقة</p>
-                {selectedRequest.approvalFlow.map((approval, index) => (
-                  <div
-                    key={approval.id}
-                    className="flex items-center gap-3 rounded-lg border p-3"
-                  >
-                    <div
-                      className={`flex h-8 w-8 items-center justify-center rounded-full ${
-                        approval.status === "approved"
-                          ? "bg-green-100 text-green-600"
-                          : approval.status === "rejected"
-                          ? "bg-red-100 text-red-600"
-                          : "bg-gray-100 text-gray-600"
-                      }`}
-                    >
-                      {approval.status === "approved" ? (
-                        <IconCheck className="h-4 w-4" />
-                      ) : approval.status === "rejected" ? (
-                        <IconX className="h-4 w-4" />
-                      ) : (
-                        <IconClock className="h-4 w-4" />
-                      )}
-                    </div>
-                    <div className="flex-1">
-                      <p className="font-medium">{approval.approverName}</p>
-                      <p className="text-sm text-muted-foreground">{approval.approverRole}</p>
-                      {approval.comment && (
-                        <p className="mt-1 text-sm">{approval.comment}</p>
-                      )}
-                    </div>
-                    {approval.actionDate && (
-                      <p className="text-sm text-muted-foreground">
-                        {new Date(approval.actionDate).toLocaleDateString("ar-SA")}
-                      </p>
-                    )}
-                  </div>
-                ))}
-              </div>
-
-              {/* Attachments */}
-              {selectedRequest.attachments.length > 0 && (
+              {/* Approval Info (real DB fields) */}
+              {(selectedRequest.approvedAt || selectedRequest.rejectionReason) && (
                 <div className="space-y-2">
-                  <p className="font-medium">المرفقات</p>
-                  <div className="flex flex-wrap gap-2">
-                    {selectedRequest.attachments.map((att) => (
-                      <a
-                        key={att.id}
-                        href={att.url}
-                        className="flex items-center gap-2 rounded-lg border px-3 py-2 hover:bg-muted"
-                      >
-                        <IconPaperclip className="h-4 w-4" />
-                        <span className="text-sm">{att.name}</span>
-                      </a>
-                    ))}
-                  </div>
+                  <p className="font-medium">معلومات الاعتماد</p>
+                  {selectedRequest.approvedAt && (
+                    <div className="rounded-lg border p-3 text-sm">
+                      <div className="flex items-center justify-between">
+                        <span className="text-muted-foreground">تاريخ الإجراء</span>
+                        <span>{new Date(selectedRequest.approvedAt).toLocaleDateString("ar-SA")}</span>
+                      </div>
+                      {selectedRequest.approvedById && (
+                        <div className="mt-2 flex items-center justify-between">
+                          <span className="text-muted-foreground">المعتمد</span>
+                          <span className="font-mono text-xs">{selectedRequest.approvedById}</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {selectedRequest.rejectionReason && (
+                    <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                      {selectedRequest.rejectionReason}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Attachment (single URL field) */}
+              {selectedRequest.attachmentUrl && (
+                <div className="space-y-2">
+                  <p className="font-medium">المرفق</p>
+                  <a
+                    href={selectedRequest.attachmentUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-2 rounded-lg border px-3 py-2 hover:bg-muted"
+                  >
+                    <IconPaperclip className="h-4 w-4" />
+                    <span className="text-sm">فتح المرفق</span>
+                  </a>
                 </div>
               )}
             </div>

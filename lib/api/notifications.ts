@@ -1,6 +1,5 @@
 /**
  * Notifications Service - API calls for notification management
- * TODO: Connect to actual API endpoints when backend is ready
  */
 
 import { apiClient, ApiResponse } from "./client";

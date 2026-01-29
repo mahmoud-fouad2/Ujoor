@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { 
   FileText, Star, Clock, Download, Calendar, Play, 
   Search, Filter, Grid, List, BarChart3, PieChart, 
@@ -28,36 +28,83 @@ import {
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import {
-  mockReports,
-  mockScheduledReports,
   type ReportDefinition,
   type ReportCategory,
+  type ScheduledReport,
   reportCategoryLabels,
   scheduleFrequencyLabels,
 } from '@/lib/types/reports';
 
 export default function ReportsManager() {
-  const [reports, setReports] = useState<ReportDefinition[]>(mockReports);
+  const [reports, setReports] = useState<ReportDefinition[]>([]);
+  const [scheduledReports, setScheduledReports] = useState<ScheduledReport[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [selectedReport, setSelectedReport] = useState<ReportDefinition | null>(null);
   const [isRunDialogOpen, setIsRunDialogOpen] = useState(false);
 
-  const filteredReports = reports.filter(report => {
-    const matchesSearch = report.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          report.description?.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesCategory = categoryFilter === 'all' || report.category === categoryFilter;
-    return matchesSearch && matchesCategory;
-  });
+  const fetchJson = useCallback(async <T,>(url: string, init?: RequestInit): Promise<T> => {
+    const res = await fetch(url, { cache: 'no-store', ...init });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error((json as any)?.error || 'Request failed');
+    }
+    return json as T;
+  }, []);
 
-  const favoriteReports = reports.filter(r => r.isFavorite);
+  const load = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const [defsRes, schRes] = await Promise.all([
+        fetchJson<{ data: ReportDefinition[] }>('/api/reports/definitions'),
+        fetchJson<{ data: ScheduledReport[] }>('/api/reports/scheduled'),
+      ]);
 
-  const toggleFavorite = (id: string) => {
-    setReports(reports.map(r => 
-      r.id === id ? {...r, isFavorite: !r.isFavorite} : r
-    ));
-  };
+      setReports(defsRes.data ?? []);
+      setScheduledReports(schRes.data ?? []);
+    } catch (e: any) {
+      setReports([]);
+      setScheduledReports([]);
+      setError(e?.message || 'Failed to load reports');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [fetchJson]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const filteredReports = useMemo(() => {
+    return reports.filter((report) => {
+      const matchesSearch =
+        report.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        report.description?.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesCategory = categoryFilter === 'all' || report.category === categoryFilter;
+      return matchesSearch && matchesCategory;
+    });
+  }, [reports, searchTerm, categoryFilter]);
+
+  const favoriteReports = useMemo(() => reports.filter((r) => r.isFavorite), [reports]);
+
+  const toggleFavorite = useCallback(async (id: string) => {
+    // Optimistic update
+    setReports((prev) => prev.map((r) => (r.id === id ? { ...r, isFavorite: !r.isFavorite } : r)));
+    try {
+      const res = await fetchJson<{ data: ReportDefinition }>(
+        `/api/reports/definitions/${encodeURIComponent(id)}/favorite`,
+        { method: 'PATCH' }
+      );
+      setReports((prev) => prev.map((r) => (r.id === id ? res.data : r)));
+    } catch {
+      // Revert
+      setReports((prev) => prev.map((r) => (r.id === id ? { ...r, isFavorite: !r.isFavorite } : r)));
+    }
+  }, [fetchJson]);
 
   const getFormatIcon = (format: string) => {
     switch (format) {
@@ -100,10 +147,18 @@ export default function ReportsManager() {
         <TabsList>
           <TabsTrigger value="all">جميع التقارير</TabsTrigger>
           <TabsTrigger value="favorites">المفضلة ({favoriteReports.length})</TabsTrigger>
-          <TabsTrigger value="scheduled">المجدولة ({mockScheduledReports.length})</TabsTrigger>
+          <TabsTrigger value="scheduled">المجدولة ({scheduledReports.length})</TabsTrigger>
         </TabsList>
 
         <TabsContent value="all" className="space-y-4">
+          {error && (
+            <Card>
+              <CardContent className="pt-6">
+                <p className="text-sm text-red-600">{error}</p>
+              </CardContent>
+            </Card>
+          )}
+
           {/* Filters */}
           <Card>
             <CardContent className="pt-6">
@@ -149,7 +204,19 @@ export default function ReportsManager() {
           </Card>
 
           {/* Reports Grid/List */}
-          {viewMode === 'grid' ? (
+          {isLoading ? (
+            <Card>
+              <CardContent className="pt-6">
+                <p className="text-sm text-muted-foreground">جاري تحميل التقارير...</p>
+              </CardContent>
+            </Card>
+          ) : filteredReports.length === 0 ? (
+            <Card>
+              <CardContent className="pt-6">
+                <p className="text-sm text-muted-foreground">لا توجد تقارير</p>
+              </CardContent>
+            </Card>
+          ) : viewMode === 'grid' ? (
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
               {filteredReports.map((report) => (
                 <Card key={report.id} className="hover:border-primary/50 transition-colors cursor-pointer">
@@ -163,7 +230,7 @@ export default function ReportsManager() {
                         size="icon"
                         onClick={(e) => {
                           e.stopPropagation();
-                          toggleFavorite(report.id);
+                          void toggleFavorite(report.id);
                         }}
                       >
                         <Star className={`h-4 w-4 ${report.isFavorite ? 'fill-yellow-400 text-yellow-400' : ''}`} />
@@ -229,7 +296,7 @@ export default function ReportsManager() {
                         <Button 
                           variant="ghost" 
                           size="icon"
-                          onClick={() => toggleFavorite(report.id)}
+                          onClick={() => void toggleFavorite(report.id)}
                         >
                           <Star className={`h-4 w-4 ${report.isFavorite ? 'fill-yellow-400 text-yellow-400' : ''}`} />
                         </Button>
@@ -291,7 +358,9 @@ export default function ReportsManager() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {mockScheduledReports.map((scheduled) => (
+                {scheduledReports.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">لا توجد تقارير مجدولة</p>
+                ) : scheduledReports.map((scheduled) => (
                   <div 
                     key={scheduled.id} 
                     className="flex items-center justify-between p-4 rounded-lg border"

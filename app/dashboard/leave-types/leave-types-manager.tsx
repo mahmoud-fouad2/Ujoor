@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   IconPlus,
   IconEdit,
@@ -61,9 +61,83 @@ import {
   AccrualType,
   leaveCategoryLabels,
   accrualTypeLabels,
-  mockLeaveTypes,
   leaveTypeColors,
 } from "@/lib/types/leave";
+import { toast } from "sonner";
+
+type LeaveTypesResponse = { data?: any[]; error?: string };
+
+function mapApplicableGendersToRestriction(value: unknown): LeaveType["genderRestriction"] {
+  if (!Array.isArray(value) || value.length === 0) return "all";
+  const genders = value.map(String);
+  const hasMale = genders.includes("MALE");
+  const hasFemale = genders.includes("FEMALE");
+  if (hasMale && !hasFemale) return "male";
+  if (!hasMale && hasFemale) return "female";
+  return "all";
+}
+
+function mapRestrictionToApplicableGenders(value: LeaveType["genderRestriction"] | undefined): Array<"MALE" | "FEMALE"> {
+  if (value === "male") return ["MALE"];
+  if (value === "female") return ["FEMALE"];
+  return [];
+}
+
+function toCode(value: string): string {
+  const raw = value.trim();
+  const normalized = raw
+    .replace(/[^a-zA-Z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .toUpperCase();
+  return normalized || `LT_${Date.now()}`;
+}
+
+function toIso(value: any): string {
+  if (!value) return new Date().toISOString();
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? new Date().toISOString() : d.toISOString();
+}
+
+function mapLeaveTypeFromApi(t: any): LeaveType {
+  const maxDays = t.maxDays != null ? Number(t.maxDays) : null;
+  const defaultDays = t.defaultDays != null ? Number(t.defaultDays) : 0;
+  const carryOverDays = t.carryOverDays != null ? Number(t.carryOverDays) : 0;
+
+  const annualMax = Number.isFinite(maxDays as any) && maxDays != null ? maxDays : defaultDays || 30;
+  const accrualType: AccrualType = defaultDays > 0 ? "yearly" : "none";
+
+  return {
+    id: String(t.id),
+    tenantId: String(t.tenantId ?? ""),
+    name: String(t.nameAr ?? t.name ?? ""),
+    nameEn: String(t.name ?? ""),
+    category: "other",
+    description: t.description ?? undefined,
+    color: String(t.color ?? leaveTypeColors.other),
+
+    maxDaysPerYear: annualMax,
+    minDaysPerRequest: 1,
+    maxDaysPerRequest: annualMax,
+    requiresAttachment: Boolean(t.requiresAttachment),
+    allowHalfDay: true,
+    isPaid: Boolean(t.isPaid),
+    affectsSalary: false,
+    salaryPercentage: Boolean(t.isPaid) ? 100 : 0,
+
+    accrualType,
+    accrualRate: accrualType === "none" ? 0 : Math.round((defaultDays / 12) * 10) / 10,
+    carryOverAllowed: carryOverDays > 0,
+    maxCarryOverDays: carryOverDays,
+
+    minServiceMonths: t.minServiceMonths != null ? Number(t.minServiceMonths) : 0,
+    genderRestriction: mapApplicableGendersToRestriction(t.applicableGenders),
+
+    isActive: Boolean(t.isActive),
+    isDefault: false,
+    createdAt: toIso(t.createdAt),
+    updatedAt: toIso(t.updatedAt),
+  };
+}
 
 // أيقونات أنواع الإجازات
 const categoryIcons: Record<LeaveCategory, React.ReactNode> = {
@@ -82,11 +156,14 @@ const categoryIcons: Record<LeaveCategory, React.ReactNode> = {
 };
 
 export function LeaveTypesManager() {
-  const [leaveTypes, setLeaveTypes] = useState<LeaveType[]>(mockLeaveTypes);
+  const [leaveTypes, setLeaveTypes] = useState<LeaveType[]>([]);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [selectedType, setSelectedType] = useState<LeaveType | null>(null);
   const [activeTab, setActiveTab] = useState("all");
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
 
   // Form state
   const [formData, setFormData] = useState<Partial<LeaveType>>({
@@ -137,44 +214,163 @@ export function LeaveTypesManager() {
     });
   };
 
-  const handleAdd = () => {
-    const newType: LeaveType = {
-      ...formData as LeaveType,
-      id: `lt-${Date.now()}`,
-      tenantId: "tenant-1",
-      isDefault: false,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-    setLeaveTypes([...leaveTypes, newType]);
-    setIsAddDialogOpen(false);
-    resetForm();
+  const loadLeaveTypes = async () => {
+    setIsLoading(true);
+    setLoadError(null);
+
+    try {
+      const res = await fetch("/api/leave-types", { cache: "no-store" });
+      const json = (await res.json()) as LeaveTypesResponse;
+      if (!res.ok) {
+        throw new Error(json.error || "فشل تحميل أنواع الإجازات");
+      }
+
+      const mapped = Array.isArray(json.data) ? json.data.map(mapLeaveTypeFromApi) : [];
+      setLeaveTypes(mapped);
+    } catch (err) {
+      setLoadError(err instanceof Error ? err.message : "فشل تحميل أنواع الإجازات");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handleEdit = () => {
+  useEffect(() => {
+    void loadLeaveTypes();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const handleAdd = async () => {
+    if (!formData.name?.trim() || !formData.nameEn?.trim()) {
+      toast.error("يرجى إدخال الاسم بالعربية والإنجليزية");
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const res = await fetch("/api/leave-types", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: formData.nameEn.trim(),
+          nameAr: formData.name.trim(),
+          code: toCode(formData.nameEn),
+          description: formData.description || undefined,
+          defaultDays: Number(formData.maxDaysPerYear ?? 0),
+          maxDays: Number(formData.maxDaysPerYear ?? 0),
+          carryOverDays: formData.carryOverAllowed ? Number(formData.maxCarryOverDays ?? 0) : 0,
+          isPaid: Boolean(formData.isPaid),
+          requiresApproval: true,
+          requiresAttachment: Boolean(formData.requiresAttachment),
+          minServiceMonths: Number(formData.minServiceMonths ?? 0),
+          applicableGenders: mapRestrictionToApplicableGenders(formData.genderRestriction),
+          color: formData.color,
+          isActive: Boolean(formData.isActive),
+        }),
+      });
+
+      const json = (await res.json()) as { data?: any; error?: string };
+      if (!res.ok) {
+        throw new Error(json.error || "فشل إنشاء نوع الإجازة");
+      }
+
+      toast.success("تم إنشاء نوع الإجازة");
+      setIsAddDialogOpen(false);
+      resetForm();
+      await loadLeaveTypes();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "فشل إنشاء نوع الإجازة");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleEdit = async () => {
     if (!selectedType) return;
-    setLeaveTypes(
-      leaveTypes.map((t) =>
-        t.id === selectedType.id
-          ? { ...t, ...formData, updatedAt: new Date().toISOString() }
-          : t
-      )
-    );
-    setIsEditDialogOpen(false);
-    setSelectedType(null);
-    resetForm();
+    if (!formData.name?.trim() || !formData.nameEn?.trim()) {
+      toast.error("يرجى إدخال الاسم بالعربية والإنجليزية");
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const res = await fetch(`/api/leave-types/${encodeURIComponent(selectedType.id)}` , {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: formData.nameEn.trim(),
+          nameAr: formData.name.trim(),
+          code: toCode(formData.nameEn),
+          description: formData.description || undefined,
+          defaultDays: Number(formData.maxDaysPerYear ?? 0),
+          maxDays: Number(formData.maxDaysPerYear ?? 0),
+          carryOverDays: formData.carryOverAllowed ? Number(formData.maxCarryOverDays ?? 0) : 0,
+          isPaid: Boolean(formData.isPaid),
+          requiresApproval: true,
+          requiresAttachment: Boolean(formData.requiresAttachment),
+          minServiceMonths: Number(formData.minServiceMonths ?? 0),
+          applicableGenders: mapRestrictionToApplicableGenders(formData.genderRestriction),
+          color: formData.color,
+          isActive: Boolean(formData.isActive),
+        }),
+      });
+
+      const json = (await res.json()) as { data?: any; error?: string };
+      if (!res.ok) {
+        throw new Error(json.error || "فشل تعديل نوع الإجازة");
+      }
+
+      toast.success("تم تعديل نوع الإجازة");
+      setIsEditDialogOpen(false);
+      setSelectedType(null);
+      resetForm();
+      await loadLeaveTypes();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "فشل تعديل نوع الإجازة");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
-  const handleDelete = (id: string) => {
-    setLeaveTypes(leaveTypes.filter((t) => t.id !== id));
+  const handleDelete = async (id: string) => {
+    setIsSaving(true);
+    try {
+      const res = await fetch(`/api/leave-types/${encodeURIComponent(id)}`, {
+        method: "DELETE",
+      });
+      const json = (await res.json()) as { ok?: boolean; error?: string };
+      if (!res.ok) {
+        throw new Error(json.error || "فشل حذف نوع الإجازة");
+      }
+      toast.success("تم حذف نوع الإجازة");
+      await loadLeaveTypes();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "فشل حذف نوع الإجازة");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
-  const handleToggleActive = (id: string) => {
-    setLeaveTypes(
-      leaveTypes.map((t) =>
-        t.id === id ? { ...t, isActive: !t.isActive } : t
-      )
-    );
+  const handleToggleActive = async (id: string) => {
+    const type = leaveTypes.find((t) => t.id === id);
+    if (!type) return;
+
+    setIsSaving(true);
+    try {
+      const res = await fetch(`/api/leave-types/${encodeURIComponent(id)}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isActive: !type.isActive }),
+      });
+      const json = (await res.json()) as { data?: any; error?: string };
+      if (!res.ok) {
+        throw new Error(json.error || "فشل تحديث الحالة");
+      }
+      await loadLeaveTypes();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "فشل تحديث الحالة");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const openEditDialog = (type: LeaveType) => {
@@ -255,6 +451,15 @@ export function LeaveTypesManager() {
           </Tabs>
         </CardHeader>
         <CardContent>
+          {loadError && (
+            <div className="mb-4 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+              {loadError}
+            </div>
+          )}
+
+          {isLoading ? (
+            <div className="py-10 text-center text-muted-foreground">جارٍ التحميل...</div>
+          ) : (
           <Table>
             <TableHeader>
               <TableRow>
@@ -353,6 +558,7 @@ export function LeaveTypesManager() {
               ))}
             </TableBody>
           </Table>
+          )}
         </CardContent>
       </Card>
 
@@ -689,7 +895,7 @@ export function LeaveTypesManager() {
               <IconX className="ms-2 h-4 w-4" />
               إلغاء
             </Button>
-            <Button onClick={isEditDialogOpen ? handleEdit : handleAdd}>
+            <Button onClick={isEditDialogOpen ? handleEdit : handleAdd} disabled={isSaving}>
               <IconCheck className="ms-2 h-4 w-4" />
               {isEditDialogOpen ? "حفظ التعديلات" : "إضافة"}
             </Button>

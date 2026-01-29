@@ -12,6 +12,7 @@ import {
   IconChartBar,
   IconFileSpreadsheet,
 } from "@tabler/icons-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -37,47 +38,78 @@ import {
 } from "@/components/ui/table";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  formatCurrency,
-  mockPayrollPeriods,
-  getMonthName,
-} from "@/lib/types/payroll";
-import { mockDepartments } from "@/lib/types/core-hr";
+import { formatCurrency, getMonthName } from "@/lib/types/payroll";
 
-// Mock report data
-const generateDepartmentStats = () => {
-  return mockDepartments.map((dept, index) => ({
-    id: dept.id,
-    name: dept.nameAr,
-    employeeCount: 5 + index * 2,
-    totalGross: 50000 + index * 20000,
-    totalDeductions: 5000 + index * 2000,
-    totalNet: 45000 + index * 18000,
-    avgSalary: 10000 + index * 1000,
-  }));
+type DepartmentOption = { id: string; name: string; nameAr?: string | null };
+
+type DepartmentStat = {
+  id: string;
+  name: string;
+  employeeCount: number;
+  totalGross: number;
+  totalDeductions: number;
+  totalNet: number;
+  avgSalary: number;
+  gosiBase: number;
+  gosiEmployee: number;
+  gosiEmployer: number;
 };
 
-const generateMonthlyTrend = () => {
-  return Array.from({ length: 6 }, (_, i) => {
-    const month = 12 - i;
-    const year = month > 0 ? 2024 : 2023;
-    const actualMonth = month > 0 ? month : 12 + month;
-    return {
-      month: `${getMonthName(actualMonth)} ${year}`,
-      totalGross: 480000 + Math.random() * 20000,
-      totalNet: 430000 + Math.random() * 20000,
-      employeeCount: 25 + Math.floor(Math.random() * 5),
-    };
-  }).reverse();
+type MonthlyTrendItem = {
+  month: string;
+  totalGross: number;
+  totalNet: number;
+  employeeCount: number;
 };
+
+async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(url, { cache: "no-store", ...init });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(json?.error || "Request failed");
+  }
+  return json as T;
+}
 
 export function PayrollReportsView() {
-  const [yearFilter, setYearFilter] = React.useState("2024");
+  const [yearFilter, setYearFilter] = React.useState(String(new Date().getFullYear()));
   const [monthFilter, setMonthFilter] = React.useState("all");
   const [departmentFilter, setDepartmentFilter] = React.useState("all");
+  const [departments, setDepartments] = React.useState<DepartmentOption[]>([]);
+  const [departmentStats, setDepartmentStats] = React.useState<DepartmentStat[]>([]);
+  const [monthlyTrend, setMonthlyTrend] = React.useState<MonthlyTrendItem[]>([]);
+  const [isLoading, setIsLoading] = React.useState(false);
 
-  const departmentStats = generateDepartmentStats();
-  const monthlyTrend = generateMonthlyTrend();
+  React.useEffect(() => {
+    fetchJson<{ data: any[] }>("/api/departments")
+      .then(({ data }) => {
+        setDepartments(
+          data.map((d) => ({ id: d.id, name: d.name, nameAr: d.nameAr }))
+        );
+      })
+      .catch((e) => {
+        console.error(e);
+        toast.error(e?.message || "فشل تحميل الأقسام");
+      });
+  }, []);
+
+  React.useEffect(() => {
+    setIsLoading(true);
+    fetchJson<{ data: { departmentStats: DepartmentStat[]; monthlyTrend: MonthlyTrendItem[] } }>(
+      `/api/payroll/reports?year=${encodeURIComponent(yearFilter)}&month=${encodeURIComponent(
+        monthFilter
+      )}&departmentId=${encodeURIComponent(departmentFilter)}`
+    )
+      .then(({ data }) => {
+        setDepartmentStats(data.departmentStats);
+        setMonthlyTrend(data.monthlyTrend);
+      })
+      .catch((e) => {
+        console.error(e);
+        toast.error(e?.message || "فشل تحميل تقرير الرواتب");
+      })
+      .finally(() => setIsLoading(false));
+  }, [yearFilter, monthFilter, departmentFilter]);
 
   // Calculate totals
   const totalStats = {
@@ -85,7 +117,12 @@ export function PayrollReportsView() {
     totalDeductions: departmentStats.reduce((sum, d) => sum + d.totalDeductions, 0),
     totalNet: departmentStats.reduce((sum, d) => sum + d.totalNet, 0),
     totalEmployees: departmentStats.reduce((sum, d) => sum + d.employeeCount, 0),
-    avgSalary: departmentStats.reduce((sum, d) => sum + d.avgSalary, 0) / departmentStats.length,
+    avgSalary: departmentStats.length
+      ? departmentStats.reduce((sum, d) => sum + d.avgSalary, 0) / departmentStats.length
+      : 0,
+    gosiBase: departmentStats.reduce((sum, d) => sum + d.gosiBase, 0),
+    gosiEmployee: departmentStats.reduce((sum, d) => sum + d.gosiEmployee, 0),
+    gosiEmployer: departmentStats.reduce((sum, d) => sum + d.gosiEmployer, 0),
   };
 
   const handleExportCSV = () => {
@@ -201,9 +238,9 @@ export function PayrollReportsView() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">كل الأقسام</SelectItem>
-              {mockDepartments.map((dept) => (
+              {departments.map((dept) => (
                 <SelectItem key={dept.id} value={dept.id}>
-                  {dept.nameAr}
+                  {dept.nameAr || dept.name}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -253,6 +290,13 @@ export function PayrollReportsView() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
+                  {isLoading && (
+                    <TableRow>
+                      <TableCell colSpan={7} className="text-center py-6 text-muted-foreground">
+                        جاري التحميل...
+                      </TableCell>
+                    </TableRow>
+                  )}
                   {departmentStats.map((dept) => (
                     <TableRow key={dept.id}>
                       <TableCell className="font-medium">{dept.name}</TableCell>
@@ -290,6 +334,13 @@ export function PayrollReportsView() {
                     <TableCell>100%</TableCell>
                   </TableRow>
                 </TableBody>
+                  {isLoading && (
+                    <TableRow>
+                      <TableCell colSpan={5} className="text-center py-6 text-muted-foreground">
+                        جاري التحميل...
+                      </TableCell>
+                    </TableRow>
+                  )}
               </Table>
             </CardContent>
           </Card>
@@ -367,7 +418,7 @@ export function PayrollReportsView() {
                   </CardHeader>
                   <CardContent>
                     <div className="text-2xl font-bold text-blue-600">
-                      {formatCurrency(totalStats.totalGross * 0.0975 * 0.6)}
+                      {formatCurrency(totalStats.gosiEmployee)}
                     </div>
                   </CardContent>
                 </Card>
@@ -377,7 +428,7 @@ export function PayrollReportsView() {
                   </CardHeader>
                   <CardContent>
                     <div className="text-2xl font-bold text-orange-600">
-                      {formatCurrency(totalStats.totalGross * 0.1175 * 0.6)}
+                      {formatCurrency(totalStats.gosiEmployer)}
                     </div>
                   </CardContent>
                 </Card>
@@ -387,7 +438,7 @@ export function PayrollReportsView() {
                   </CardHeader>
                   <CardContent>
                     <div className="text-2xl font-bold">
-                      {formatCurrency(totalStats.totalGross * 0.215 * 0.6)}
+                      {formatCurrency(totalStats.gosiEmployee + totalStats.gosiEmployer)}
                     </div>
                   </CardContent>
                 </Card>
@@ -405,21 +456,18 @@ export function PayrollReportsView() {
                 </TableHeader>
                 <TableBody>
                   {departmentStats.map((dept) => {
-                    const gosiBase = dept.totalGross * 0.6; // Assume 60% is GOSI applicable
-                    const employeeShare = gosiBase * 0.0975;
-                    const employerShare = gosiBase * 0.1175;
                     return (
                       <TableRow key={dept.id}>
                         <TableCell className="font-medium">{dept.name}</TableCell>
-                        <TableCell>{formatCurrency(gosiBase)}</TableCell>
+                        <TableCell>{formatCurrency(dept.gosiBase)}</TableCell>
                         <TableCell className="text-blue-600">
-                          {formatCurrency(employeeShare)}
+                          {formatCurrency(dept.gosiEmployee)}
                         </TableCell>
                         <TableCell className="text-orange-600">
-                          {formatCurrency(employerShare)}
+                          {formatCurrency(dept.gosiEmployer)}
                         </TableCell>
                         <TableCell className="font-bold">
-                          {formatCurrency(employeeShare + employerShare)}
+                          {formatCurrency(dept.gosiEmployee + dept.gosiEmployer)}
                         </TableCell>
                       </TableRow>
                     );

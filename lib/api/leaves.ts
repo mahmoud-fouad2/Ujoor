@@ -69,7 +69,7 @@ export const leaveRequestsApi = {
    * الحصول على جميع طلبات الإجازات
    */
   getAll: (filters?: LeaveRequestFilters) =>
-    apiClient.get<LeaveRequest[]>('/leave-requests', { 
+    apiClient.get<LeaveRequest[]>('/leaves', { 
       params: filters as Record<string, string | number> | undefined 
     }),
 
@@ -77,22 +77,26 @@ export const leaveRequestsApi = {
    * الحصول على طلب إجازة بالمعرف
    */
   getById: (id: string) =>
-    apiClient.get<LeaveRequest>(`/leave-requests/${id}`),
+    apiClient.get<LeaveRequest>(`/leaves/${id}`),
 
   /**
    * الحصول على طلبات إجازات موظف
    */
   getByEmployee: (employeeId: string, year?: number) =>
-    apiClient.get<LeaveRequest[]>(`/leave-requests/employee/${employeeId}`, {
-      params: year ? { year } : undefined,
+    apiClient.get<LeaveRequest[]>('/leaves', {
+      params: {
+        employeeId,
+        ...(year ? { year } : {}),
+      } as any,
     }),
 
   /**
    * الحصول على طلبات الإجازات المعلقة للموافقة
    */
   getPendingApprovals: (approverId?: string) =>
-    apiClient.get<LeaveRequest[]>('/leave-requests/pending-approvals', {
-      params: approverId ? { approverId } : undefined,
+    apiClient.get<LeaveRequest[]>('/leaves', {
+      // Backend currently supports status filtering only
+      params: { status: 'PENDING' } as any,
     }),
 
   /**
@@ -109,37 +113,46 @@ export const leaveRequestsApi = {
     delegateEmployeeId?: string;
     emergencyContact?: string;
     emergencyPhone?: string;
-  }) => apiClient.post<LeaveRequest>('/leave-requests', data),
+  }) =>
+    apiClient.post<LeaveRequest>('/leaves', {
+      employeeId: data.employeeId,
+      leaveTypeId: data.leaveTypeId,
+      startDate: data.startDate,
+      endDate: data.endDate,
+      reason: data.reason,
+      isHalfDay: data.isHalfDay,
+      delegateToId: data.delegateEmployeeId,
+    }),
 
   /**
    * تحديث طلب إجازة (قبل الموافقة فقط)
    */
   update: (id: string, data: Partial<LeaveRequest>) =>
-    apiClient.put<LeaveRequest>(`/leave-requests/${id}`, data),
+    apiClient.put<LeaveRequest>(`/leaves/${id}`, data),
 
   /**
    * إلغاء طلب إجازة
    */
   cancel: (id: string, reason?: string) =>
-    apiClient.patch<LeaveRequest>(`/leave-requests/${id}/cancel`, { reason }),
+    apiClient.delete<void>(`/leaves/${id}`),
 
   /**
    * حذف طلب إجازة (مسودة فقط)
    */
   delete: (id: string) =>
-    apiClient.delete<void>(`/leave-requests/${id}`),
+    apiClient.delete<void>(`/leaves/${id}`),
 
   /**
    * الموافقة على طلب إجازة
    */
   approve: (id: string, comment?: string) =>
-    apiClient.patch<LeaveRequest>(`/leave-requests/${id}/approve`, { comment }),
+    apiClient.put<LeaveRequest>(`/leaves/${id}`, { action: 'approve', comment }),
 
   /**
    * رفض طلب إجازة
    */
   reject: (id: string, comment: string) =>
-    apiClient.patch<LeaveRequest>(`/leave-requests/${id}/reject`, { comment }),
+    apiClient.put<LeaveRequest>(`/leaves/${id}`, { action: 'reject', rejectionReason: comment }),
 
   /**
    * رفع مرفق لطلب الإجازة

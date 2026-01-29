@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   IconSearch,
   IconFilter,
@@ -43,30 +43,152 @@ import {
 import { Progress } from "@/components/ui/progress";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { toast } from "sonner";
 import {
-  LeaveBalance,
-  LeaveCategory,
-  leaveCategoryLabels,
-  mockLeaveBalances,
-  mockLeaveTypes,
   getBalancePercentage,
-  leaveTypeColors,
 } from "@/lib/types/leave";
-import { mockEmployees, mockDepartments } from "@/lib/types/core-hr";
+import { useEmployees } from "@/hooks/use-employees";
+
+type UiLeaveBalance = {
+  id: string;
+  employeeId: string;
+  employeeName: string;
+  employeeNumber: string;
+  departmentId: string;
+  departmentName: string;
+  leaveTypeId: string;
+  leaveTypeName: string;
+  leaveTypeColor?: string | null;
+  year: number;
+  entitled: number;
+  carriedOver: number;
+  taken: number;
+  pending: number;
+  remaining: number;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+type ApiLeaveType = {
+  id: string;
+  name: string;
+  code: string;
+  color?: string | null;
+  isActive: boolean;
+};
+
+type LeaveBalancesResponse = {
+  data?: Array<any>;
+  error?: string;
+};
+
+type LeaveTypesResponse = {
+  data?: Array<any>;
+  error?: string;
+};
+
+function toNumber(value: any): number {
+  const n = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(n) ? n : 0;
+}
 
 export function LeaveBalancesManager() {
-  const [balances, setBalances] = useState<LeaveBalance[]>(mockLeaveBalances);
-  const [selectedYear, setSelectedYear] = useState(2026);
+  const { departments, isLoading: isEmployeesLoading, error: employeesError } = useEmployees();
+
+  const [balances, setBalances] = useState<UiLeaveBalance[]>([]);
+  const [leaveTypes, setLeaveTypes] = useState<ApiLeaveType[]>([]);
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [filterDepartment, setFilterDepartment] = useState<string>("all");
   const [filterLeaveType, setFilterLeaveType] = useState<string>("all");
   const [isAdjustDialogOpen, setIsAdjustDialogOpen] = useState(false);
-  const [selectedBalance, setSelectedBalance] = useState<LeaveBalance | null>(null);
+  const [selectedBalance, setSelectedBalance] = useState<UiLeaveBalance | null>(null);
   const [adjustmentData, setAdjustmentData] = useState({
     type: "add" as "add" | "subtract",
     days: 0,
     reason: "",
   });
+
+  const loadData = async (year: number) => {
+    setIsLoading(true);
+    setLoadError(null);
+
+    try {
+      const [balancesRes, typesRes] = await Promise.all([
+        fetch(`/api/leave-balances?year=${encodeURIComponent(String(year))}`, { cache: "no-store" }),
+        fetch("/api/leave-types", { cache: "no-store" }),
+      ]);
+
+      const balancesJson = (await balancesRes.json()) as LeaveBalancesResponse;
+      const typesJson = (await typesRes.json()) as LeaveTypesResponse;
+
+      if (!balancesRes.ok) {
+        throw new Error(balancesJson.error || "فشل تحميل أرصدة الإجازات");
+      }
+      if (!typesRes.ok) {
+        throw new Error(typesJson.error || "فشل تحميل أنواع الإجازات");
+      }
+
+      const mappedTypes: ApiLeaveType[] = Array.isArray(typesJson.data)
+        ? typesJson.data.map((t: any) => ({
+            id: String(t.id),
+            name: String(t.name ?? ""),
+            code: String(t.code ?? ""),
+            color: t.color ?? null,
+            isActive: Boolean(t.isActive),
+          }))
+        : [];
+      setLeaveTypes(mappedTypes);
+
+      const mappedBalances: UiLeaveBalance[] = Array.isArray(balancesJson.data)
+        ? balancesJson.data.map((b: any) => {
+            const entitled = toNumber(b.entitled);
+            const carriedOver = toNumber(b.carriedOver);
+            const adjustment = toNumber(b.adjustment);
+            const used = toNumber(b.used);
+            const pending = toNumber(b.pending);
+            const entitledWithAdjust = entitled + adjustment;
+            const remaining = entitledWithAdjust + carriedOver - used - pending;
+
+            const employeeName = b?.employee
+              ? `${String(b.employee.firstName ?? "")} ${String(b.employee.lastName ?? "")}`.trim()
+              : "";
+
+            return {
+              id: String(b.id),
+              employeeId: String(b.employeeId ?? ""),
+              employeeName,
+              employeeNumber: String(b.employee?.employeeNumber ?? ""),
+              departmentId: String(b.employee?.departmentId ?? ""),
+              departmentName: String(b.employee?.department?.name ?? ""),
+              leaveTypeId: String(b.leaveTypeId ?? ""),
+              leaveTypeName: String(b.leaveType?.name ?? ""),
+              leaveTypeColor: b.leaveType?.color ?? null,
+              year: Number(b.year ?? year),
+              entitled: entitledWithAdjust,
+              carriedOver,
+              taken: used,
+              pending,
+              remaining,
+              createdAt: b.createdAt ? new Date(b.createdAt).toISOString() : undefined,
+              updatedAt: b.updatedAt ? new Date(b.updatedAt).toISOString() : undefined,
+            };
+          })
+        : [];
+      setBalances(mappedBalances);
+    } catch (err) {
+      setLoadError(err instanceof Error ? err.message : "فشل تحميل البيانات");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void loadData(selectedYear);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedYear]);
 
   // Group balances by employee
   const employeeBalances = balances.reduce((acc, balance) => {
@@ -82,7 +204,7 @@ export function LeaveBalancesManager() {
     }
     acc[balance.employeeId].balances.push(balance);
     return acc;
-  }, {} as Record<string, { employeeId: string; employeeName: string; employeeNumber: string; departmentId: string; departmentName: string; balances: LeaveBalance[] }>);
+  }, {} as Record<string, { employeeId: string; employeeName: string; employeeNumber: string; departmentId: string; departmentName: string; balances: UiLeaveBalance[] }>);
 
   // Filter employees
   const filteredEmployees = Object.values(employeeBalances).filter((emp) => {
@@ -113,49 +235,55 @@ export function LeaveBalancesManager() {
 
   const totals = calculateTotals();
 
-  const handleAdjust = () => {
+  const handleAdjust = async () => {
     if (!selectedBalance || adjustmentData.days <= 0 || !adjustmentData.reason) return;
 
-    const adjustment = adjustmentData.type === "add" 
-      ? adjustmentData.days 
-      : -adjustmentData.days;
+    try {
+      const res = await fetch(`/api/leave-balances/${encodeURIComponent(selectedBalance.id)}/adjust`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          adjustmentType: adjustmentData.type === "add" ? "add" : "subtract",
+          days: adjustmentData.days,
+          reason: adjustmentData.reason,
+        }),
+      });
 
-    setBalances(
-      balances.map((b) =>
-        b.id === selectedBalance.id
-          ? {
-              ...b,
-              entitled: b.entitled + adjustment,
-              remaining: b.remaining + adjustment,
-              updatedAt: new Date().toISOString(),
-            }
-          : b
-      )
-    );
+      const json = (await res.json()) as { data?: any; error?: string };
+      if (!res.ok) {
+        throw new Error(json.error || "فشل تعديل الرصيد");
+      }
 
-    setIsAdjustDialogOpen(false);
-    setSelectedBalance(null);
-    setAdjustmentData({ type: "add", days: 0, reason: "" });
+      toast.success("تم تعديل رصيد الإجازة");
+      setIsAdjustDialogOpen(false);
+      setSelectedBalance(null);
+      setAdjustmentData({ type: "add", days: 0, reason: "" });
+      await loadData(selectedYear);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "فشل تعديل الرصيد");
+    }
   };
 
-  const openAdjustDialog = (balance: LeaveBalance) => {
+  const openAdjustDialog = (balance: UiLeaveBalance) => {
     setSelectedBalance(balance);
     setAdjustmentData({ type: "add", days: 0, reason: "" });
     setIsAdjustDialogOpen(true);
   };
 
   // Stats for each leave type
-  const leaveTypeStats = mockLeaveTypes.map((type) => {
-    const typeBalances = balances.filter((b) => b.leaveTypeId === type.id);
-    const totalEntitled = typeBalances.reduce((sum, b) => sum + b.entitled + b.carriedOver, 0);
-    const totalTaken = typeBalances.reduce((sum, b) => sum + b.taken, 0);
-    return {
-      ...type,
-      totalEntitled,
-      totalTaken,
-      usageRate: totalEntitled > 0 ? Math.round((totalTaken / totalEntitled) * 100) : 0,
-    };
-  });
+  const leaveTypeStats = useMemo(() => {
+    return leaveTypes.map((type) => {
+      const typeBalances = balances.filter((b) => b.leaveTypeId === type.id);
+      const totalEntitled = typeBalances.reduce((sum, b) => sum + b.entitled + b.carriedOver, 0);
+      const totalTaken = typeBalances.reduce((sum, b) => sum + b.taken, 0);
+      return {
+        ...type,
+        totalEntitled,
+        totalTaken,
+        usageRate: totalEntitled > 0 ? Math.round((totalTaken / totalEntitled) * 100) : 0,
+      };
+    });
+  }, [leaveTypes, balances]);
 
   return (
     <div className="space-y-6">
@@ -241,12 +369,12 @@ export function LeaveBalancesManager() {
               <div
                 key={type.id}
                 className="rounded-lg border p-4"
-                style={{ borderColor: type.color }}
+                style={{ borderColor: type.color ?? "#3B82F6" }}
               >
                 <div className="flex items-center gap-2 mb-3">
                   <div
                     className="h-3 w-3 rounded-full"
-                    style={{ backgroundColor: type.color }}
+                    style={{ backgroundColor: type.color ?? "#3B82F6" }}
                   />
                   <span className="font-medium">{type.name}</span>
                 </div>
@@ -259,10 +387,10 @@ export function LeaveBalancesManager() {
                     value={type.usageRate}
                     className="h-2"
                     style={{ 
-                      backgroundColor: `${type.color}20`,
+                      backgroundColor: `${type.color ?? "#3B82F6"}20`,
                     }}
                   />
-                  <div className="text-start text-sm font-medium" style={{ color: type.color }}>
+                  <div className="text-start text-sm font-medium" style={{ color: type.color ?? "#3B82F6" }}>
                     {type.usageRate}%
                   </div>
                 </div>
@@ -293,7 +421,7 @@ export function LeaveBalancesManager() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">جميع الأقسام</SelectItem>
-                  {mockDepartments.map((dept) => (
+                  {departments.map((dept) => (
                     <SelectItem key={dept.id} value={dept.id}>
                       {dept.name}
                     </SelectItem>
@@ -304,6 +432,22 @@ export function LeaveBalancesManager() {
           </div>
         </CardHeader>
         <CardContent>
+          {loadError && (
+            <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+              {loadError}
+            </div>
+          )}
+          {employeesError && (
+            <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+              {employeesError}
+            </div>
+          )}
+          {(isLoading || isEmployeesLoading) && (
+            <div className="mb-4 flex items-center gap-3 text-sm text-muted-foreground">
+              <Progress value={35} className="h-2 w-40" />
+              جاري التحميل...
+            </div>
+          )}
           <Table>
             <TableHeader>
               <TableRow>
@@ -355,8 +499,7 @@ export function LeaveBalancesManager() {
                             <div
                               className="h-3 w-3 rounded-full"
                               style={{
-                                backgroundColor:
-                                  leaveTypeColors[balance.leaveCategory] || "#6B7280",
+                                backgroundColor: balance.leaveTypeColor || "#6B7280",
                               }}
                             />
                             {balance.leaveTypeName}
@@ -390,11 +533,11 @@ export function LeaveBalancesManager() {
                         <TableCell className="text-center">
                           <div className="flex items-center gap-2">
                             <Progress
-                              value={getBalancePercentage(balance)}
+                              value={getBalancePercentage(balance as any)}
                               className="h-2 w-16"
                             />
                             <span className="text-sm text-muted-foreground">
-                              {getBalancePercentage(balance)}%
+                              {getBalancePercentage(balance as any)}%
                             </span>
                           </div>
                         </TableCell>

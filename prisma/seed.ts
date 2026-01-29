@@ -9,10 +9,9 @@ import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { hash } from "bcryptjs";
 
-// Create Prisma client with adapter for Prisma 7
 const connectionString = process.env.DATABASE_URL;
 if (!connectionString) {
-  throw new Error("DATABASE_URL environment variable is required");
+  throw new Error("DATABASE_URL environment variable is not set");
 }
 
 const adapter = new PrismaPg({ connectionString });
@@ -52,162 +51,193 @@ async function main() {
   }
 
   // ============================================
-  // 2. Create Demo Tenant (Optional)
+  // 2. Create Multiple Demo Tenants
   // ============================================
-  const demoTenantSlug = "demo";
+  const tenants = [
+    {
+      slug: "demo",
+      name: "Demo Company",
+      nameAr: "شركة تجريبية",
+      plan: "PROFESSIONAL" as const,
+      adminEmail: "admin@demo.ujoor.com",
+    },
+    {
+      slug: "elite-tech",
+      name: "Elite Technology Co.",
+      nameAr: "شركة النخبة للتقنية",
+      plan: "PROFESSIONAL" as const,
+      adminEmail: "admin@elite-tech.ujoor.com",
+    },
+    {
+      slug: "riyadh-trading",
+      name: "Riyadh Trading Est.",
+      nameAr: "مؤسسة الرياض التجارية",
+      plan: "BASIC" as const,
+      adminEmail: "admin@riyadh-trading.ujoor.com",
+    },
+    {
+      slug: "future-co",
+      name: "Future Company",
+      nameAr: "شركة المستقبل",
+      plan: "ENTERPRISE" as const,
+      adminEmail: "admin@future-co.ujoor.com",
+    },
+  ];
 
-  const existingTenant = await prisma.tenant.findUnique({
-    where: { slug: demoTenantSlug },
-  });
+  for (const tenantData of tenants) {
+    const existingTenant = await prisma.tenant.findUnique({
+      where: { slug: tenantData.slug },
+    });
 
-  if (!existingTenant) {
-    const tenant = await prisma.tenant.create({
-      data: {
-        name: "Demo Company",
-        nameAr: "شركة تجريبية",
-        slug: demoTenantSlug,
-        plan: "PROFESSIONAL",
-        maxEmployees: 100,
-        status: "ACTIVE",
-        timezone: "Asia/Riyadh",
-        currency: "SAR",
-        settings: {
-          language: "ar",
-          dateFormat: "DD/MM/YYYY",
-          timeFormat: "12h",
+    if (!existingTenant) {
+      const tenant = await prisma.tenant.create({
+        data: {
+          name: tenantData.name,
+          nameAr: tenantData.nameAr,
+          slug: tenantData.slug,
+          plan: tenantData.plan,
+          maxEmployees: 100,
+          status: "ACTIVE",
+          timezone: "Asia/Riyadh",
+          currency: "SAR",
+          settings: {
+            language: "ar",
+            dateFormat: "DD/MM/YYYY",
+            timeFormat: "12h",
+          },
         },
-      },
-    });
+        });
 
-    // Create tenant admin
-    const tenantAdminPassword = await hash("Demo@123456", 12);
+      // Create tenant admin
+      const tenantAdminPassword = await hash("Admin@123456", 12);
 
-    const tenantAdmin = await prisma.user.create({
-      data: {
-        tenantId: tenant.id,
-        email: "admin@demo.ujoor.com",
-        password: tenantAdminPassword,
-        firstName: "مدير",
-        lastName: "النظام",
-        role: "TENANT_ADMIN",
-        status: "ACTIVE",
-        permissions: [],
-      },
-    });
-
-    // Create default department
-    const department = await prisma.department.create({
-      data: {
-        tenantId: tenant.id,
-        name: "General",
-        nameAr: "إدارة عامة",
-        code: "GEN",
-        isActive: true,
-      },
-    });
-
-    // Create default job title
-    const jobTitle = await prisma.jobTitle.create({
-      data: {
-        tenantId: tenant.id,
-        name: "Employee",
-        nameAr: "موظف",
-        code: "EMP",
-        level: 1,
-        isActive: true,
-      },
-    });
-
-    // Create default shift
-    const shift = await prisma.shift.create({
-      data: {
-        tenantId: tenant.id,
-        name: "Morning Shift",
-        nameAr: "الوردية الصباحية",
-        code: "MORNING",
-        startTime: "08:00",
-        endTime: "16:00",
-        breakStartTime: "12:00",
-        breakEndTime: "13:00",
-        breakDurationMinutes: 60,
-        flexibleStartMinutes: 15,
-        flexibleEndMinutes: 15,
-        workDays: [0, 1, 2, 3, 4], // Sun-Thu
-        overtimeEnabled: true,
-        overtimeMultiplier: 1.5,
-        color: "#3B82F6",
-        isDefault: true,
-        isActive: true,
-      },
-    });
-
-    // Create default leave types
-    const leaveTypes = [
-      {
-        name: "Annual Leave",
-        nameAr: "إجازة سنوية",
-        code: "ANNUAL",
-        defaultDays: 21,
-        maxDays: 30,
-        carryOverDays: 5,
-        isPaid: true,
-        color: "#10B981",
-      },
-      {
-        name: "Sick Leave",
-        nameAr: "إجازة مرضية",
-        code: "SICK",
-        defaultDays: 30,
-        maxDays: 120,
-        isPaid: true,
-        requiresAttachment: true,
-        color: "#EF4444",
-      },
-      {
-        name: "Unpaid Leave",
-        nameAr: "إجازة بدون راتب",
-        code: "UNPAID",
-        defaultDays: 0,
-        maxDays: 60,
-        isPaid: false,
-        color: "#6B7280",
-      },
-    ];
-
-    for (const lt of leaveTypes) {
-      await prisma.leaveType.create({
+      const tenantAdmin = await prisma.user.create({
         data: {
           tenantId: tenant.id,
-          ...lt,
+          email: tenantData.adminEmail,
+          password: tenantAdminPassword,
+          firstName: "مدير",
+          lastName: tenantData.nameAr,
+          role: "TENANT_ADMIN",
+          status: "ACTIVE",
+          permissions: [],
+        },
+      });
+
+      // Create default department
+      const department = await prisma.department.create({
+        data: {
+          tenantId: tenant.id,
+          name: "General",
+          nameAr: "إدارة عامة",
+          code: "GEN",
           isActive: true,
         },
       });
+
+      // Create default job title
+      const jobTitle = await prisma.jobTitle.create({
+        data: {
+          tenantId: tenant.id,
+          name: "Employee",
+          nameAr: "موظف",
+          code: "EMP",
+          level: 1,
+          isActive: true,
+        },
+      });
+
+      // Create default shift
+      const shift = await prisma.shift.create({
+        data: {
+          tenantId: tenant.id,
+          name: "Morning Shift",
+          nameAr: "الوردية الصباحية",
+          code: "MORNING",
+          startTime: "08:00",
+          endTime: "16:00",
+          breakStartTime: "12:00",
+          breakEndTime: "13:00",
+          breakDurationMinutes: 60,
+          flexibleStartMinutes: 15,
+          flexibleEndMinutes: 15,
+          workDays: [0, 1, 2, 3, 4], // Sun-Thu
+          overtimeEnabled: true,
+          overtimeMultiplier: 1.5,
+          color: "#3B82F6",
+          isDefault: true,
+          isActive: true,
+        },
+      });
+
+      // Create default leave types
+      const leaveTypes = [
+        {
+          name: "Annual Leave",
+          nameAr: "إجازة سنوية",
+          code: "ANNUAL",
+          defaultDays: 21,
+          maxDays: 30,
+          carryOverDays: 5,
+          isPaid: true,
+          color: "#10B981",
+        },
+        {
+          name: "Sick Leave",
+          nameAr: "إجازة مرضية",
+          code: "SICK",
+          defaultDays: 30,
+          maxDays: 120,
+          isPaid: true,
+          requiresAttachment: true,
+          color: "#EF4444",
+        },
+        {
+          name: "Unpaid Leave",
+          nameAr: "إجازة بدون راتب",
+          code: "UNPAID",
+          defaultDays: 0,
+          maxDays: 60,
+          isPaid: false,
+          color: "#6B7280",
+        },
+      ];
+
+      for (const lt of leaveTypes) {
+        await prisma.leaveType.create({
+          data: {
+            tenantId: tenant.id,
+            ...lt,
+            isActive: true,
+          },
+        });
+      }
+
+      // Create employee record for tenant admin
+      await prisma.employee.create({
+        data: {
+          tenantId: tenant.id,
+          userId: tenantAdmin.id,
+          employeeNumber: `EMP001-${tenant.slug.toUpperCase()}`,
+          firstName: "مدير",
+          lastName: tenantData.nameAr,
+          email: tenantData.adminEmail,
+          departmentId: department.id,
+          jobTitleId: jobTitle.id,
+          shiftId: shift.id,
+          hireDate: new Date(),
+          employmentType: "FULL_TIME",
+          status: "ACTIVE",
+          baseSalary: 15000,
+          currency: "SAR",
+        },
+      });
+
+      console.log(`✅ Tenant created: ${tenantData.slug}`);
+      console.log(`   Admin: ${tenantData.adminEmail} / Admin@123456`);
+    } else {
+      console.log(`ℹ️  Tenant already exists: ${tenantData.slug}`);
     }
-
-    // Create employee record for tenant admin
-    await prisma.employee.create({
-      data: {
-        tenantId: tenant.id,
-        userId: tenantAdmin.id,
-        employeeNumber: "EMP001",
-        firstName: "مدير",
-        lastName: "النظام",
-        email: "admin@demo.ujoor.com",
-        departmentId: department.id,
-        jobTitleId: jobTitle.id,
-        shiftId: shift.id,
-        hireDate: new Date(),
-        employmentType: "FULL_TIME",
-        status: "ACTIVE",
-        baseSalary: 15000,
-        currency: "SAR",
-      },
-    });
-
-    console.log(`✅ Demo tenant created: ${demoTenantSlug}`);
-    console.log(`✅ Tenant admin: admin@demo.ujoor.com / Demo@123456`);
-  } else {
-    console.log(`ℹ️  Demo tenant already exists`);
   }
 
   console.log("\n🎉 Seed completed successfully!");

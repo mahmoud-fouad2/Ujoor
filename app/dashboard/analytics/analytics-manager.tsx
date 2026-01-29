@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { 
   TrendingUp, TrendingDown, Minus, Users, Clock, Wallet,
   Target, GraduationCap, Briefcase, Building2, BarChart3,
@@ -18,16 +18,72 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import {
-  mockKPIs,
-  mockHRAnalytics,
-  mockAttendanceAnalytics,
-  mockPayrollAnalytics,
-  type KPIMetric,
-} from '@/lib/types/reports';
+
+type KPIMetric = {
+  id: string;
+  name: string;
+  value: number;
+  unit?: string;
+  target?: number;
+  trend: 'up' | 'down' | 'neutral';
+  trendPercentage?: number;
+};
+
+type AnalyticsOverview = {
+  currency: string;
+  period: string;
+  kpis: KPIMetric[];
+  hr: {
+    totalEmployees: number;
+    newHires: number;
+    terminations: number;
+    turnoverRate: number;
+    headcountByDepartment: Array<{ department: string; count: number }>;
+    headcountByNationality: Array<{ nationality: string; count: number }>;
+    ageDistribution: Array<{ range: string; count: number }>;
+    employmentTypeDistribution: Array<{ type: string; count: number }>;
+  };
+  attendance: {
+    averageAttendanceRate: number;
+    lateArrivals: number;
+    absences: number;
+    overtimeHours: number;
+    attendanceByDepartment: Array<{ department: string; rate: number }>;
+  };
+  payroll: {
+    totalPayroll: number;
+    averageSalary: number;
+    salaryByDepartment: Array<{ department: string; total: number; average: number }>;
+    allowancesBreakdown: Array<{ name: string; amount: number }>;
+  };
+};
 
 export default function AnalyticsManager() {
   const [period, setPeriod] = useState('current-month');
+  const [data, setData] = useState<AnalyticsOverview | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const nationalityDotColors = [
+    'bg-blue-500',
+    'bg-emerald-500',
+    'bg-amber-500',
+    'bg-purple-500',
+    'bg-pink-500',
+    'bg-cyan-500',
+    'bg-orange-500',
+  ];
+
+  const getEmploymentTypeLabel = (type: string) => {
+    switch (type) {
+      case 'FULL_TIME': return 'دوام كامل';
+      case 'PART_TIME': return 'دوام جزئي';
+      case 'CONTRACT': return 'عقد';
+      case 'INTERN': return 'تدريب';
+      case 'TEMPORARY': return 'مؤقت';
+      default: return type;
+    }
+  };
 
   const getTrendIcon = (trend: string) => {
     switch (trend) {
@@ -48,8 +104,41 @@ export default function AnalyticsManager() {
   };
 
   const formatCurrency = (num: number) => {
-    return new Intl.NumberFormat('ar-SA', { style: 'currency', currency: 'SAR', maximumFractionDigits: 0 }).format(num);
+    const c = data?.currency || 'SAR';
+    return new Intl.NumberFormat('ar-SA', { style: 'currency', currency: c, maximumFractionDigits: 0 }).format(num);
   };
+
+  const fetchOverview = useCallback(async (selectedPeriod: string) => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/analytics/overview?period=${encodeURIComponent(selectedPeriod)}`, {
+        method: 'GET',
+        headers: { 'content-type': 'application/json' },
+      });
+
+      const json = await res.json();
+      if (!res.ok) {
+        throw new Error(json?.error || 'Failed to load analytics');
+      }
+
+      setData(json.data as AnalyticsOverview);
+    } catch (e: any) {
+      setData(null);
+      setError(e?.message || 'Failed to load analytics');
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void fetchOverview(period);
+  }, [fetchOverview, period]);
+
+  const kpis = useMemo(() => data?.kpis ?? [], [data]);
+  const hr = data?.hr;
+  const attendance = data?.attendance;
+  const payroll = data?.payroll;
 
   return (
     <div className="space-y-6">
@@ -73,7 +162,7 @@ export default function AnalyticsManager() {
               <SelectItem value="this-year">هذه السنة</SelectItem>
             </SelectContent>
           </Select>
-          <Button variant="outline">
+          <Button variant="outline" onClick={() => void fetchOverview(period)} disabled={isLoading}>
             <RefreshCw className="h-4 w-4 ms-2" />
             تحديث
           </Button>
@@ -86,7 +175,7 @@ export default function AnalyticsManager() {
 
       {/* KPIs */}
       <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-6">
-        {mockKPIs.map((kpi) => (
+        {kpis.map((kpi) => (
           <Card key={kpi.id}>
             <CardContent className="pt-6">
               <div className="flex items-center justify-between mb-2">
@@ -95,8 +184,11 @@ export default function AnalyticsManager() {
               </div>
               <div className="flex items-baseline gap-2">
                 <span className="text-2xl font-bold">
-                  {kpi.unit === 'ر.س' ? formatCurrency(kpi.value) : 
-                   kpi.unit ? `${kpi.value}${kpi.unit}` : formatNumber(kpi.value)}
+                  {kpi.unit && kpi.unit !== '%' && kpi.unit !== 'س'
+                    ? formatCurrency(kpi.value)
+                    : kpi.unit
+                      ? `${kpi.value}${kpi.unit}`
+                      : formatNumber(kpi.value)}
                 </span>
               </div>
               {kpi.trendPercentage !== undefined && (
@@ -117,6 +209,14 @@ export default function AnalyticsManager() {
         ))}
       </div>
 
+      {error && (
+        <Card>
+          <CardContent className="pt-6">
+            <p className="text-sm text-red-600">{error}</p>
+          </CardContent>
+        </Card>
+      )}
+
       <Tabs defaultValue="hr" className="w-full">
         <TabsList>
           <TabsTrigger value="hr">الموارد البشرية</TabsTrigger>
@@ -135,7 +235,7 @@ export default function AnalyticsManager() {
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">إجمالي الموظفين</p>
-                    <p className="text-2xl font-bold">{formatNumber(mockHRAnalytics.totalEmployees)}</p>
+                    <p className="text-2xl font-bold">{formatNumber(hr?.totalEmployees || 0)}</p>
                   </div>
                 </div>
               </CardContent>
@@ -148,7 +248,7 @@ export default function AnalyticsManager() {
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">تعيينات جديدة</p>
-                    <p className="text-2xl font-bold">{mockHRAnalytics.newHires}</p>
+                    <p className="text-2xl font-bold">{hr?.newHires || 0}</p>
                   </div>
                 </div>
               </CardContent>
@@ -161,7 +261,7 @@ export default function AnalyticsManager() {
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">مغادرون</p>
-                    <p className="text-2xl font-bold">{mockHRAnalytics.terminations}</p>
+                    <p className="text-2xl font-bold">{hr?.terminations || 0}</p>
                   </div>
                 </div>
               </CardContent>
@@ -174,7 +274,7 @@ export default function AnalyticsManager() {
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">معدل الدوران</p>
-                    <p className="text-2xl font-bold">{mockHRAnalytics.turnoverRate}%</p>
+                    <p className="text-2xl font-bold">{hr?.turnoverRate || 0}%</p>
                   </div>
                 </div>
               </CardContent>
@@ -191,14 +291,14 @@ export default function AnalyticsManager() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {mockHRAnalytics.headcountByDepartment.map((item, index) => (
+                  {(hr?.headcountByDepartment || []).map((item, index) => (
                     <div key={index} className="flex items-center gap-4">
                       <div className="flex-1">
                         <div className="flex items-center justify-between mb-1">
                           <span className="text-sm font-medium">{item.department}</span>
                           <span className="text-sm text-muted-foreground">{item.count}</span>
                         </div>
-                        <Progress value={(item.count / mockHRAnalytics.totalEmployees) * 100} className="h-2" />
+                        <Progress value={(item.count / Math.max(1, hr?.totalEmployees || 0)) * 100} className="h-2" />
                       </div>
                     </div>
                   ))}
@@ -215,17 +315,18 @@ export default function AnalyticsManager() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {mockHRAnalytics.headcountByNationality.map((item, index) => (
+                  {(hr?.headcountByNationality || []).map((item, index) => (
                     <div key={index} className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <div className={`h-3 w-3 rounded-full bg-blue-${(index + 3) * 100}`} 
-                             style={{ backgroundColor: `hsl(${index * 60}, 70%, 50%)` }} />
+                        <div
+                          className={`h-3 w-3 rounded-full ${nationalityDotColors[index % nationalityDotColors.length]}`}
+                        />
                         <span className="text-sm">{item.nationality}</span>
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="font-medium">{item.count}</span>
                         <span className="text-xs text-muted-foreground">
-                          ({((item.count / mockHRAnalytics.totalEmployees) * 100).toFixed(1)}%)
+                          ({((item.count / Math.max(1, hr?.totalEmployees || 0)) * 100).toFixed(1)}%)
                         </span>
                       </div>
                     </div>
@@ -243,11 +344,11 @@ export default function AnalyticsManager() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
-                  {mockHRAnalytics.ageDistribution.map((item, index) => (
+                  {(hr?.ageDistribution || []).map((item, index) => (
                     <div key={index} className="flex items-center gap-4">
                       <span className="text-sm w-16">{item.range}</span>
                       <div className="flex-1">
-                        <Progress value={(item.count / mockHRAnalytics.totalEmployees) * 100} className="h-2" />
+                        <Progress value={(item.count / Math.max(1, hr?.totalEmployees || 0)) * 100} className="h-2" />
                       </div>
                       <span className="text-sm text-muted-foreground w-12 text-start">{item.count}</span>
                     </div>
@@ -265,9 +366,9 @@ export default function AnalyticsManager() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
-                  {mockHRAnalytics.employmentTypeDistribution.map((item, index) => (
+                  {(hr?.employmentTypeDistribution || []).map((item, index) => (
                     <div key={index} className="flex items-center justify-between p-3 rounded-lg bg-muted">
-                      <span className="font-medium">{item.type}</span>
+                      <span className="font-medium">{getEmploymentTypeLabel(item.type)}</span>
                       <Badge variant="secondary">{item.count}</Badge>
                     </div>
                   ))}
@@ -288,7 +389,7 @@ export default function AnalyticsManager() {
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">معدل الحضور</p>
-                    <p className="text-2xl font-bold">{mockAttendanceAnalytics.averageAttendanceRate}%</p>
+                    <p className="text-2xl font-bold">{attendance?.averageAttendanceRate || 0}%</p>
                   </div>
                 </div>
               </CardContent>
@@ -301,7 +402,7 @@ export default function AnalyticsManager() {
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">تأخيرات</p>
-                    <p className="text-2xl font-bold">{mockAttendanceAnalytics.lateArrivals}</p>
+                    <p className="text-2xl font-bold">{attendance?.lateArrivals || 0}</p>
                   </div>
                 </div>
               </CardContent>
@@ -314,7 +415,7 @@ export default function AnalyticsManager() {
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">غياب</p>
-                    <p className="text-2xl font-bold">{mockAttendanceAnalytics.absences}</p>
+                    <p className="text-2xl font-bold">{attendance?.absences || 0}</p>
                   </div>
                 </div>
               </CardContent>
@@ -327,7 +428,7 @@ export default function AnalyticsManager() {
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">ساعات إضافية</p>
-                    <p className="text-2xl font-bold">{mockAttendanceAnalytics.overtimeHours}</p>
+                    <p className="text-2xl font-bold">{attendance?.overtimeHours || 0}</p>
                   </div>
                 </div>
               </CardContent>
@@ -343,7 +444,7 @@ export default function AnalyticsManager() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {mockAttendanceAnalytics.attendanceByDepartment.map((item, index) => (
+                {(attendance?.attendanceByDepartment || []).map((item, index) => (
                   <div key={index} className="flex items-center gap-4">
                     <span className="text-sm w-32">{item.department}</span>
                     <div className="flex-1">
@@ -373,7 +474,7 @@ export default function AnalyticsManager() {
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">إجمالي الرواتب</p>
-                    <p className="text-2xl font-bold">{formatCurrency(mockPayrollAnalytics.totalPayroll)}</p>
+                    <p className="text-2xl font-bold">{formatCurrency(payroll?.totalPayroll || 0)}</p>
                   </div>
                 </div>
               </CardContent>
@@ -386,7 +487,7 @@ export default function AnalyticsManager() {
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">متوسط الراتب</p>
-                    <p className="text-2xl font-bold">{formatCurrency(mockPayrollAnalytics.averageSalary)}</p>
+                    <p className="text-2xl font-bold">{formatCurrency(payroll?.averageSalary || 0)}</p>
                   </div>
                 </div>
               </CardContent>
@@ -403,7 +504,7 @@ export default function AnalyticsManager() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
-                  {mockPayrollAnalytics.salaryByDepartment.map((item, index) => (
+                  {(payroll?.salaryByDepartment || []).map((item, index) => (
                     <div key={index} className="flex items-center justify-between p-3 rounded-lg bg-muted">
                       <div>
                         <span className="font-medium">{item.department}</span>
@@ -427,16 +528,16 @@ export default function AnalyticsManager() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
-                  {mockPayrollAnalytics.allowancesBreakdown.map((item, index) => (
+                  {(payroll?.allowancesBreakdown || []).map((item, index) => (
                     <div key={index} className="flex items-center justify-between">
-                      <span className="text-sm">{item.type}</span>
+                      <span className="text-sm">{item.name}</span>
                       <span className="font-medium">{formatCurrency(item.amount)}</span>
                     </div>
                   ))}
                   <div className="border-t pt-3 flex items-center justify-between font-bold">
                     <span>الإجمالي</span>
                     <span>{formatCurrency(
-                      mockPayrollAnalytics.allowancesBreakdown.reduce((sum, item) => sum + item.amount, 0)
+                      (payroll?.allowancesBreakdown || []).reduce((sum, item) => sum + item.amount, 0)
                     )}</span>
                   </div>
                 </div>

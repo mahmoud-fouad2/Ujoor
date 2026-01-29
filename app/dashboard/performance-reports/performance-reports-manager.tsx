@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   IconChartBar,
   IconChartPie,
@@ -15,6 +15,7 @@ import {
   IconMinus,
   IconTarget,
   IconStarFilled,
+  IconLoader,
 } from "@tabler/icons-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -38,14 +39,38 @@ import {
 } from "@/components/ui/table";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
-  mockEvaluationCycles,
-  mockEmployeeEvaluations,
-  mockPerformanceGoals,
   defaultPerformanceRatings,
   formatScore,
   getRatingByScore,
-  calculateProgress,
 } from "@/lib/types/performance";
+
+type EvaluationCycle = {
+  id: string;
+  name: string;
+  status: string;
+  totalEvaluations: number;
+  completedEvaluations: number;
+};
+
+type EmployeeEvaluation = {
+  id: string;
+  employeeName: string;
+  employeeNumber: string;
+  employeeAvatar?: string;
+  department: string;
+  jobTitle: string;
+  cycleName?: string;
+  status: string;
+  overallScore?: number;
+};
+
+type PerformanceGoal = {
+  id: string;
+  employeeName: string;
+  title: string;
+  status: string;
+  progress: number;
+};
 
 // Mock department performance data
 const departmentPerformance = [
@@ -78,18 +103,60 @@ export function PerformanceReportsManager() {
   const [selectedCycle, setSelectedCycle] = useState<string>("all");
   const [selectedDepartment, setSelectedDepartment] = useState<string>("all");
   const [selectedPeriod, setSelectedPeriod] = useState<string>("current_year");
+  
+  const [loading, setLoading] = useState(true);
+  const [cycles, setCycles] = useState<EvaluationCycle[]>([]);
+  const [evaluations, setEvaluations] = useState<EmployeeEvaluation[]>([]);
+  const [goals, setGoals] = useState<PerformanceGoal[]>([]);
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  async function loadData() {
+    try {
+      setLoading(true);
+      const [cyclesRes, evaluationsRes, goalsRes] = await Promise.all([
+        fetch("/api/performance/cycles"),
+        fetch("/api/performance/evaluations"),
+        fetch("/api/performance/goals"),
+      ]);
+
+      if (cyclesRes.ok) {
+        const cyclesData = await cyclesRes.json();
+        setCycles(cyclesData.data || []);
+      }
+
+      if (evaluationsRes.ok) {
+        const evaluationsData = await evaluationsRes.json();
+        setEvaluations(evaluationsData.data || []);
+      }
+
+      if (goalsRes.ok) {
+        const goalsData = await goalsRes.json();
+        setGoals(goalsData.data || []);
+      }
+    } catch (error) {
+      console.error("Failed to load performance data:", error);
+    } finally {
+      setLoading(false);
+    }
+  }
 
   // Calculate stats
-  const completedEvaluations = mockEmployeeEvaluations.filter(
-    (e) => e.status === "completed" && e.finalScore
+  const completedEvaluations = evaluations.filter(
+    (e) => e.status === "completed" && e.overallScore
   );
   const avgScore =
-    completedEvaluations.reduce((sum, e) => sum + (e.finalScore || 0), 0) /
-    completedEvaluations.length;
+    completedEvaluations.length > 0
+      ? completedEvaluations.reduce((sum, e) => sum + (e.overallScore || 0), 0) /
+        completedEvaluations.length
+      : 0;
 
-  const completedGoals = mockPerformanceGoals.filter((g) => g.status === "completed");
-  const goalsCompletionRate =
-    (completedGoals.length / mockPerformanceGoals.length) * 100;
+  const completedGoals = goals.filter((g) => g.status === "completed");
+  const goalsCompletionRate = goals.length > 0
+    ? (completedGoals.length / goals.length) * 100
+    : 0;
 
   const getTrendIcon = (trend: string) => {
     switch (trend) {
@@ -134,7 +201,7 @@ export function PerformanceReportsManager() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">جميع الدورات</SelectItem>
-            {mockEvaluationCycles.map((cycle) => (
+            {cycles.map((cycle) => (
               <SelectItem key={cycle.id} value={cycle.id}>
                 {cycle.name}
               </SelectItem>
@@ -168,21 +235,27 @@ export function PerformanceReportsManager() {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid gap-4 md:grid-cols-4">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardDescription className="flex items-center gap-2">
-              <IconUsers className="h-4 w-4" />
-              إجمالي التقييمات المكتملة
-            </CardDescription>
-            <CardTitle className="text-3xl">{completedEvaluations.length}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-muted-foreground">
-              من أصل {mockEmployeeEvaluations.length} تقييم
-            </p>
-          </CardContent>
-        </Card>
+      {loading ? (
+        <div className="flex justify-center py-12">
+          <IconLoader className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      ) : (
+        <>
+          <div className="grid gap-4 md:grid-cols-4">
+            <Card>
+              <CardHeader className="pb-2">
+                <CardDescription className="flex items-center gap-2">
+                  <IconUsers className="h-4 w-4" />
+                  إجمالي التقييمات المكتملة
+                </CardDescription>
+                <CardTitle className="text-3xl">{completedEvaluations.length}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-muted-foreground">
+                  من أصل {evaluations.length} تقييم
+                </p>
+              </CardContent>
+            </Card>
         <Card>
           <CardHeader className="pb-2">
             <CardDescription className="flex items-center gap-2">
@@ -277,10 +350,9 @@ export function PerformanceReportsManager() {
               <CardContent>
                 <div className="space-y-4">
                   {[
-                    { label: "أهداف مكتملة", value: completedGoals.length, total: mockPerformanceGoals.length, color: "bg-green-500" },
-                    { label: "قيد التنفيذ", value: mockPerformanceGoals.filter(g => g.status === "in_progress").length, total: mockPerformanceGoals.length, color: "bg-blue-500" },
-                    { label: "في خطر", value: mockPerformanceGoals.filter(g => g.status === "at_risk").length, total: mockPerformanceGoals.length, color: "bg-orange-500" },
-                    { label: "متأخرة", value: mockPerformanceGoals.filter(g => g.status === "overdue").length, total: mockPerformanceGoals.length, color: "bg-red-500" },
+                    { label: "أهداف مكتملة", value: completedGoals.length, total: goals.length, color: "bg-green-500" },
+                    { label: "قيد التنفيذ", value: goals.filter(g => g.status === "in-progress").length, total: goals.length, color: "bg-blue-500" },
+                    { label: "متأخرة", value: goals.filter(g => g.status === "overdue").length, total: goals.length, color: "bg-red-500" },
                   ].map((item, index) => (
                     <div key={index} className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
@@ -332,21 +404,21 @@ export function PerformanceReportsManager() {
                             <span>{evaluation.employeeName}</span>
                           </div>
                         </TableCell>
-                        <TableCell>{evaluation.departmentName}</TableCell>
-                        <TableCell>{evaluation.cycleName}</TableCell>
+                        <TableCell>{evaluation.department}</TableCell>
+                        <TableCell>{evaluation.cycleName || "-"}</TableCell>
                         <TableCell>
                           <Badge variant="outline">
-                            {formatScore(evaluation.finalScore || 0)}
+                            {formatScore(evaluation.overallScore || 0)}
                           </Badge>
                         </TableCell>
                         <TableCell>
                           <Badge
                             style={{
-                              backgroundColor: `${getRatingColor(evaluation.finalScore || 0)}20`,
-                              color: getRatingColor(evaluation.finalScore || 0),
+                              backgroundColor: `${getRatingColor(evaluation.overallScore || 0)}20`,
+                              color: getRatingColor(evaluation.overallScore || 0),
                             }}
                           >
-                            {getRatingLabel(evaluation.finalScore || 0)}
+                            {getRatingLabel(evaluation.overallScore || 0)}
                           </Badge>
                         </TableCell>
                       </TableRow>
@@ -483,9 +555,9 @@ export function PerformanceReportsManager() {
                   {defaultPerformanceRatings.map((rating, index) => {
                     const count = completedEvaluations.filter(
                       (e) =>
-                        e.finalScore &&
-                        e.finalScore >= rating.minScore &&
-                        e.finalScore <= rating.maxScore
+                        e.overallScore &&
+                        e.overallScore >= rating.minScore &&
+                        e.overallScore <= rating.maxScore
                     ).length;
                     const percentage =
                       completedEvaluations.length > 0
@@ -539,7 +611,7 @@ export function PerformanceReportsManager() {
                     <Badge className="bg-green-100 text-green-700">
                       {formatScore(
                         Math.max(
-                          ...completedEvaluations.map((e) => e.finalScore || 0)
+                          ...completedEvaluations.map((e) => e.overallScore || 0)
                         )
                       )}
                     </Badge>
@@ -549,7 +621,7 @@ export function PerformanceReportsManager() {
                     <Badge className="bg-red-100 text-red-700">
                       {formatScore(
                         Math.min(
-                          ...completedEvaluations.map((e) => e.finalScore || 0)
+                          ...completedEvaluations.map((e) => e.overallScore || 0)
                         )
                       )}
                     </Badge>
@@ -569,7 +641,7 @@ export function PerformanceReportsManager() {
                     <Badge className="bg-green-100 text-green-700">
                       {
                         completedEvaluations.filter(
-                          (e) => (e.finalScore || 0) >= avgScore
+                          (e) => (e.overallScore || 0) >= avgScore
                         ).length
                       }
                     </Badge>
@@ -579,7 +651,7 @@ export function PerformanceReportsManager() {
                     <Badge className="bg-orange-100 text-orange-700">
                       {
                         completedEvaluations.filter(
-                          (e) => (e.finalScore || 0) < avgScore
+                          (e) => (e.overallScore || 0) < avgScore
                         ).length
                       }
                     </Badge>
@@ -590,6 +662,8 @@ export function PerformanceReportsManager() {
           </div>
         </TabsContent>
       </Tabs>
+      </>
+      )}
     </div>
   );
 }

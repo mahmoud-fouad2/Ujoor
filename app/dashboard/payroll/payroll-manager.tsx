@@ -76,13 +76,13 @@ import {
   type PayrollPeriod,
   type PayrollPeriodStatus,
   payrollPeriodStatusLabels,
-  mockPayrollPeriods,
   formatCurrency,
   getMonthName,
 } from "@/lib/types/payroll";
+import { toast } from "sonner";
 
 export function PayrollProcessingManager() {
-  const [periods, setPeriods] = React.useState<PayrollPeriod[]>(mockPayrollPeriods);
+  const [periods, setPeriods] = React.useState<PayrollPeriod[]>([]);
   const [searchQuery, setSearchQuery] = React.useState("");
   const [statusFilter, setStatusFilter] = React.useState<PayrollPeriodStatus | "all">("all");
   const [yearFilter, setYearFilter] = React.useState<string>("2024");
@@ -90,11 +90,62 @@ export function PayrollProcessingManager() {
   const [selectedPeriod, setSelectedPeriod] = React.useState<PayrollPeriod | null>(null);
   const [isProcessing, setIsProcessing] = React.useState(false);
   const [processProgress, setProcessProgress] = React.useState(0);
+  const [isLoading, setIsLoading] = React.useState(true);
+  const [loadError, setLoadError] = React.useState<string | null>(null);
 
   // Create form state
   const [formYear, setFormYear] = React.useState(new Date().getFullYear().toString());
   const [formMonth, setFormMonth] = React.useState((new Date().getMonth() + 1).toString());
   const [formPaymentDate, setFormPaymentDate] = React.useState("");
+
+  const loadPeriods = React.useCallback(async () => {
+    setIsLoading(true);
+    setLoadError(null);
+
+    try {
+      const params = new URLSearchParams();
+      if (yearFilter) params.set("year", yearFilter);
+      if (statusFilter !== "all") params.set("status", statusFilter);
+
+      const res = await fetch(`/api/payroll/periods?${params.toString()}`, { cache: "no-store" });
+      const json = (await res.json()) as { data?: any[]; error?: string };
+      if (!res.ok) {
+        throw new Error(json.error || "فشل تحميل فترات الرواتب");
+      }
+
+      const mapped: PayrollPeriod[] = Array.isArray(json.data)
+        ? json.data.map((p: any) => ({
+            id: String(p.id),
+            tenantId: String(p.tenantId ?? ""),
+            name: String(p.name ?? ""),
+            nameAr: String(p.nameAr ?? ""),
+            startDate: String(p.startDate ?? ""),
+            endDate: String(p.endDate ?? ""),
+            paymentDate: String(p.paymentDate ?? ""),
+            status: String(p.status ?? "draft") as PayrollPeriodStatus,
+            totalGross: Number(p.totalGross ?? 0),
+            totalDeductions: Number(p.totalDeductions ?? 0),
+            totalNet: Number(p.totalNet ?? 0),
+            employeeCount: Number(p.employeeCount ?? 0),
+            processedBy: p.processedById ?? undefined,
+            processedAt: p.processedAt ?? undefined,
+            notes: p.notes ?? undefined,
+            createdAt: p.createdAt ?? new Date().toISOString(),
+            updatedAt: p.updatedAt ?? new Date().toISOString(),
+          }))
+        : [];
+
+      setPeriods(mapped);
+    } catch (err) {
+      setLoadError(err instanceof Error ? err.message : "فشل تحميل فترات الرواتب");
+    } finally {
+      setIsLoading(false);
+    }
+  }, [statusFilter, yearFilter]);
+
+  React.useEffect(() => {
+    void loadPeriods();
+  }, [loadPeriods]);
 
   const filteredPeriods = periods.filter((p) => {
     const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -114,95 +165,78 @@ export function PayrollProcessingManager() {
       .reduce((sum, p) => sum + p.totalNet, 0),
   };
 
-  const handleCreatePeriod = () => {
+  const handleCreatePeriod = async () => {
     const year = parseInt(formYear);
     const month = parseInt(formMonth);
     const startDate = new Date(year, month - 1, 1);
     const endDate = new Date(year, month, 0);
 
-    const newPeriod: PayrollPeriod = {
-      id: `payroll-${year}-${month.toString().padStart(2, "0")}`,
-      tenantId: "tenant-1",
-      name: `${getMonthName(month, "en")} ${year}`,
-      nameAr: `${getMonthName(month, "ar")} ${year}`,
-      startDate: startDate.toISOString().split("T")[0],
-      endDate: endDate.toISOString().split("T")[0],
-      paymentDate: formPaymentDate || endDate.toISOString().split("T")[0],
-      status: "draft",
-      totalGross: 0,
-      totalDeductions: 0,
-      totalNet: 0,
-      employeeCount: 0,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
+    try {
+      const res = await fetch("/api/payroll/periods", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: `${getMonthName(month, "en")} ${year}`,
+          nameAr: `${getMonthName(month, "ar")} ${year}`,
+          startDate: startDate.toISOString().split("T")[0],
+          endDate: endDate.toISOString().split("T")[0],
+          paymentDate: formPaymentDate || endDate.toISOString().split("T")[0],
+        }),
+      });
 
-    setPeriods((prev) => [newPeriod, ...prev]);
-    setIsCreateOpen(false);
-    setFormPaymentDate("");
+      const json = (await res.json()) as { data?: any; error?: string };
+      if (!res.ok) {
+        throw new Error(json.error || "فشل إنشاء فترة الرواتب");
+      }
+
+      toast.success("تم إنشاء فترة الرواتب");
+      setIsCreateOpen(false);
+      setFormPaymentDate("");
+      await loadPeriods();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "فشل إنشاء فترة الرواتب");
+    }
   };
 
   const handleProcessPeriod = async (periodId: string) => {
     setIsProcessing(true);
-    setProcessProgress(0);
+    setProcessProgress(20);
 
-    // Simulate processing
-    for (let i = 0; i <= 100; i += 10) {
-      await new Promise((resolve) => setTimeout(resolve, 200));
-      setProcessProgress(i);
-    }
+    try {
+      const res = await fetch(`/api/payroll/periods/${encodeURIComponent(periodId)}/process`, {
+        method: "POST",
+      });
+      const json = (await res.json()) as { data?: any; error?: string };
+      if (!res.ok) {
+        throw new Error(json.error || "فشل معالجة فترة الرواتب");
+      }
 
-    // Update period with mock calculations
-    setPeriods((prev) =>
-      prev.map((p) =>
-        p.id === periodId
-          ? {
-              ...p,
-              status: "processing" as PayrollPeriodStatus,
-              employeeCount: 26,
-              totalGross: 492000,
-              totalDeductions: 47968,
-              totalNet: 444032,
-              processedBy: "current-user",
-              processedAt: new Date().toISOString(),
-              updatedAt: new Date().toISOString(),
-            }
-          : p
-      )
-    );
-
-    // After a moment, set to pending approval
-    setTimeout(() => {
-      setPeriods((prev) =>
-        prev.map((p) =>
-          p.id === periodId ? { ...p, status: "pending_approval" as PayrollPeriodStatus } : p
-        )
-      );
+      setProcessProgress(100);
+      toast.success("تمت معالجة فترة الرواتب وإرسالها للموافقة");
+      await loadPeriods();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "فشل معالجة فترة الرواتب");
+    } finally {
       setIsProcessing(false);
       setProcessProgress(0);
-    }, 500);
+    }
   };
 
-  const handleStatusChange = (periodId: string, newStatus: PayrollPeriodStatus) => {
-    setPeriods((prev) =>
-      prev.map((p) =>
-        p.id === periodId
-          ? {
-              ...p,
-              status: newStatus,
-              ...(newStatus === "approved" && {
-                approvedBy: "current-user",
-                approvedAt: new Date().toISOString(),
-              }),
-              ...(newStatus === "paid" && {
-                paidBy: "current-user",
-                paidAt: new Date().toISOString(),
-              }),
-              updatedAt: new Date().toISOString(),
-            }
-          : p
-      )
-    );
+  const handleStatusChange = async (periodId: string, newStatus: PayrollPeriodStatus) => {
+    try {
+      const res = await fetch(`/api/payroll/periods/${encodeURIComponent(periodId)}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: newStatus }),
+      });
+      const json = (await res.json()) as { data?: any; error?: string };
+      if (!res.ok) {
+        throw new Error(json.error || "فشل تحديث حالة الفترة");
+      }
+      await loadPeriods();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "فشل تحديث حالة الفترة");
+    }
   };
 
   const getStatusBadge = (status: PayrollPeriodStatus) => {

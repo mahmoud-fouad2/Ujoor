@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   IconChevronRight,
   IconChevronLeft,
@@ -29,15 +29,60 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import {
-  LeaveCalendarEvent,
   LeaveRequestStatus,
-  leaveRequestStatusLabels,
-  leaveCategoryLabels,
-  mockLeaveRequests,
-  leaveTypeColors,
-  LeaveCategory,
 } from "@/lib/types/leave";
-import { mockDepartments } from "@/lib/types/core-hr";
+import { useEmployees } from "@/hooks/use-employees";
+
+type UiLeaveStatus = Exclude<LeaveRequestStatus, "taken">;
+
+const statusLabels: Record<UiLeaveStatus | "all", string> = {
+  all: "جميع الحالات",
+  pending: "قيد الانتظار",
+  approved: "موافق عليها",
+  rejected: "مرفوض",
+  cancelled: "ملغي",
+};
+
+type CalendarEvent = {
+  id: string;
+  employeeId: string;
+  employeeName: string;
+  departmentId: string;
+  leaveTypeId: string;
+  leaveTypeName: string;
+  color: string;
+  startDate: string; // YYYY-MM-DD
+  endDate: string; // YYYY-MM-DD
+  status: UiLeaveStatus;
+};
+
+type LeavesListResponse = { data?: any[]; error?: string };
+
+function toYmd(value: any): string {
+  if (!value) return "";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return "";
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+function toLocalDateFromYmd(ymd: string): Date {
+  const [y, m, d] = ymd.split("-").map(Number);
+  return new Date(y, (m || 1) - 1, d || 1);
+}
+
+function mapStatusFromApi(value: any): UiLeaveStatus {
+  switch (String(value)) {
+    case "APPROVED":
+      return "approved";
+    case "REJECTED":
+      return "rejected";
+    case "CANCELLED":
+      return "cancelled";
+    case "PENDING":
+    default:
+      return "pending";
+  }
+}
 
 // أسماء الأشهر بالعربية
 const monthNames = [
@@ -59,35 +104,71 @@ const monthNames = [
 const dayNames = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
 
 export function LeaveCalendarView() {
-  const [currentDate, setCurrentDate] = useState(new Date(2026, 0, 1)); // January 2026
+  const [currentDate, setCurrentDate] = useState(new Date());
   const [filterDepartment, setFilterDepartment] = useState<string>("all");
-  const [filterStatus, setFilterStatus] = useState<LeaveRequestStatus | "all">("all");
+  const [filterStatus, setFilterStatus] = useState<UiLeaveStatus | "all">("all");
   const [viewMode, setViewMode] = useState<"month" | "week">("month");
 
-  // Convert requests to calendar events
-  const calendarEvents: LeaveCalendarEvent[] = useMemo(() => {
-    return mockLeaveRequests
-      .filter((r) => r.status !== "cancelled" && r.status !== "rejected")
-      .map((r) => ({
-        id: r.id,
-        title: r.employeeName,
-        employeeId: r.employeeId,
-        employeeName: r.employeeName,
-        leaveTypeId: r.leaveTypeId,
-        leaveTypeName: r.leaveTypeName,
-        category: r.leaveCategory,
-        color: leaveTypeColors[r.leaveCategory] || "#6B7280",
-        startDate: r.startDate,
-        endDate: r.endDate,
-        status: r.status,
-        isHalfDay: r.isHalfDay,
-      }));
-  }, []);
+  const { departments, isLoading: isEmployeesLoading, error: employeesError } = useEmployees();
+
+  const [calendarEvents, setCalendarEvents] = useState<CalendarEvent[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  const loadEvents = async (year: number) => {
+    setIsLoading(true);
+    setLoadError(null);
+
+    try {
+      const res = await fetch(`/api/leaves?limit=1000&year=${encodeURIComponent(String(year))}`, {
+        cache: "no-store",
+      });
+      const json = (await res.json()) as LeavesListResponse;
+      if (!res.ok) {
+        throw new Error(json.error || "فشل تحميل الإجازات");
+      }
+
+      const mapped: CalendarEvent[] = Array.isArray(json.data)
+        ? json.data
+            .map((r: any) => {
+              const employeeName = r?.employee
+                ? `${String(r.employee.firstName ?? "")} ${String(r.employee.lastName ?? "")}`.trim()
+                : "";
+
+              return {
+                id: String(r.id),
+                employeeId: String(r.employeeId ?? ""),
+                employeeName,
+                departmentId: String(r.employee?.departmentId ?? ""),
+                leaveTypeId: String(r.leaveTypeId ?? ""),
+                leaveTypeName: String(r.leaveType?.name ?? ""),
+                color: String(r.leaveType?.color ?? "#6B7280"),
+                startDate: toYmd(r.startDate),
+                endDate: toYmd(r.endDate),
+                status: mapStatusFromApi(r.status),
+              };
+            })
+            .filter((e: CalendarEvent) => Boolean(e.startDate) && Boolean(e.endDate))
+        : [];
+
+      // Keep same behavior: hide rejected/cancelled by default in the calendar grid
+      setCalendarEvents(mapped.filter((e) => e.status !== "rejected" && e.status !== "cancelled"));
+    } catch (err) {
+      setLoadError(err instanceof Error ? err.message : "فشل تحميل الإجازات");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void loadEvents(currentDate.getFullYear());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentDate.getFullYear()]);
 
   // Filter events
   const filteredEvents = calendarEvents.filter((event) => {
     if (filterStatus !== "all" && event.status !== filterStatus) return false;
-    // Department filter would need employee data lookup
+    if (filterDepartment !== "all" && event.departmentId !== filterDepartment) return false;
     return true;
   });
 
@@ -120,8 +201,8 @@ export function LeaveCalendarView() {
   // Get events for a specific date
   const getEventsForDate = (date: Date) => {
     return filteredEvents.filter((event) => {
-      const eventStart = new Date(event.startDate);
-      const eventEnd = new Date(event.endDate);
+      const eventStart = toLocalDateFromYmd(event.startDate);
+      const eventEnd = toLocalDateFromYmd(event.endDate);
       const checkDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
 
       return checkDate >= eventStart && checkDate <= eventEnd;
@@ -138,12 +219,12 @@ export function LeaveCalendarView() {
   };
 
   const goToToday = () => {
-    setCurrentDate(new Date(2026, 0, 24)); // Mock today as Jan 24, 2026
+    setCurrentDate(new Date());
   };
 
   // Check if date is today
   const isToday = (date: Date) => {
-    const today = new Date(2026, 0, 24); // Mock today
+    const today = new Date();
     return (
       date.getDate() === today.getDate() &&
       date.getMonth() === today.getMonth() &&
@@ -160,18 +241,29 @@ export function LeaveCalendarView() {
   // Stats
   const stats = {
     onLeaveToday: filteredEvents.filter((e) => {
-      const today = new Date(2026, 0, 24);
-      const start = new Date(e.startDate);
-      const end = new Date(e.endDate);
-      return today >= start && today <= end && e.status === "taken";
+      const today = new Date();
+      const start = toLocalDateFromYmd(e.startDate);
+      const end = toLocalDateFromYmd(e.endDate);
+      return today >= start && today <= end && e.status === "approved";
     }).length,
     upcomingLeaves: filteredEvents.filter((e) => {
-      const today = new Date(2026, 0, 24);
-      const start = new Date(e.startDate);
+      const today = new Date();
+      const start = toLocalDateFromYmd(e.startDate);
       return start > today && e.status === "approved";
     }).length,
     pendingApprovals: filteredEvents.filter((e) => e.status === "pending").length,
   };
+
+  const legendItems = useMemo(() => {
+    const map = new Map<string, { name: string; color: string }>();
+    for (const e of filteredEvents) {
+      if (!e.leaveTypeId) continue;
+      if (!map.has(e.leaveTypeId)) {
+        map.set(e.leaveTypeId, { name: e.leaveTypeName || "نوع إجازة", color: e.color });
+      }
+    }
+    return Array.from(map.values()).slice(0, 12);
+  }, [filteredEvents]);
 
   return (
     <div className="space-y-6">
@@ -248,126 +340,146 @@ export function LeaveCalendarView() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">جميع الأقسام</SelectItem>
-                  {mockDepartments.map((dept) => (
+                  {departments.map((dept) => (
                     <SelectItem key={dept.id} value={dept.id}>
                       {dept.name}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-              <Select value={filterStatus} onValueChange={(v) => setFilterStatus(v as LeaveRequestStatus | "all")}>
+              <Select value={filterStatus} onValueChange={(v) => setFilterStatus(v as UiLeaveStatus | "all")}>
                 <SelectTrigger className="w-[150px]">
                   <SelectValue placeholder="جميع الحالات" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">جميع الحالات</SelectItem>
-                  <SelectItem value="pending">قيد الانتظار</SelectItem>
-                  <SelectItem value="approved">موافق عليها</SelectItem>
-                  <SelectItem value="taken">تم أخذها</SelectItem>
+                  <SelectItem value="all">{statusLabels.all}</SelectItem>
+                  <SelectItem value="pending">{statusLabels.pending}</SelectItem>
+                  <SelectItem value="approved">{statusLabels.approved}</SelectItem>
+                  <SelectItem value="rejected">{statusLabels.rejected}</SelectItem>
+                  <SelectItem value="cancelled">{statusLabels.cancelled}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
           </div>
         </CardHeader>
         <CardContent>
-          {/* Day Headers */}
-          <div className="grid grid-cols-7 gap-px mb-2">
-            {dayNames.map((day, index) => (
-              <div
-                key={day}
-                className={`p-2 text-center text-sm font-medium ${
-                  index === 5 || index === 6 ? "text-red-600" : "text-muted-foreground"
-                }`}
-              >
-                {day}
-              </div>
-            ))}
-          </div>
+          {employeesError && (
+            <div className="mb-4 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+              {employeesError}
+            </div>
+          )}
+          {loadError && (
+            <div className="mb-4 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+              {loadError}
+            </div>
+          )}
 
-          {/* Calendar Grid */}
-          <div className="grid grid-cols-7 gap-px rounded-lg border bg-muted">
-            {days.map((date, index) => {
-              if (!date) {
-                return (
+          {isLoading || isEmployeesLoading ? (
+            <div className="py-10 text-center text-muted-foreground">جارٍ التحميل...</div>
+          ) : (
+            <>
+              {/* Day Headers */}
+              <div className="grid grid-cols-7 gap-px mb-2">
+                {dayNames.map((day, index) => (
                   <div
-                    key={`empty-${index}`}
-                    className="min-h-[120px] bg-background p-2"
-                  />
-                );
-              }
-
-              const events = getEventsForDate(date);
-              const weekend = isWeekend(date);
-              const today = isToday(date);
-
-              return (
-                <div
-                  key={date.toISOString()}
-                  className={`min-h-[120px] bg-background p-2 transition-colors ${
-                    weekend ? "bg-gray-50" : ""
-                  } ${today ? "ring-2 ring-primary ring-inset" : ""}`}
-                >
-                  {/* Date Number */}
-                  <div
-                    className={`mb-1 text-sm font-medium ${
-                      today
-                        ? "flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground"
-                        : weekend
-                        ? "text-red-600"
-                        : ""
+                    key={day}
+                    className={`p-2 text-center text-sm font-medium ${
+                      index === 5 || index === 6 ? "text-red-600" : "text-muted-foreground"
                     }`}
                   >
-                    {date.getDate()}
+                    {day}
                   </div>
+                ))}
+              </div>
 
-                  {/* Events */}
-                  <div className="space-y-1">
-                    <TooltipProvider>
-                      {events.slice(0, 3).map((event) => (
-                        <Tooltip key={event.id}>
-                          <TooltipTrigger asChild>
-                            <div
-                              className="truncate rounded px-1.5 py-0.5 text-xs text-white cursor-pointer"
-                              style={{ backgroundColor: event.color }}
-                            >
-                              {event.employeeName}
+              {/* Calendar Grid */}
+              <div className="grid grid-cols-7 gap-px rounded-lg border bg-muted">
+                {days.map((date, index) => {
+                  if (!date) {
+                    return (
+                      <div
+                        key={`empty-${index}`}
+                        className="min-h-[120px] bg-background p-2"
+                      />
+                    );
+                  }
+
+                  const events = getEventsForDate(date);
+                  const weekend = isWeekend(date);
+                  const today = isToday(date);
+
+                  return (
+                    <div
+                      key={date.toISOString()}
+                      className={`min-h-[120px] bg-background p-2 transition-colors ${
+                        weekend ? "bg-gray-50" : ""
+                      } ${today ? "ring-2 ring-primary ring-inset" : ""}`}
+                    >
+                      {/* Date Number */}
+                      <div
+                        className={`mb-1 text-sm font-medium ${
+                          today
+                            ? "flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground"
+                            : weekend
+                              ? "text-red-600"
+                              : ""
+                        }`}
+                      >
+                        {date.getDate()}
+                      </div>
+
+                      {/* Events */}
+                      <div className="space-y-1">
+                        <TooltipProvider>
+                          {events.slice(0, 3).map((event) => (
+                            <Tooltip key={event.id}>
+                              <TooltipTrigger asChild>
+                                <div
+                                  className="truncate rounded px-1.5 py-0.5 text-xs text-white cursor-pointer"
+                                  style={{ backgroundColor: event.color }}
+                                >
+                                  {event.employeeName}
+                                </div>
+                              </TooltipTrigger>
+                              <TooltipContent side="bottom" className="max-w-xs">
+                                <div className="space-y-1">
+                                  <p className="font-medium">{event.employeeName}</p>
+                                  <p className="text-sm">{event.leaveTypeName}</p>
+                                  <p className="text-xs text-muted-foreground">
+                                    {toLocalDateFromYmd(event.startDate).toLocaleDateString("ar-SA")} -{" "}
+                                    {toLocalDateFromYmd(event.endDate).toLocaleDateString("ar-SA")}
+                                  </p>
+                                  <Badge
+                                    variant="outline"
+                                    className={
+                                      event.status === "approved"
+                                        ? "bg-green-100 text-green-800"
+                                        : event.status === "pending"
+                                          ? "bg-yellow-100 text-yellow-800"
+                                          : event.status === "rejected"
+                                            ? "bg-red-100 text-red-800"
+                                            : "bg-gray-100 text-gray-800"
+                                    }
+                                  >
+                                    {statusLabels[event.status]}
+                                  </Badge>
+                                </div>
+                              </TooltipContent>
+                            </Tooltip>
+                          ))}
+                          {events.length > 3 && (
+                            <div className="text-xs text-muted-foreground text-center">
+                              +{events.length - 3} المزيد
                             </div>
-                          </TooltipTrigger>
-                          <TooltipContent side="bottom" className="max-w-xs">
-                            <div className="space-y-1">
-                              <p className="font-medium">{event.employeeName}</p>
-                              <p className="text-sm">{event.leaveTypeName}</p>
-                              <p className="text-xs text-muted-foreground">
-                                {new Date(event.startDate).toLocaleDateString("ar-SA")} -{" "}
-                                {new Date(event.endDate).toLocaleDateString("ar-SA")}
-                              </p>
-                              <Badge
-                                variant="outline"
-                                className={
-                                  event.status === "approved"
-                                    ? "bg-green-100 text-green-800"
-                                    : event.status === "pending"
-                                    ? "bg-yellow-100 text-yellow-800"
-                                    : "bg-blue-100 text-blue-800"
-                                }
-                              >
-                                {leaveRequestStatusLabels[event.status]}
-                              </Badge>
-                            </div>
-                          </TooltipContent>
-                        </Tooltip>
-                      ))}
-                      {events.length > 3 && (
-                        <div className="text-xs text-muted-foreground text-center">
-                          +{events.length - 3} المزيد
-                        </div>
-                      )}
-                    </TooltipProvider>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+                          )}
+                        </TooltipProvider>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          )}
         </CardContent>
       </Card>
 
@@ -378,17 +490,16 @@ export function LeaveCalendarView() {
         </CardHeader>
         <CardContent>
           <div className="flex flex-wrap gap-4">
-            {Object.entries(leaveTypeColors).slice(0, 8).map(([category, color]) => (
-              <div key={category} className="flex items-center gap-2">
-                <div
-                  className="h-4 w-4 rounded"
-                  style={{ backgroundColor: color }}
-                />
-                <span className="text-sm">
-                  {leaveCategoryLabels[category as LeaveCategory]}
-                </span>
-              </div>
-            ))}
+            {legendItems.length === 0 ? (
+              <span className="text-sm text-muted-foreground">لا توجد بيانات لعرضها</span>
+            ) : (
+              legendItems.map((item) => (
+                <div key={`${item.name}-${item.color}`} className="flex items-center gap-2">
+                  <div className="h-4 w-4 rounded" style={{ backgroundColor: item.color }} />
+                  <span className="text-sm">{item.name}</span>
+                </div>
+              ))
+            )}
           </div>
         </CardContent>
       </Card>
@@ -408,9 +519,9 @@ export function LeaveCalendarView() {
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
               {filteredEvents
                 .filter((e) => {
-                  const today = new Date(2026, 0, 24);
-                  const start = new Date(e.startDate);
-                  const end = new Date(e.endDate);
+                  const today = new Date();
+                  const start = toLocalDateFromYmd(e.startDate);
+                  const end = toLocalDateFromYmd(e.endDate);
                   return today >= start && today <= end;
                 })
                 .map((event) => (
@@ -434,7 +545,7 @@ export function LeaveCalendarView() {
                       </div>
                     </div>
                     <div className="text-start text-sm text-muted-foreground">
-                      حتى {new Date(event.endDate).toLocaleDateString("ar-SA")}
+                      حتى {toLocalDateFromYmd(event.endDate).toLocaleDateString("ar-SA")}
                     </div>
                   </div>
                 ))}

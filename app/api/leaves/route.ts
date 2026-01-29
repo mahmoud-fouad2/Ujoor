@@ -7,6 +7,10 @@ import prisma from "@/lib/db";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 
+function isSuperAdmin(role: string | undefined) {
+  return role === "SUPER_ADMIN";
+}
+
 export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
@@ -20,14 +24,21 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get("limit") || "20");
     const employeeId = searchParams.get("employeeId");
     const status = searchParams.get("status");
+    const yearParam = searchParams.get("year");
 
-    const tenantId = session.user.tenantId;
+    const requestedTenantId = searchParams.get("tenantId") ?? undefined;
+
+    const tenantId = isSuperAdmin(session.user.role)
+      ? requestedTenantId ?? session.user.tenantId
+      : session.user.tenantId;
+
+    if (!tenantId) {
+      return NextResponse.json({ error: "Tenant required" }, { status: 400 });
+    }
 
     const where: any = {};
-    
-    if (tenantId) {
-      where.tenantId = tenantId;
-    }
+
+    where.tenantId = tenantId;
 
     if (employeeId) {
       where.employeeId = employeeId;
@@ -37,6 +48,15 @@ export async function GET(request: NextRequest) {
       where.status = status;
     }
 
+    if (yearParam) {
+      const year = Number(yearParam);
+      if (Number.isFinite(year)) {
+        const start = new Date(Date.UTC(year, 0, 1));
+        const end = new Date(Date.UTC(year + 1, 0, 1));
+        where.startDate = { gte: start, lt: end };
+      }
+    }
+
     const [requests, total] = await Promise.all([
       prisma.leaveRequest.findMany({
         where,
@@ -44,6 +64,8 @@ export async function GET(request: NextRequest) {
           employee: {
             select: {
               id: true,
+              employeeNumber: true,
+              departmentId: true,
               firstName: true,
               lastName: true,
               department: {
@@ -94,29 +116,63 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
 
-    // Calculate total days
     const startDate = new Date(body.startDate);
     const endDate = new Date(body.endDate);
-    const diffTime = Math.abs(endDate.getTime() - startDate.getTime());
-    const totalDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+    if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
+      return NextResponse.json({ error: "Invalid dates" }, { status: 400 });
+    }
 
-    const leaveRequest = await prisma.leaveRequest.create({
-      data: {
-        tenantId,
-        employeeId: body.employeeId,
-        leaveTypeId: body.leaveTypeId,
-        startDate,
-        endDate,
-        totalDays,
-        reason: body.reason,
-        attachmentUrl: body.attachmentUrl,
-        delegateToId: body.delegateToId,
-        status: "PENDING",
-      },
-      include: {
-        employee: true,
-        leaveType: true,
-      },
+    const isHalfDay = Boolean(body.isHalfDay);
+
+    // Calculate total days
+    const diffTime = Math.abs(endDate.getTime() - startDate.getTime());
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+    const totalDays = isHalfDay ? 0.5 : diffDays;
+
+    const year = startDate.getFullYear();
+
+    const leaveRequest = await prisma.$transaction(async (tx) => {
+      const created = await tx.leaveRequest.create({
+        data: {
+          tenantId,
+          employeeId: body.employeeId,
+          leaveTypeId: body.leaveTypeId,
+          startDate,
+          endDate,
+          totalDays,
+          reason: body.reason,
+          attachmentUrl: body.attachmentUrl,
+          delegateToId: body.delegateToId,
+          status: "PENDING",
+        },
+        include: {
+          employee: true,
+          leaveType: true,
+        },
+      });
+
+      // Track pending in balance (create if missing)
+      await tx.leaveBalance.upsert({
+        where: {
+          employeeId_leaveTypeId_year: {
+            employeeId: created.employeeId,
+            leaveTypeId: created.leaveTypeId,
+            year,
+          },
+        },
+        update: {
+          pending: { increment: totalDays },
+        },
+        create: {
+          tenantId,
+          employeeId: created.employeeId,
+          leaveTypeId: created.leaveTypeId,
+          year,
+          pending: totalDays,
+        },
+      });
+
+      return created;
     });
 
     return NextResponse.json({ data: leaveRequest }, { status: 201 });

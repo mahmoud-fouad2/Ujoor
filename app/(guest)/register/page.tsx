@@ -4,6 +4,7 @@ import { Metadata } from "next";
 import { getAppLocale } from "@/lib/i18n/locale";
 import { getText } from "@/lib/i18n/text";
 import { LocaleToggle } from "@/components/locale-toggle";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 
 import { RegisterForm } from "./register-form";
@@ -29,7 +30,8 @@ export default async function RegisterPage() {
 
       <div className="flex w-full items-center justify-center lg:w-1/2">
         <div className="w-full max-w-md space-y-8 px-4">
-          <div className={locale === "ar" ? "flex justify-start" : "flex justify-end"}>
+          <div className={`flex gap-2 ${locale === "ar" ? "justify-start" : "justify-end"}`}>
+            <ThemeToggle variant="ghost" />
             <LocaleToggle variant="ghost" />
           </div>
 

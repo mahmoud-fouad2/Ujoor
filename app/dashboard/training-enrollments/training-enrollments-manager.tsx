@@ -45,20 +45,56 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { toast } from "sonner";
 import {
   CourseEnrollment,
   EnrollmentStatus,
   enrollmentStatusLabels,
   enrollmentStatusColors,
-  mockEnrollments,
-  mockCourses,
 } from "@/lib/types/training";
 
 export function TrainingEnrollmentsManager() {
-  const [enrollments, setEnrollments] = React.useState<CourseEnrollment[]>(mockEnrollments);
+  const [enrollments, setEnrollments] = React.useState<CourseEnrollment[]>([]);
+  const [courses, setCourses] = React.useState<Array<{ id: string; title: string }>>([]);
   const [searchQuery, setSearchQuery] = React.useState("");
   const [statusFilter, setStatusFilter] = React.useState<string>("all");
   const [courseFilter, setCourseFilter] = React.useState<string>("all");
+
+  const refresh = React.useCallback(async () => {
+    try {
+      const [enrollmentsRes, coursesRes] = await Promise.all([
+        fetch("/api/training/enrollments", { cache: "no-store" }),
+        fetch("/api/training/courses", { cache: "no-store" }),
+      ]);
+
+      if (!enrollmentsRes.ok) {
+        const err = await enrollmentsRes.json().catch(() => null);
+        throw new Error(err?.error || "Failed to fetch enrollments");
+      }
+      if (!coursesRes.ok) {
+        const err = await coursesRes.json().catch(() => null);
+        throw new Error(err?.error || "Failed to fetch courses");
+      }
+
+      const enrollmentsJson = await enrollmentsRes.json();
+      const coursesJson = await coursesRes.json();
+
+      setEnrollments((enrollmentsJson?.data?.enrollments ?? []) as CourseEnrollment[]);
+      setCourses(
+        ((coursesJson?.data?.courses ?? []) as Array<{ id: string; title: string }>).map((c) => ({
+          id: c.id,
+          title: c.title,
+        }))
+      );
+    } catch (e: any) {
+      console.error(e);
+      toast.error(e?.message || "فشل تحميل تسجيلات التدريب");
+    }
+  }, []);
+
+  React.useEffect(() => {
+    refresh();
+  }, [refresh]);
 
   // فلترة التسجيلات
   const filteredEnrollments = React.useMemo(() => {
@@ -85,12 +121,27 @@ export function TrainingEnrollmentsManager() {
     pending: enrollments.filter((e) => e.status === "pending").length,
   }), [enrollments]);
 
-  const handleStatusChange = (enrollmentId: string, newStatus: EnrollmentStatus) => {
-    setEnrollments(
-      enrollments.map((e) =>
-        e.id === enrollmentId ? { ...e, status: newStatus } : e
-      )
-    );
+  const handleStatusChange = async (enrollmentId: string, newStatus: EnrollmentStatus) => {
+    try {
+      const res = await fetch(`/api/training/enrollments/${enrollmentId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: newStatus }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => null);
+        throw new Error(err?.error || "Failed to update enrollment");
+      }
+
+      setEnrollments((prev) =>
+        prev.map((e) => (e.id === enrollmentId ? { ...e, status: newStatus } : e))
+      );
+      toast.success("تم تحديث الحالة");
+    } catch (e: any) {
+      console.error(e);
+      toast.error(e?.message || "فشل تحديث الحالة");
+    }
   };
 
   return (
@@ -166,7 +217,7 @@ export function TrainingEnrollmentsManager() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">جميع الدورات</SelectItem>
-                {mockCourses.map((course) => (
+                {courses.map((course) => (
                   <SelectItem key={course.id} value={course.id}>
                     {course.title}
                   </SelectItem>

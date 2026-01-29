@@ -50,6 +50,25 @@ export function proxy(request: NextRequest) {
   const tenantCookie = request.cookies.get("ujoors_tenant")?.value ?? null;
   const effectiveTenant = tenantSlug || tenantCookie;
 
+  // Allow selecting tenant on non-subdomain hosts via path: /t/<tenantSlug>[/nextPath]
+  // Useful for Render default domain without custom DNS.
+  if (pathname === "/t" || pathname.startsWith("/t/")) {
+    const rest = pathname.slice("/t".length); // "" | "/slug" | "/slug/anything"
+    const parts = rest.split("/").filter(Boolean);
+    const slug = parts[0] ?? "";
+    if (slug && isValidTenantSlug(slug)) {
+      const nextPathFromQuery = safeNextPath(request.nextUrl.searchParams.get("next"));
+      const nextPathFromPath = parts.length > 1 ? `/${parts.slice(1).join("/")}` : null;
+      const nextPath = nextPathFromQuery ?? nextPathFromPath ?? "/dashboard";
+
+      const url = new URL(nextPath, request.url);
+      const res = NextResponse.redirect(url);
+      res.cookies.set("ujoors_tenant", slug, { path: "/", sameSite: "lax" });
+      res.headers.set("x-tenant-slug", slug);
+      return res;
+    }
+  }
+
   // Locale prefixes: keep Arabic default, support /en (and /ar) for clean URLs.
   // We rewrite internally to the non-prefixed path but pass locale via request header
   // so server components/rendering pick the correct language on the same request.
