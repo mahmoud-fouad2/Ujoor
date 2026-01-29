@@ -30,56 +30,18 @@ type Props = {
   mobile: MarketingShot[];
 };
 
-export function ScreenshotsGallery({ locale, desktop, mobile }: Props) {
-  const [view, setView] = React.useState<View>("desktop");
-  const [open, setOpen] = React.useState(false);
-  const [activeIndex, setActiveIndex] = React.useState(0);
-
-  const isAr = locale === "ar";
-
-  const shots = view === "desktop" ? desktop : mobile;
-
-  const active = shots[activeIndex];
-
-  const openAt = (nextView: View, index: number) => {
-    setView(nextView);
-    setActiveIndex(index);
-    setOpen(true);
-  };
-
-  const canPrev = activeIndex > 0;
-  const canNext = activeIndex < shots.length - 1;
-
-  const prev = () => setActiveIndex((i) => Math.max(0, i - 1));
-  const next = () => setActiveIndex((i) => Math.min(shots.length - 1, i + 1));
-
-  const handleSwipe = React.useRef<{ startX: number; active: boolean } | null>(null);
-  const onPointerDown = (e: React.PointerEvent) => {
-    handleSwipe.current = { startX: e.clientX, active: true };
-  };
-  const onPointerUp = (e: React.PointerEvent) => {
-    const state = handleSwipe.current;
-    handleSwipe.current = null;
-    if (!state?.active) return;
-    const dx = e.clientX - state.startX;
-    if (Math.abs(dx) < 40) return;
-    if (dx > 0) prev();
-    else next();
-  };
-
-  React.useEffect(() => {
-    if (!open) return;
-
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "ArrowLeft") prev();
-      if (e.key === "ArrowRight") next();
-    };
-
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [open, shots.length]);
-
-  const ShotsGrid = ({ currentView, items }: { currentView: View; items: MarketingShot[] }) => (
+function ShotsGrid({
+  currentView,
+  items,
+  isAr,
+  openAt,
+}: {
+  currentView: View;
+  items: MarketingShot[];
+  isAr: boolean;
+  openAt: (nextView: View, index: number) => void;
+}) {
+  return (
     <div className="mt-8 grid gap-6 lg:grid-cols-3">
       {items.map((s, idx) => (
         <button
@@ -117,6 +79,59 @@ export function ScreenshotsGallery({ locale, desktop, mobile }: Props) {
       ))}
     </div>
   );
+}
+
+export function ScreenshotsGallery({ locale, desktop, mobile }: Props) {
+  const [view, setView] = React.useState<View>("desktop");
+  const [open, setOpen] = React.useState(false);
+  const [activeIndex, setActiveIndex] = React.useState(0);
+
+  const isAr = locale === "ar";
+
+  const shots = view === "desktop" ? desktop : mobile;
+
+  const active = shots[activeIndex];
+
+  const openAt = React.useCallback((nextView: View, index: number) => {
+    setView(nextView);
+    setActiveIndex(index);
+    setOpen(true);
+  }, []);
+
+  const canPrev = activeIndex > 0;
+  const canNext = activeIndex < shots.length - 1;
+
+  const prev = React.useCallback(() => setActiveIndex((i) => Math.max(0, i - 1)), []);
+  const next = React.useCallback(
+    () => setActiveIndex((i) => Math.min(shots.length - 1, i + 1)),
+    [shots.length]
+  );
+
+  const handleSwipe = React.useRef<{ startX: number; active: boolean } | null>(null);
+  const onPointerDown = (e: React.PointerEvent) => {
+    handleSwipe.current = { startX: e.clientX, active: true };
+  };
+  const onPointerUp = (e: React.PointerEvent) => {
+    const state = handleSwipe.current;
+    handleSwipe.current = null;
+    if (!state?.active) return;
+    const dx = e.clientX - state.startX;
+    if (Math.abs(dx) < 40) return;
+    if (dx > 0) prev();
+    else next();
+  };
+
+  React.useEffect(() => {
+    if (!open) return;
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "ArrowLeft") prev();
+      if (e.key === "ArrowRight") next();
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [open, prev, next]);
 
   return (
     <>
@@ -129,10 +144,10 @@ export function ScreenshotsGallery({ locale, desktop, mobile }: Props) {
             </TabsList>
           </div>
           <TabsContent value="desktop">
-            <ShotsGrid currentView="desktop" items={desktop} />
+            <ShotsGrid currentView="desktop" items={desktop} isAr={isAr} openAt={openAt} />
           </TabsContent>
           <TabsContent value="mobile">
-            <ShotsGrid currentView="mobile" items={mobile} />
+            <ShotsGrid currentView="mobile" items={mobile} isAr={isAr} openAt={openAt} />
           </TabsContent>
         </Tabs>
       </div>

@@ -61,6 +61,12 @@ export function DashboardHeaderActions({
   }, []);
 
   const isSuperAdminNoTenant = role === "SUPER_ADMIN" && !hasTenant;
+  const demoTenants = [
+    { slug: "demo", labelAr: "Demo", labelEn: "Demo" },
+    { slug: "elite-tech", labelAr: "النخبة للتقنية", labelEn: "Elite Tech" },
+    { slug: "riyadh-trading", labelAr: "الرياض التجارية", labelEn: "Riyadh Trading" },
+    { slug: "future-co", labelAr: "شركة المستقبل", labelEn: "Future Co" },
+  ];
 
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [readIds, setReadIds] = useState<Set<string>>(() => new Set());
@@ -150,16 +156,34 @@ export function DashboardHeaderActions({
           <DropdownMenuSeparator />
           <DropdownMenuGroup>
             {isSuperAdminNoTenant ? (
-              <DropdownMenuItem asChild>
-                <Link href={`${p}/dashboard/super-admin/tenants`} className="flex items-center justify-between">
-                  <span>{locale === "ar" ? "اختيار شركة" : "Choose tenant"}</span>
-                  {locale === "ar" ? (
-                    <ChevronLeft className="h-4 w-4 opacity-60" />
-                  ) : (
-                    <ChevronRight className="h-4 w-4 opacity-60" />
-                  )}
-                </Link>
-              </DropdownMenuItem>
+              <>
+                <DropdownMenuItem asChild>
+                  <Link href={`${p}/dashboard/super-admin/tenants`} className="flex items-center justify-between">
+                    <span>{locale === "ar" ? "اختيار شركة" : "Choose tenant"}</span>
+                    {locale === "ar" ? (
+                      <ChevronLeft className="h-4 w-4 opacity-60" />
+                    ) : (
+                      <ChevronRight className="h-4 w-4 opacity-60" />
+                    )}
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel className="text-xs text-muted-foreground">
+                  {locale === "ar" ? "اختيار سريع" : "Quick pick"}
+                </DropdownMenuLabel>
+                {demoTenants.map((tnt) => (
+                  <DropdownMenuItem key={tnt.slug} asChild>
+                    <Link href={`/t/${tnt.slug}?next=/dashboard`} className="flex items-center justify-between">
+                      <span>{locale === "ar" ? tnt.labelAr : tnt.labelEn}</span>
+                      {locale === "ar" ? (
+                        <ChevronLeft className="h-4 w-4 opacity-60" />
+                      ) : (
+                        <ChevronRight className="h-4 w-4 opacity-60" />
+                      )}
+                    </Link>
+                  </DropdownMenuItem>
+                ))}
+              </>
             ) : (
               <>
                 <DropdownMenuItem asChild>

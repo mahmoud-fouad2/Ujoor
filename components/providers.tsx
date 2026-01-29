@@ -2,7 +2,7 @@
 
 import { MantineProvider } from "@mantine/core";
 import { ThemeProvider } from "next-themes";
-import { useEffect, useMemo, useState } from "react";
+import { useState } from "react";
 import { Toaster } from "./ui/sonner";
 import { LocaleTransitionOverlay } from "./locale-transition";
 import { RouteProgress } from "./route-progress";
@@ -20,14 +20,10 @@ function getCookieValue(cookieName: string): string | undefined {
 type UiTheme = "shadcn" | "mantine";
 
 export default function Providers({ children }: { children: React.ReactNode }) {
-  const [uiTheme, setUiTheme] = useState<UiTheme>("shadcn");
-
-  useEffect(() => {
+  const [uiTheme] = useState<UiTheme>(() => {
     const value = getCookieValue("ujoors_ui_theme");
-    if (value === "mantine" || value === "shadcn") setUiTheme(value);
-  }, []);
-
-  const mantineValue = useMemo(() => ({ uiTheme, setUiTheme }), [uiTheme]);
+    return value === "mantine" || value === "shadcn" ? value : "shadcn";
+  });
 
   return (
     <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>

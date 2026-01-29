@@ -248,21 +248,30 @@ export function JobTitlesManager() {
         )
       );
     } else {
-      const newJob: JobTitle = {
-        id: `job-${Date.now()}`,
-        name: data.name,
-        nameAr: data.nameAr,
-        code: data.code,
-        description: data.description,
-        level: data.level ? parseInt(data.level) : undefined,
-        minSalary: data.minSalary ? parseFloat(data.minSalary) : undefined,
-        maxSalary: data.maxSalary ? parseFloat(data.maxSalary) : undefined,
-        employeesCount: 0,
-        tenantId: "tenant-1",
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      };
-      setJobTitles((prev) => [...prev, newJob]);
+      setJobTitles((prev) => {
+        const nextNum =
+          prev.reduce((max, j) => {
+            const n = Number.parseInt(j.id.replace(/^job-/, ""), 10);
+            return Number.isFinite(n) ? Math.max(max, n) : max;
+          }, 0) + 1;
+
+        const newJob: JobTitle = {
+          id: `job-${nextNum}`,
+          name: data.name,
+          nameAr: data.nameAr,
+          code: data.code,
+          description: data.description,
+          level: data.level ? parseInt(data.level) : undefined,
+          minSalary: data.minSalary ? parseFloat(data.minSalary) : undefined,
+          maxSalary: data.maxSalary ? parseFloat(data.maxSalary) : undefined,
+          employeesCount: 0,
+          tenantId: "tenant-1",
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+
+        return [...prev, newJob];
+      });
     }
     setIsDialogOpen(false);
     form.reset();
@@ -564,7 +573,7 @@ export function JobTitlesManager() {
           <AlertDialogHeader>
             <AlertDialogTitle>هل أنت متأكد؟</AlertDialogTitle>
             <AlertDialogDescription>
-              سيتم حذف المسمى الوظيفي "{jobTitleToDelete?.nameAr || jobTitleToDelete?.name}" نهائياً.
+              سيتم حذف المسمى الوظيفي &quot;{jobTitleToDelete?.nameAr || jobTitleToDelete?.name}&quot; نهائياً.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

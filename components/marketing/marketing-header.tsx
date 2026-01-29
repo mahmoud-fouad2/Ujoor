@@ -7,6 +7,7 @@ import * as React from "react";
 import { Building2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { cn } from "@/lib/utils";
 import { marketingNav } from "@/components/marketing/nav";
 import { startLocaleTransition } from "@/components/locale-transition";
@@ -80,6 +81,7 @@ export function MarketingHeader() {
         </nav>
 
         <div className="flex items-center gap-2">
+          <ThemeToggle variant="ghost" />
           <Button variant="ghost" size="sm" onClick={toggleLocale}>
             {locale === "ar" ? "English" : "العربية"}
           </Button>

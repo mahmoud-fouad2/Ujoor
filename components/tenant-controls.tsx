@@ -1,7 +1,7 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 type Locale = "ar" | "en";
 type UiTheme = "shadcn" | "mantine";
@@ -20,16 +20,16 @@ function getCookie(name: string): string | undefined {
 }
 
 export function TenantControls() {
-  const [locale, setLocale] = useState<Locale>("ar");
-  const [uiTheme, setUiTheme] = useState<UiTheme>("shadcn");
-
-  useEffect(() => {
+  const [locale, setLocale] = useState<Locale>(() => {
+    if (typeof document === "undefined") return "ar";
     const l = getCookie("ujoors_locale");
-    if (l === "en" || l === "ar") setLocale(l);
-
+    return l === "en" || l === "ar" ? l : "ar";
+  });
+  const [uiTheme, setUiTheme] = useState<UiTheme>(() => {
+    if (typeof document === "undefined") return "shadcn";
     const t = getCookie("ujoors_ui_theme");
-    if (t === "mantine" || t === "shadcn") setUiTheme(t);
-  }, []);
+    return t === "mantine" || t === "shadcn" ? t : "shadcn";
+  });
 
   const toggleLocale = () => {
     const next: Locale = locale === "ar" ? "en" : "ar";

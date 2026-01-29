@@ -107,6 +107,13 @@ export default async function LandingPage({
   const isAr = locale === "ar";
   const p = locale === "en" ? "/en" : "";
 
+  const demoTenants = [
+    { slug: "demo", labelAr: "Demo", labelEn: "Demo" },
+    { slug: "elite-tech", labelAr: "النخبة للتقنية", labelEn: "Elite Tech" },
+    { slug: "riyadh-trading", labelAr: "الرياض التجارية", labelEn: "Riyadh Trading" },
+    { slug: "future-co", labelAr: "شركة المستقبل", labelEn: "Future Co" },
+  ];
+
   const sp = searchParams ? await searchParams : undefined;
   const tenantRequired = sp?.tenantRequired === "1";
   const nextPathRaw = sp?.next;
@@ -121,17 +128,15 @@ export default async function LandingPage({
             <p className="mb-3 text-sm text-muted-foreground">
               {isAr ? (
                 <>
-                  لازم تختار شركتك (Tenant) قبل الدخول للداشبورد على هذا الدومين. لو عندك demo tenant استخدم:{" "}
-                  <span className="font-medium">demo</span>
+                  لازم تختار شركتك (Tenant) قبل الدخول للداشبورد على هذا الدومين. اختر من الديمو بالأسفل أو اكتب الـ slug.
                 </>
               ) : (
                 <>
-                  You need to select your tenant before entering the dashboard on this domain. For a demo tenant use:{" "}
-                  <span className="font-medium">demo</span>
+                  You need to select your tenant before entering the dashboard on this domain. Pick a demo below or type the slug.
                 </>
               )}
             </p>
-            <TenantAccess nextPath={nextPath} />
+            <TenantAccess nextPath={nextPath} locale={locale} presets={demoTenants} />
           </div>
         ) : null}
 

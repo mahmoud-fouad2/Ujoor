@@ -11,6 +11,7 @@ export function BrandLogo({ style }: { style?: StyleProp<ViewStyle> }) {
 
   return (
     <View style={style}>
+      {/* eslint-disable-next-line jsx-a11y/alt-text */}
       <Image
         source={source}
         resizeMode="contain"

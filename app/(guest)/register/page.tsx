@@ -1,6 +1,7 @@
 import { generateMeta } from "@/lib/utils";
 import { GithubIcon } from "lucide-react";
 import { Metadata } from "next";
+import Image from "next/image";
 import { getAppLocale } from "@/lib/i18n/locale";
 import { getText } from "@/lib/i18n/text";
 import { LocaleToggle } from "@/components/locale-toggle";
@@ -25,7 +26,7 @@ export default async function RegisterPage() {
   return (
     <div className="flex pb-8 lg:h-screen lg:pb-0">
       <div className="hidden w-1/2 bg-gray-100 lg:block">
-        <img src={`/images/cover.png`} alt="Cover" className="h-full w-full object-cover" />
+        <Image src="/images/cover.png" alt="Cover" fill className="object-cover" sizes="50vw" priority />
       </div>
 
       <div className="flex w-full items-center justify-center lg:w-1/2">

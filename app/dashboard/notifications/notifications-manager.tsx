@@ -84,7 +84,7 @@ export default function NotificationsManager() {
         ...n,
         isRead: n.isRead || readIds.has(n.id),
       }));
-  }, [deletedIds, readIds]);
+  }, [notificationsRaw, deletedIds, readIds]);
 
   const unreadCount = notifications.filter(n => !n.isRead).length;
 

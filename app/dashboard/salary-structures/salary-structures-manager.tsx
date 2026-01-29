@@ -640,7 +640,7 @@ export function SalaryStructuresManager() {
                             <AlertDialogHeader>
                               <AlertDialogTitle>حذف الهيكل</AlertDialogTitle>
                               <AlertDialogDescription>
-                                هل أنت متأكد من حذف "{structure.nameAr}"؟
+                                هل أنت متأكد من حذف &quot;{structure.nameAr}&quot;؟
                               </AlertDialogDescription>
                             </AlertDialogHeader>
                             <AlertDialogFooter>

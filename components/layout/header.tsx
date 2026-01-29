@@ -15,6 +15,7 @@ import { SidebarNavLink } from "./sidebar";
 import { page_routes } from "@/lib/routes-config";
 import { Fragment } from "react";
 import Link from "next/link";
+import Image from "next/image";
 
 export default function Header() {
   return (
@@ -49,7 +50,7 @@ export default function Header() {
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <figure className="cursor-pointer">
-              <img src={`/images/avatars/1.png`} className="h-10 w-10" alt="..." />
+              <Image src="/images/avatars/1.png" width={40} height={40} className="h-10 w-10" alt="Avatar" />
             </figure>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">

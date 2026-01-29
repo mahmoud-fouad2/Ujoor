@@ -951,7 +951,7 @@ export function EmployeesManager() {
           <AlertDialogHeader>
             <AlertDialogTitle>هل أنت متأكد؟</AlertDialogTitle>
             <AlertDialogDescription>
-              سيتم حذف الموظف "{employeeToDelete && getEmployeeFullName(employeeToDelete, "ar")}" نهائياً.
+              سيتم حذف الموظف &quot;{employeeToDelete && getEmployeeFullName(employeeToDelete, "ar")}&quot; نهائياً.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

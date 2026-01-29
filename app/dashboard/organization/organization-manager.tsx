@@ -248,23 +248,32 @@ export function OrganizationManager() {
         )
       );
     } else {
-      const newBranch: Branch = {
-        id: `branch-${Date.now()}`,
-        name: data.name,
-        nameAr: data.nameAr,
-        code: data.code,
-        address: data.address,
-        city: data.city,
-        country: data.country,
-        phone: data.phone,
-        email: data.email,
-        isHeadquarters: data.isHeadquarters || false,
-        employeesCount: 0,
-        tenantId: "tenant-1",
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      };
-      setBranches((prev) => [...prev, newBranch]);
+      setBranches((prev) => {
+        const nextNum =
+          prev.reduce((max, b) => {
+            const n = Number.parseInt(b.id.replace(/^branch-/, ""), 10);
+            return Number.isFinite(n) ? Math.max(max, n) : max;
+          }, 0) + 1;
+
+        const newBranch: Branch = {
+          id: `branch-${nextNum}`,
+          name: data.name,
+          nameAr: data.nameAr,
+          code: data.code,
+          address: data.address,
+          city: data.city,
+          country: data.country,
+          phone: data.phone,
+          email: data.email,
+          isHeadquarters: data.isHeadquarters || false,
+          employeesCount: 0,
+          tenantId: "tenant-1",
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+
+        return [...prev, newBranch];
+      });
     }
     setBranchDialogOpen(false);
     branchForm.reset();
@@ -777,7 +786,7 @@ export function OrganizationManager() {
           <AlertDialogHeader>
             <AlertDialogTitle>هل أنت متأكد؟</AlertDialogTitle>
             <AlertDialogDescription>
-              سيتم حذف الفرع "{branchToDelete?.nameAr || branchToDelete?.name}" نهائياً.
+              سيتم حذف الفرع &quot;{branchToDelete?.nameAr || branchToDelete?.name}&quot; نهائياً.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

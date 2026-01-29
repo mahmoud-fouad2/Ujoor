@@ -2,7 +2,7 @@
 
 import { Globe } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { startLocaleTransition } from "@/components/locale-transition";
 
@@ -24,12 +24,11 @@ function getCookie(name: string): string | undefined {
 export function LocaleToggle({ variant = "ghost" }: { variant?: "ghost" | "outline" }) {
   const router = useRouter();
   const pathname = usePathname();
-  const [locale, setLocale] = useState<Locale>("ar");
-
-  useEffect(() => {
+  const [locale, setLocale] = useState<Locale>(() => {
+    if (typeof document === "undefined") return "ar";
     const l = getCookie("ujoors_locale");
-    if (l === "en" || l === "ar") setLocale(l);
-  }, []);
+    return l === "en" || l === "ar" ? l : "ar";
+  });
 
   const toggleLocale = () => {
     const next: Locale = locale === "ar" ? "en" : "ar";

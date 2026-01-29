@@ -706,7 +706,7 @@ export function DocumentsManager() {
                             <AlertDialogHeader>
                               <AlertDialogTitle>حذف المستند</AlertDialogTitle>
                               <AlertDialogDescription>
-                                هل أنت متأكد من حذف "{doc.titleAr || doc.title}"؟
+                                هل أنت متأكد من حذف &quot;{doc.titleAr || doc.title}&quot;؟
                               </AlertDialogDescription>
                             </AlertDialogHeader>
                             <AlertDialogFooter>
@@ -853,7 +853,7 @@ export function DocumentsManager() {
                               <AlertDialogHeader>
                                 <AlertDialogTitle>حذف المستند</AlertDialogTitle>
                                 <AlertDialogDescription>
-                                  هل أنت متأكد من حذف "{doc.titleAr || doc.title}"؟
+                                  هل أنت متأكد من حذف &quot;{doc.titleAr || doc.title}&quot;؟
                                 </AlertDialogDescription>
                               </AlertDialogHeader>
                               <AlertDialogFooter>

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 
 import { apiFetch } from "../lib/api";
 import { deleteSecureItem, getSecureItem, setSecureItem } from "../lib/storage";
@@ -43,7 +43,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<MobileUser | null>(null);
   const [biometricsEnabled, setBiometricsEnabled] = useState(false);
 
-  async function loadStored() {
+  const loadStored = useCallback(async () => {
     const [a, r, b] = await Promise.all([
       getSecureItem(ACCESS_KEY),
       getSecureItem(REFRESH_KEY),
@@ -60,13 +60,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } else {
       setStatus("signedOut");
     }
-  }
-
-  useEffect(() => {
-    loadStored();
   }, []);
 
-  async function refreshSession(): Promise<string | null> {
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void loadStored();
+  }, [loadStored]);
+
+  const signOut = useCallback(async () => {
+    setStatus("signedOut");
+    setAccessToken(null);
+    setRefreshToken(null);
+    setUser(null);
+    setBiometricsEnabled(false);
+
+    await Promise.all([
+      deleteSecureItem(ACCESS_KEY),
+      deleteSecureItem(REFRESH_KEY),
+      deleteSecureItem(BIO_KEY),
+    ]);
+  }, []);
+
+  const refreshSession = useCallback(async (): Promise<string | null> => {
     if (!refreshToken) return null;
 
     if (biometricsEnabled) {
@@ -101,9 +116,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     return refreshed.data.accessToken;
-  }
+  }, [refreshToken, biometricsEnabled, signOut]);
 
-  async function signIn(email: string, password: string) {
+  const signIn = useCallback(async (email: string, password: string) => {
     const res = await apiFetch<{ accessToken: string; refreshToken: string; user: MobileUser }>(
       "/api/mobile/auth/login",
       { method: "POST", body: { email, password } }
@@ -122,23 +137,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     ]);
 
     return { ok: true as const };
-  }
+  }, []);
 
-  async function signOut() {
-    setStatus("signedOut");
-    setAccessToken(null);
-    setRefreshToken(null);
-    setUser(null);
-    setBiometricsEnabled(false);
-
-    await Promise.all([
-      deleteSecureItem(ACCESS_KEY),
-      deleteSecureItem(REFRESH_KEY),
-      deleteSecureItem(BIO_KEY),
-    ]);
-  }
-
-  async function enableBiometrics() {
+  const enableBiometrics = useCallback(async () => {
     const available = await isBiometricsAvailable();
     if (!available) {
       return { ok: false as const, error: "Biometrics not available on this device" };
@@ -152,12 +153,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setBiometricsEnabled(true);
     await setSecureItem(BIO_KEY, "1");
     return { ok: true as const };
-  }
+  }, []);
 
-  async function disableBiometrics() {
+  const disableBiometrics = useCallback(async () => {
     setBiometricsEnabled(false);
     await deleteSecureItem(BIO_KEY);
-  }
+  }, []);
 
   const value = useMemo<AuthState>(
     () => ({
@@ -172,7 +173,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       disableBiometrics,
       refreshSession,
     }),
-    [status, accessToken, refreshToken, user, biometricsEnabled]
+    [
+      status,
+      accessToken,
+      refreshToken,
+      user,
+      biometricsEnabled,
+      signIn,
+      signOut,
+      enableBiometrics,
+      disableBiometrics,
+      refreshSession,
+    ]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

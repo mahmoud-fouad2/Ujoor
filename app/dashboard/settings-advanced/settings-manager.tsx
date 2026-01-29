@@ -186,7 +186,6 @@ export default function SettingsManager() {
 
     void loadSettingsBundle();
     void loadLeaveTypes();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const saveAllChanges = async () => {

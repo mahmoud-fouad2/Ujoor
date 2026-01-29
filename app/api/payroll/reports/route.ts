@@ -154,10 +154,7 @@ export async function GET(request: NextRequest) {
     const periodIds = periods.map((p) => p.id);
 
     // Generate payslips snapshots if missing (idempotent)
-    for (const pid of periodIds) {
-      // eslint-disable-next-line no-await-in-loop
-      await ensurePayslipsForPeriod(tenantId, pid);
-    }
+    await Promise.all(periodIds.map((pid) => ensurePayslipsForPeriod(tenantId, pid)));
 
     const payslips = periodIds.length
       ? await prisma.payrollPayslip.findMany({

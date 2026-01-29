@@ -604,7 +604,7 @@ export function ShiftsManager() {
                             <DialogHeader>
                               <DialogTitle>تعديل الوردية</DialogTitle>
                               <DialogDescription>
-                                تعديل بيانات الوردية "{shift.nameAr}"
+                                تعديل بيانات الوردية &quot;{shift.nameAr}&quot;
                               </DialogDescription>
                             </DialogHeader>
                             <ShiftForm />
@@ -633,7 +633,7 @@ export function ShiftsManager() {
                             <AlertDialogHeader>
                               <AlertDialogTitle>حذف الوردية</AlertDialogTitle>
                               <AlertDialogDescription>
-                                هل أنت متأكد من حذف "{shift.nameAr}"؟ هذا الإجراء لا يمكن التراجع عنه.
+                                هل أنت متأكد من حذف &quot;{shift.nameAr}&quot;؟ هذا الإجراء لا يمكن التراجع عنه.
                               </AlertDialogDescription>
                             </AlertDialogHeader>
                             <AlertDialogFooter>

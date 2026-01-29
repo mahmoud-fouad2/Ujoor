@@ -10,39 +10,89 @@ function isValidTenantSlug(value: string): boolean {
   return /^[a-z0-9-]{3,30}$/.test(value);
 }
 
-export function TenantAccess({ nextPath }: { nextPath?: string }) {
+function safeNextPath(value: string | undefined): string | undefined {
+  if (!value) return undefined;
+  if (!value.startsWith("/")) return undefined;
+  if (value.startsWith("//")) return undefined;
+  return value;
+}
+
+type TenantPreset = {
+  slug: string;
+  labelAr: string;
+  labelEn: string;
+};
+
+export function TenantAccess({
+  nextPath,
+  locale = "ar",
+  presets,
+}: {
+  nextPath?: string;
+  locale?: "ar" | "en";
+  presets?: TenantPreset[];
+}) {
   const router = useRouter();
   const [tenant, setTenant] = React.useState("");
   const [error, setError] = React.useState<string | null>(null);
+
+  const buildTenantUrl = (slug: string) => {
+    const params = new URLSearchParams();
+    const next = safeNextPath(nextPath);
+    if (next) params.set("next", next);
+
+    const qs = params.toString();
+    return `/t/${slug}${qs ? `?${qs}` : ""}`;
+  };
 
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const value = tenant.trim().toLowerCase();
     if (!isValidTenantSlug(value)) {
-      setError("اكتب اسم الشركة (slug) بحروف صغيرة/أرقام/شرطة فقط");
+      setError(
+        locale === "ar"
+          ? "اكتب اسم الشركة (slug) بحروف صغيرة/أرقام/شرطة فقط"
+          : "Enter a valid tenant slug (lowercase letters, numbers, and hyphens only)."
+      );
       return;
     }
     setError(null);
 
-    const params = new URLSearchParams({ tenant: value });
-    if (nextPath && nextPath.startsWith("/") && !nextPath.startsWith("//")) {
-      params.set("next", nextPath);
-    }
-
-    router.push(`/?${params.toString()}`);
+    router.push(buildTenantUrl(value));
   };
 
   return (
-    <form onSubmit={onSubmit} className="flex w-full flex-col gap-2 sm:flex-row sm:items-center">
-      <Input
-        value={tenant}
-        onChange={(e) => setTenant(e.target.value)}
-        placeholder="مثال: demo"
-        className="sm:w-64"
-        aria-label="Tenant slug"
-      />
-      <Button type="submit">الدخول للداشبورد</Button>
-      {error ? <p className="text-sm text-destructive">{error}</p> : null}
-    </form>
+    <div className="w-full space-y-3">
+      {presets?.length ? (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs text-muted-foreground">
+            {locale === "ar" ? "اختيار سريع:" : "Quick pick:"}
+          </span>
+          {presets.map((p) => (
+            <Button
+              key={p.slug}
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={() => router.push(buildTenantUrl(p.slug))}
+            >
+              {locale === "ar" ? p.labelAr : p.labelEn}
+            </Button>
+          ))}
+        </div>
+      ) : null}
+
+      <form onSubmit={onSubmit} className="flex w-full flex-col gap-2 sm:flex-row sm:items-center">
+        <Input
+          value={tenant}
+          onChange={(e) => setTenant(e.target.value)}
+          placeholder={locale === "ar" ? "مثال: demo" : "Example: demo"}
+          className="sm:w-64"
+          aria-label="Tenant slug"
+        />
+        <Button type="submit">{locale === "ar" ? "الدخول للداشبورد" : "Go to dashboard"}</Button>
+        {error ? <p className="text-sm text-destructive">{error}</p> : null}
+      </form>
+    </div>
   );
 }

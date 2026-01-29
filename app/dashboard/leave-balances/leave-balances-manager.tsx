@@ -187,7 +187,6 @@ export function LeaveBalancesManager() {
 
   useEffect(() => {
     void loadData(selectedYear);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedYear]);
 
   // Group balances by employee

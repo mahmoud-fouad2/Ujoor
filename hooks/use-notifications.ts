@@ -24,6 +24,7 @@ interface UseNotificationsReturn {
 }
 
 export function useNotifications(options: UseNotificationsOptions = {}): UseNotificationsReturn {
+  const filter = options.filter;
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [readIds, setReadIds] = useState<Set<string>>(new Set());
   const [deletedIds, setDeletedIds] = useState<Set<string>>(new Set());
@@ -75,11 +76,10 @@ export function useNotifications(options: UseNotificationsOptions = {}): UseNoti
   }, [notifications, deletedIds, readIds]);
 
   const filteredNotifications = useMemo(() => {
-    const { filter } = options;
     if (!filter || filter === "all") return processedNotifications;
     if (filter === "unread") return processedNotifications.filter((n) => !n.isRead);
     return processedNotifications.filter((n) => n.type === filter);
-  }, [processedNotifications, options.filter]);
+  }, [processedNotifications, filter]);
 
   const unreadCount = useMemo(() => {
     return processedNotifications.filter((n) => !n.isRead).length;

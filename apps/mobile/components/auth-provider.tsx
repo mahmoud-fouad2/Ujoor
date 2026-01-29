@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 
 import { ApiError, apiFetch } from "@/lib/api";
 import {
@@ -40,8 +40,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const refreshInFlight = useRef<Promise<{ accessToken: string; refreshToken: string } | null> | null>(null);
 
-  const refreshSession = async (): Promise<{ accessToken: string; refreshToken: string } | null> => {
-    const currentRefresh = refreshToken ?? (await getStoredRefreshToken());
+  const refreshSession = useCallback(async (): Promise<{ accessToken: string; refreshToken: string } | null> => {
+    const currentRefresh = await getStoredRefreshToken();
     if (!currentRefresh) return null;
 
     if (!refreshInFlight.current) {
@@ -71,9 +71,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     return await refreshInFlight.current;
-  };
+  }, []);
 
-  const authFetch = async <T = any,>(pathname: string, init?: RequestInit): Promise<T> => {
+  const authFetch = useCallback(async <T = any,>(pathname: string, init?: RequestInit): Promise<T> => {
     const token = accessToken ?? (await getStoredAccessToken());
     if (!token) throw new Error("Unauthorized");
 
@@ -94,7 +94,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       return await apiFetch<T>(pathname, { token: refreshed.accessToken, init });
     }
-  };
+  }, [accessToken, refreshSession]);
 
   useEffect(() => {
     let mounted = true;
@@ -137,9 +137,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [refreshSession]);
 
-  const signIn = async (email: string, password: string) => {
+  const signIn = useCallback(async (email: string, password: string) => {
     const res = await apiFetch("/api/mobile/auth/login", {
       init: {
         method: "POST",
@@ -157,11 +157,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setAccessToken(token);
     setRefreshToken(nextRefresh);
     setUser(nextUser);
-  };
+  }, []);
 
-  const signOut = async () => {
+  const signOut = useCallback(async () => {
     try {
-      const currentRefresh = refreshToken ?? (await getStoredRefreshToken());
+      const currentRefresh = await getStoredRefreshToken();
       if (currentRefresh) {
         await apiFetch("/api/mobile/auth/logout", {
           init: { method: "POST", body: JSON.stringify({ refreshToken: currentRefresh }) },
@@ -175,11 +175,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setAccessToken(null);
     setRefreshToken(null);
     setUser(null);
-  };
+  }, []);
 
   const value = useMemo<AuthState>(
     () => ({ loading, accessToken, refreshToken, user, signIn, signOut, authFetch }),
-    [loading, accessToken, refreshToken, user]
+    [loading, accessToken, refreshToken, user, signIn, signOut, authFetch]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

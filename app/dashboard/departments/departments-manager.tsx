@@ -577,7 +577,7 @@ export function DepartmentsManager() {
           <AlertDialogHeader>
             <AlertDialogTitle>هل أنت متأكد؟</AlertDialogTitle>
             <AlertDialogDescription>
-              سيتم حذف القسم "{departmentToDelete?.nameAr || departmentToDelete?.name}" نهائياً.
+              سيتم حذف القسم &quot;{departmentToDelete?.nameAr || departmentToDelete?.name}&quot; نهائياً.
               هذا الإجراء لا يمكن التراجع عنه.
             </AlertDialogDescription>
           </AlertDialogHeader>
