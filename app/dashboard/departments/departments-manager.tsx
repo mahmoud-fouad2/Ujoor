@@ -522,7 +522,7 @@ export function DepartmentsManager() {
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        <SelectItem value="">بدون (قسم رئيسي)</SelectItem>
+                        <SelectItem value="none">بدون (قسم رئيسي)</SelectItem>
                         {departments
                           .filter((d) => d.id !== editingDepartment?.id)
                           .map((d) => (

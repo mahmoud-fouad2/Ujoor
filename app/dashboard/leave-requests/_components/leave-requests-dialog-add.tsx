@@ -202,7 +202,7 @@ export function LeaveRequestsAddDialog({
                 <SelectValue placeholder="اختر الموظف البديل" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">بدون بديل</SelectItem>
+                <SelectItem value="none">بدون بديل</SelectItem>
                 {employees
                   .filter((e) => e.id !== formData.employeeId)
                   .map((emp) => (
