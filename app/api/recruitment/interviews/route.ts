@@ -19,16 +19,16 @@ function mapType(type: string): string {
   return type.toLowerCase().replace(/_/g, "-");
 }
 
-function parseInterviewStatus(value: unknown): InterviewStatus | null {
-  if (typeof value !== "string") return null;
+function parseInterviewStatus(value: unknown): InterviewStatus | undefined {
+  if (typeof value !== "string") return undefined;
   const normalized = value.toUpperCase().replace(/-/g, "_");
-  return normalized in InterviewStatus ? (normalized as InterviewStatus) : null;
+  return normalized in InterviewStatus ? (normalized as InterviewStatus) : undefined;
 }
 
-function parseInterviewType(value: unknown): InterviewType | null {
-  if (typeof value !== "string") return null;
+function parseInterviewType(value: unknown): InterviewType | undefined {
+  if (typeof value !== "string") return undefined;
   const normalized = value.toUpperCase().replace(/-/g, "_");
-  return normalized in InterviewType ? (normalized as InterviewType) : null;
+  return normalized in InterviewType ? (normalized as InterviewType) : undefined;
 }
 
 function isValidDate(value: unknown): boolean {

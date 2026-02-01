@@ -13,16 +13,16 @@ function mapStatus(status: string): string {
   return status.toLowerCase().replace(/_/g, "-");
 }
 
-function parseJobType(value: unknown): JobType | null {
-  if (typeof value !== "string") return null;
+function parseJobType(value: unknown): JobType | undefined {
+  if (typeof value !== "string") return undefined;
   const normalized = value.toUpperCase().replace(/-/g, "_");
-  return normalized in JobType ? (normalized as JobType) : null;
+  return normalized in JobType ? (normalized as JobType) : undefined;
 }
 
-function parseOfferStatus(value: unknown): OfferStatus | null {
-  if (typeof value !== "string") return null;
+function parseOfferStatus(value: unknown): OfferStatus | undefined {
+  if (typeof value !== "string") return undefined;
   const normalized = value.toUpperCase().replace(/-/g, "_");
-  return normalized in OfferStatus ? (normalized as OfferStatus) : null;
+  return normalized in OfferStatus ? (normalized as OfferStatus) : undefined;
 }
 
 function mapJobType(type: string | null | undefined): string | null {

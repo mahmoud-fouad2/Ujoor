@@ -14,10 +14,10 @@ function mapStatus(status: string): string {
   return status.toLowerCase().replace(/_/g, "-");
 }
 
-function parseApplicationStatus(value: unknown): ApplicationStatus | null {
-  if (typeof value !== "string") return null;
+function parseApplicationStatus(value: unknown): ApplicationStatus | undefined {
+  if (typeof value !== "string") return undefined;
   const normalized = value.toUpperCase().replace(/-/g, "_");
-  return normalized in ApplicationStatus ? (normalized as ApplicationStatus) : null;
+  return normalized in ApplicationStatus ? (normalized as ApplicationStatus) : undefined;
 }
 
 const applicantCreateSchema = z

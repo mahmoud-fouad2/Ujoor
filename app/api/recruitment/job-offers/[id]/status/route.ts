@@ -13,10 +13,10 @@ function mapStatus(status: string): string {
   return status.toLowerCase().replace(/_/g, "-");
 }
 
-function parseOfferStatus(value: unknown): OfferStatus | null {
-  if (typeof value !== "string") return null;
+function parseOfferStatus(value: unknown): OfferStatus | undefined {
+  if (typeof value !== "string") return undefined;
   const normalized = value.toUpperCase().replace(/-/g, "_");
-  return normalized in OfferStatus ? (normalized as OfferStatus) : null;
+  return normalized in OfferStatus ? (normalized as OfferStatus) : undefined;
 }
 
 export async function PATCH(request: NextRequest, context: { params: Promise<{ id: string }> }) {

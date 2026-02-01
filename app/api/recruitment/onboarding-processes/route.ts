@@ -13,10 +13,10 @@ function mapStatus(status: string): string {
   return status.toLowerCase().replace(/_/g, "-");
 }
 
-function parseOnboardingStatus(value: unknown): OnboardingStatus | null {
-  if (typeof value !== "string") return null;
+function parseOnboardingStatus(value: unknown): OnboardingStatus | undefined {
+  if (typeof value !== "string") return undefined;
   const normalized = value.toUpperCase().replace(/-/g, "_");
-  return normalized in OnboardingStatus ? (normalized as OnboardingStatus) : null;
+  return normalized in OnboardingStatus ? (normalized as OnboardingStatus) : undefined;
 }
 
 export async function GET(request: NextRequest) {

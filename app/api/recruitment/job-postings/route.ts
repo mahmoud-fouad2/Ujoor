@@ -24,22 +24,22 @@ function mapExperienceLevel(level: string): string {
   return level.toLowerCase();
 }
 
-function parseJobPostingStatus(value: unknown): JobPostingStatus | null {
-  if (typeof value !== "string") return null;
+function parseJobPostingStatus(value: unknown): JobPostingStatus | undefined {
+  if (typeof value !== "string") return undefined;
   const normalized = value.toUpperCase().replace(/-/g, "_");
-  return normalized in JobPostingStatus ? (normalized as JobPostingStatus) : null;
+  return normalized in JobPostingStatus ? (normalized as JobPostingStatus) : undefined;
 }
 
-function parseJobType(value: unknown): JobType | null {
-  if (typeof value !== "string") return null;
+function parseJobType(value: unknown): JobType | undefined {
+  if (typeof value !== "string") return undefined;
   const normalized = value.toUpperCase().replace(/-/g, "_");
-  return normalized in JobType ? (normalized as JobType) : null;
+  return normalized in JobType ? (normalized as JobType) : undefined;
 }
 
-function parseExperienceLevel(value: unknown): ExperienceLevel | null {
-  if (typeof value !== "string") return null;
+function parseExperienceLevel(value: unknown): ExperienceLevel | undefined {
+  if (typeof value !== "string") return undefined;
   const normalized = value.toUpperCase();
-  return normalized in ExperienceLevel ? (normalized as ExperienceLevel) : null;
+  return normalized in ExperienceLevel ? (normalized as ExperienceLevel) : undefined;
 }
 
 function isValidDate(value: unknown): boolean {
@@ -201,16 +201,16 @@ export async function POST(request: NextRequest) {
 
     const body = parsedBody.data;
 
-    const status = body.status ? parseJobPostingStatus(body.status) : JobPostingStatus.DRAFT;
-    if (body.status && !status) {
+    const status = body.status ? parseJobPostingStatus(body.status) ?? JobPostingStatus.DRAFT : JobPostingStatus.DRAFT;
+    if (body.status && status === JobPostingStatus.DRAFT && !body.status.toUpperCase().includes("DRAFT")) {
       return NextResponse.json(
         { success: false, error: `Invalid status: ${body.status}` },
         { status: 400 }
       );
     }
 
-    const jobType = body.jobType ? parseJobType(body.jobType) : JobType.FULL_TIME;
-    if (body.jobType && !jobType) {
+    const jobType = body.jobType ? parseJobType(body.jobType) ?? JobType.FULL_TIME : JobType.FULL_TIME;
+    if (body.jobType && jobType === JobType.FULL_TIME && !body.jobType.toUpperCase().includes("FULL_TIME")) {
       return NextResponse.json(
         { success: false, error: `Invalid jobType: ${body.jobType}` },
         { status: 400 }
@@ -218,9 +218,9 @@ export async function POST(request: NextRequest) {
     }
 
     const experienceLevel = body.experienceLevel
-      ? parseExperienceLevel(body.experienceLevel)
+      ? parseExperienceLevel(body.experienceLevel) ?? ExperienceLevel.MID
       : ExperienceLevel.MID;
-    if (body.experienceLevel && !experienceLevel) {
+    if (body.experienceLevel && experienceLevel === ExperienceLevel.MID && !body.experienceLevel.toUpperCase().includes("MID")) {
       return NextResponse.json(
         { success: false, error: `Invalid experienceLevel: ${body.experienceLevel}` },
         { status: 400 }
