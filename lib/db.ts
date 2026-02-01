@@ -18,9 +18,14 @@ function createPrismaClient() {
     throw new Error("DATABASE_URL environment variable is not set");
   }
 
+  // For Render Free Tier - need to limit connections
+  const connString = connectionString.includes("?")
+    ? connectionString + "&pool_size=5&application_name=ujoor"
+    : connectionString + "?pool_size=5&application_name=ujoor";
+
   // Prisma 7: provide a direct database connection via an adapter.
   // PrismaPg supports standard `postgresql://` URLs (Render, etc.).
-  const adapter = new PrismaPg({ connectionString });
+  const adapter = new PrismaPg({ connectionString: connString });
 
   return new PrismaClient({
     adapter,

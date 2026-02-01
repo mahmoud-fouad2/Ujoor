@@ -40,7 +40,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const body = await request.json();
+    let body;
+    try {
+      body = await request.json();
+    } catch (e) {
+      logger.error("JSON parsing error in login", { error: String(e) });
+      return withRateLimitHeaders(
+        NextResponse.json({ error: "Invalid JSON in request body" }, { status: 400 }),
+        { limit, remaining: limitInfo.remaining, resetAt: limitInfo.resetAt }
+      );
+    }
+
     const parsed = schema.safeParse(body);
     if (!parsed.success) {
       return withRateLimitHeaders(
