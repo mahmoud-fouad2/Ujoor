@@ -61,8 +61,15 @@ export type User = {
 // TODO: Replace with API calls for users CRUD operations
 
 export default function UsersDataTable({ data }: { data: User[] }) {
-  const locale =
-    typeof document !== "undefined" && document.documentElement.lang === "en" ? "en" : "ar";
+  const [locale, setLocale] = React.useState<"ar" | "en">("ar");
+  const [mounted, setMounted] = React.useState(false);
+  
+  React.useEffect(() => {
+    setMounted(true);
+    const lang = typeof document !== "undefined" ? document.documentElement.lang : "ar";
+    setLocale(lang === "en" ? "en" : "ar");
+  }, []);
+  
   const isRtl = locale === "ar";
 
   const [tableData, setTableData] = React.useState<User[]>(data);

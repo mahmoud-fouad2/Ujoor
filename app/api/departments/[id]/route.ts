@@ -60,6 +60,9 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     }
 
     const body = await request.json();
+    
+    // Clean parentId - convert "none" or empty string to null
+    const parentId = body.parentId === "none" || body.parentId === "" ? null : body.parentId;
 
     const department = await prisma.department.update({
       where: { id },
@@ -68,7 +71,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         nameAr: body.nameAr,
         code: body.code,
         description: body.description,
-        parentId: body.parentId,
+        parentId: parentId,
         managerId: body.managerId,
         isActive: body.isActive,
       },

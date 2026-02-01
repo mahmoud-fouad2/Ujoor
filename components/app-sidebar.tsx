@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { useState, useEffect } from "react"
 import {
   IconChartBar,
   IconDashboard,
@@ -23,9 +24,16 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
 
-function getLocale(): "ar" | "en" {
-  if (typeof document === "undefined") return "ar";
-  return document.documentElement.lang === "en" ? "en" : "ar";
+// Safe locale getter - returns default during SSR
+function useLocale(): "ar" | "en" {
+  const [locale, setLocale] = useState<"ar" | "en">("ar");
+  
+  useEffect(() => {
+    const lang = document.documentElement.lang;
+    setLocale(lang === "en" ? "en" : "ar");
+  }, []);
+  
+  return locale;
 }
 
 function getCookieValue(cookieName: string): string | undefined {
@@ -124,7 +132,7 @@ function getNav(locale: "ar" | "en", role?: string, hasTenant?: boolean): NavIte
 }
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
-  const locale = getLocale();
+  const locale = useLocale();
   const p = locale === "en" ? "/en" : "";
   const [role, setRole] = React.useState<string | undefined>(undefined);
   const [hasTenant, setHasTenant] = React.useState<boolean>(false);

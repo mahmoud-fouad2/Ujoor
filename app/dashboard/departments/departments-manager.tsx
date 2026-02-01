@@ -166,12 +166,18 @@ export function DepartmentsManager() {
   const onSubmit = async (data: DepartmentFormData) => {
     setSaving(true);
     try {
+      // Convert "none" to undefined for parentId
+      const payload = {
+        ...data,
+        parentId: data.parentId === "none" || data.parentId === "" ? undefined : data.parentId,
+      };
+      
       if (editingDepartment) {
         // Update existing
         const res = await fetch(`/api/departments/${editingDepartment.id}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(data),
+          body: JSON.stringify(payload),
         });
         if (!res.ok) throw new Error("Failed to update department");
         toast.success("تم تحديث القسم بنجاح");
@@ -181,7 +187,7 @@ export function DepartmentsManager() {
         const res = await fetch("/api/departments", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(data),
+          body: JSON.stringify(payload),
         });
         if (!res.ok) throw new Error("Failed to create department");
         toast.success("تم إضافة القسم بنجاح");

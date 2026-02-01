@@ -165,6 +165,11 @@ export function LeaveRequestsManager() {
 
   const handleAddRequest = async () => {
     try {
+      // Convert "none" to undefined for delegateEmployeeId
+      const delegateId = formData.delegateEmployeeId === "none" || !formData.delegateEmployeeId 
+        ? undefined 
+        : formData.delegateEmployeeId;
+        
       const res = await leavesApi.requests.create({
         employeeId: formData.employeeId,
         leaveTypeId: formData.leaveTypeId,
@@ -173,7 +178,7 @@ export function LeaveRequestsManager() {
         reason: formData.reason,
         isHalfDay: formData.isHalfDay,
         halfDayPeriod: formData.halfDayPeriod,
-        delegateEmployeeId: formData.delegateEmployeeId || undefined,
+        delegateEmployeeId: delegateId,
         emergencyContact: formData.emergencyContact || undefined,
         emergencyPhone: formData.emergencyPhone || undefined,
       });

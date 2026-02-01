@@ -75,6 +75,9 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
+    
+    // Clean parentId - convert "none" or empty string to null
+    const parentId = body.parentId === "none" || body.parentId === "" ? null : body.parentId;
 
     const department = await prisma.department.create({
       data: {
@@ -83,7 +86,7 @@ export async function POST(request: NextRequest) {
         nameAr: body.nameAr,
         code: body.code,
         description: body.description,
-        parentId: body.parentId,
+        parentId: parentId,
         managerId: body.managerId,
         isActive: true,
       },

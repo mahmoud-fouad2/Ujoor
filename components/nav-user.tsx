@@ -1,5 +1,6 @@
 "use client"
 
+import { useState, useEffect } from "react";
 import {
   IconDotsVertical,
   IconLogout,
@@ -43,7 +44,14 @@ export function NavUser({
 }) {
   const { isMobile, state } = useSidebar()
   const { theme, setTheme } = useTheme()
-  const locale = typeof document !== "undefined" && document.documentElement.lang === "en" ? "en" : "ar";
+  const [locale, setLocale] = useState<"ar" | "en">("ar");
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+    const lang = document.documentElement.lang;
+    setLocale(lang === "en" ? "en" : "ar");
+  }, []);
 
   const toggleLocale = () => {
     const next = locale === "ar" ? "en" : "ar";
