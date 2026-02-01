@@ -151,12 +151,16 @@ export async function POST(request: NextRequest) {
     }
 
     const body = parsedBody.data;
-    const status = body.status ? parseApplicationStatus(body.status) : ApplicationStatus.NEW;
-    if (body.status && !status) {
-      return NextResponse.json(
-        { success: false, error: `Invalid status: ${body.status}` },
-        { status: 400 }
-      );
+    let status: ApplicationStatus = ApplicationStatus.NEW;
+    if (body.status) {
+      const parsed = parseApplicationStatus(body.status);
+      if (!parsed) {
+        return NextResponse.json(
+          { success: false, error: `Invalid status: ${body.status}` },
+          { status: 400 }
+        );
+      }
+      status = parsed;
     }
 
     const applicant = await prisma.applicant.create({
