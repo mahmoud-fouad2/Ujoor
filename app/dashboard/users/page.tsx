@@ -58,9 +58,9 @@ export default async function Page() {
     <>
       <div className="flex items-center justify-between ">
         <h1 className="text-2xl font-bold tracking-tight">{locale === "ar" ? "المستخدمون" : "Users"}</h1>
-        <Button variant="secondary" asChild>
-          <Link href="#" aria-disabled>
-            <PlusCircledIcon /> {locale === "ar" ? "إضافة مستخدم" : "Add user"} ({t.common.coming})
+        <Button asChild>
+          <Link href="/dashboard/users/add">
+            <PlusCircledIcon className="me-2" /> {locale === "ar" ? "إضافة مستخدم" : "Add user"}
           </Link>
         </Button>
       </div>

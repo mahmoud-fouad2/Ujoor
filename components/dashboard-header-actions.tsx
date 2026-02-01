@@ -34,6 +34,8 @@ export function DashboardHeaderActions({
 
   const [role, setRole] = useState<string | undefined>(undefined);
   const [hasTenant, setHasTenant] = useState(false);
+  const [userName, setUserName] = useState<string>("");
+  const [userEmail, setUserEmail] = useState<string>("");
 
   useEffect(() => {
     let mounted = true;
@@ -44,21 +46,37 @@ export function DashboardHeaderActions({
         .find((c) => c.startsWith("ujoors_tenant="));
       if (mounted) setHasTenant(Boolean(tenant));
       const session = await getSession();
-      if (mounted) setRole((session?.user as any)?.role);
+      if (mounted) {
+        setRole((session?.user as any)?.role);
+        // Set user name and email from session
+        const user = session?.user as any;
+        if (user) {
+          setUserName(user.name || `${user.firstName || ''} ${user.lastName || ''}`.trim() || (locale === "ar" ? "مستخدم" : "User"));
+          setUserEmail(user.email || "");
+        }
+      }
 
       try {
         const res = await fetch("/api/profile", { cache: "no-store" });
         const json = await res.json();
-        const avatar = json?.data?.avatar as string | undefined;
-        if (mounted && avatar) setAvatarSrc(avatar);
+        if (mounted && json?.data) {
+          const avatar = json.data.avatar as string | undefined;
+          if (avatar) setAvatarSrc(avatar);
+          // Update with more accurate profile data
+          const firstName = json.data.firstName || "";
+          const lastName = json.data.lastName || "";
+          const fullName = `${firstName} ${lastName}`.trim();
+          if (fullName) setUserName(fullName);
+          if (json.data.email) setUserEmail(json.data.email);
+        }
       } catch {
-        // Keep fallback avatar
+        // Keep fallback data
       }
     })();
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [locale]);
 
   const isSuperAdminNoTenant = role === "SUPER_ADMIN" && !hasTenant;
   const demoTenants = [
@@ -312,7 +330,7 @@ export function DashboardHeaderActions({
               <AvatarFallback>U</AvatarFallback>
             </Avatar>
             <span className="hidden md:inline text-sm font-medium">
-              {locale === "ar" ? "مستخدم أجور" : "Ujoors User"}
+              {userName || (locale === "ar" ? "مستخدم" : "User")}
             </span>
           </Button>
         </DropdownMenuTrigger>
@@ -324,8 +342,8 @@ export function DashboardHeaderActions({
                 <AvatarFallback className="rounded-lg">U</AvatarFallback>
               </Avatar>
               <div className="min-w-0">
-                <div className="truncate text-sm font-semibold">{locale === "ar" ? "مستخدم أجور" : "Ujoors User"}</div>
-                <div className="truncate text-xs text-muted-foreground">user@ujoors.com</div>
+                <div className="truncate text-sm font-semibold">{userName || (locale === "ar" ? "مستخدم" : "User")}</div>
+                <div className="truncate text-xs text-muted-foreground">{userEmail || ""}</div>
               </div>
             </div>
           </DropdownMenuLabel>

@@ -243,14 +243,15 @@ export default function UsersDataTable({ data }: { data: User[] }) {
               <DropdownMenuContent align="end">
                 <DropdownMenuLabel>{isRtl ? "إجراءات" : "Actions"}</DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  onSelect={(e) => {
-                    e.preventDefault();
-                    // Placeholder until a dedicated details page exists.
-                    alert(isRtl ? "صفحة تفاصيل المستخدم قريبًا" : "User details page coming soon");
-                  }}
-                >
-                  {isRtl ? "عرض المستخدم" : "View user"}
+                <DropdownMenuItem asChild>
+                  <a href={`/dashboard/users/${row.original.id}`}>
+                    {isRtl ? "عرض المستخدم" : "View user"}
+                  </a>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <a href={`/dashboard/users/${row.original.id}/edit`}>
+                    {isRtl ? "تعديل" : "Edit"}
+                  </a>
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   onSelect={(e) => {

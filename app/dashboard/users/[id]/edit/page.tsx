@@ -1,0 +1,55 @@
+import { Metadata } from "next";
+import { notFound } from "next/navigation";
+import { generateMeta } from "@/lib/utils";
+import { getAppLocale } from "@/lib/i18n/locale";
+import prisma from "@/lib/db";
+import { requireRole, type UserRole } from "@/lib/auth";
+import EditUserClient from "./edit-user-client";
+
+interface PageProps {
+  params: Promise<{ id: string }>;
+}
+
+export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+  const { id } = await params;
+  const locale = await getAppLocale();
+  const user = await prisma.user.findUnique({
+    where: { id },
+    select: { firstName: true, lastName: true },
+  });
+
+  const name = user ? `${user.firstName} ${user.lastName}`.trim() : "";
+
+  return generateMeta({
+    title: locale === "ar" ? `تعديل - ${name || "المستخدم"}` : `Edit - ${name || "User"}`,
+    description: locale === "ar" ? "تعديل بيانات المستخدم" : "Edit user details",
+  });
+}
+
+export default async function EditUserPage({ params }: PageProps) {
+  const { id } = await params;
+  const locale = await getAppLocale();
+  const currentUser = await requireRole(["TENANT_ADMIN", "HR_MANAGER", "SUPER_ADMIN"] as UserRole[]);
+
+  const user = await prisma.user.findUnique({
+    where: {
+      id,
+      ...(currentUser.tenantId ? { tenantId: currentUser.tenantId } : {}),
+    },
+    select: {
+      id: true,
+      firstName: true,
+      lastName: true,
+      email: true,
+      phone: true,
+      role: true,
+      status: true,
+    },
+  });
+
+  if (!user) {
+    notFound();
+  }
+
+  return <EditUserClient user={user} locale={locale} />;
+}

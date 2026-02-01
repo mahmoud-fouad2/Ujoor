@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/db";
 import { logger } from "@/lib/logger";
+import bcrypt from "bcryptjs";
 
 const ALLOWED_ROLES = new Set(["SUPER_ADMIN", "TENANT_ADMIN", "HR_MANAGER"]);
 
@@ -70,5 +71,73 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     logger.error("Error fetching users", undefined, error);
     return NextResponse.json({ error: "Failed to fetch users" }, { status: 500 });
+  }
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    const session = await getServerSession(authOptions);
+
+    if (!session?.user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const tenantId = session.user.tenantId;
+    if (!tenantId) {
+      return NextResponse.json({ error: "Tenant required" }, { status: 403 });
+    }
+
+    if (!ALLOWED_ROLES.has(session.user.role)) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    const body = await request.json();
+    const { firstName, lastName, email, password, role, phone } = body;
+
+    // Validation
+    if (!firstName || !lastName || !email || !password || !role) {
+      return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+    }
+
+    // Check if email already exists
+    const existingUser = await prisma.user.findFirst({
+      where: { email: email.toLowerCase() },
+    });
+
+    if (existingUser) {
+      return NextResponse.json({ error: "البريد الإلكتروني مستخدم بالفعل" }, { status: 400 });
+    }
+
+    // Hash password
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    // Create user
+    const user = await prisma.user.create({
+      data: {
+        firstName,
+        lastName,
+        email: email.toLowerCase(),
+        password: hashedPassword,
+        role,
+        phone: phone || null,
+        tenantId,
+        status: "ACTIVE",
+      },
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        role: true,
+        status: true,
+      },
+    });
+
+    logger.info("User created", { userId: user.id, email: user.email, tenantId });
+
+    return NextResponse.json({ data: user }, { status: 201 });
+  } catch (error) {
+    logger.error("Error creating user", undefined, error);
+    return NextResponse.json({ error: "Failed to create user" }, { status: 500 });
   }
 }
