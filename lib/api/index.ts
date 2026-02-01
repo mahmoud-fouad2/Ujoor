@@ -7,6 +7,7 @@ export type { ApiResponse, ApiError, RequestOptions } from "./client";
 
 export { employeesService } from "./employees";
 export { departmentsService } from "./departments";
+export { jobTitlesService } from "./job-titles";
 export { attendanceService } from "./attendance";
 export { documentsService } from "./documents";
 export { tenantsService } from "./tenants";

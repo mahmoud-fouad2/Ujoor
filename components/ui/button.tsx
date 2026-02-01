@@ -47,6 +47,8 @@ function Button({
     asChild?: boolean
   }) {
   const Comp = asChild ? SlotPrimitive.Slot : "button"
+  const ariaLabel = (props as any)["aria-label"] ?? props.title
+  const type = asChild ? undefined : (props.type ?? "button")
 
   return (
     <Comp
@@ -54,6 +56,8 @@ function Button({
       data-variant={variant}
       data-size={size}
       className={cn(buttonVariants({ variant, size, className }))}
+      aria-label={ariaLabel}
+      type={type as any}
       {...props}
     />
   )

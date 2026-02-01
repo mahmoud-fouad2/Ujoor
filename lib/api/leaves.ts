@@ -12,6 +12,24 @@ import type {
   LeaveApproval,
 } from '../types/leave';
 
+function mapLeaveRequestStatusToApi(status?: LeaveRequestFilters["status"]): string | undefined {
+  if (!status) return undefined;
+  switch (status) {
+    case 'pending':
+      return 'PENDING';
+    case 'approved':
+      return 'APPROVED';
+    case 'rejected':
+      return 'REJECTED';
+    case 'cancelled':
+      return 'CANCELLED';
+    case 'taken':
+      return 'TAKEN';
+    default:
+      return undefined;
+  }
+}
+
 // =====================
 // Leave Types API
 // =====================
@@ -36,10 +54,50 @@ export const leaveTypesApi = {
     apiClient.post<LeaveType>('/leave-types', data),
 
   /**
+   * إنشاء نوع إجازة (شكل متوافق مع الـ backend الحالي)
+   */
+  createBackend: (data: {
+    name: string;
+    nameAr: string;
+    code: string;
+    description?: string;
+    defaultDays: number;
+    maxDays: number;
+    carryOverDays: number;
+    isPaid: boolean;
+    requiresApproval: boolean;
+    requiresAttachment: boolean;
+    minServiceMonths: number;
+    applicableGenders: Array<'MALE' | 'FEMALE'>;
+    color?: string;
+    isActive: boolean;
+  }) => apiClient.post<any>('/leave-types', data),
+
+  /**
    * تحديث نوع إجازة
    */
   update: (id: string, data: Partial<LeaveType>) =>
     apiClient.put<LeaveType>(`/leave-types/${id}`, data),
+
+  /**
+   * تحديث نوع إجازة (شكل متوافق مع الـ backend الحالي)
+   */
+  updateBackend: (id: string, data: {
+    name: string;
+    nameAr: string;
+    code: string;
+    description?: string;
+    defaultDays: number;
+    maxDays: number;
+    carryOverDays: number;
+    isPaid: boolean;
+    requiresApproval: boolean;
+    requiresAttachment: boolean;
+    minServiceMonths: number;
+    applicableGenders: Array<'MALE' | 'FEMALE'>;
+    color?: string;
+    isActive: boolean;
+  }) => apiClient.put<any>(`/leave-types/${id}`, data),
 
   /**
    * حذف نوع إجازة
@@ -68,9 +126,14 @@ export const leaveRequestsApi = {
   /**
    * الحصول على جميع طلبات الإجازات
    */
-  getAll: (filters?: LeaveRequestFilters) =>
-    apiClient.get<LeaveRequest[]>('/leaves', { 
-      params: filters as Record<string, string | number> | undefined 
+  getAll: (filters?: (LeaveRequestFilters & { page?: number; limit?: number })) =>
+    apiClient.get<LeaveRequest[]>('/leaves', {
+      params: filters
+        ? ({
+            ...filters,
+            status: mapLeaveRequestStatusToApi(filters.status) as any,
+          } as Record<string, string | number>)
+        : undefined,
     }),
 
   /**

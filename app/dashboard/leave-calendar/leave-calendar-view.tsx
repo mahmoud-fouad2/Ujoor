@@ -22,6 +22,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { cn } from "@/lib/utils";
 import {
   Tooltip,
   TooltipContent,
@@ -32,6 +33,8 @@ import {
   LeaveRequestStatus,
 } from "@/lib/types/leave";
 import { useEmployees } from "@/hooks/use-employees";
+import { leavesApi } from "@/lib/api";
+import { getLeaveTheme } from "@/lib/ui/leave-color";
 
 type UiLeaveStatus = Exclude<LeaveRequestStatus, "taken">;
 
@@ -42,6 +45,10 @@ const statusLabels: Record<UiLeaveStatus | "all", string> = {
   rejected: "مرفوض",
   cancelled: "ملغي",
 };
+
+function pickLeaveBgClass(color?: string | null): string {
+  return getLeaveTheme(color).bg;
+}
 
 type CalendarEvent = {
   id: string;
@@ -55,8 +62,6 @@ type CalendarEvent = {
   endDate: string; // YYYY-MM-DD
   status: UiLeaveStatus;
 };
-
-type LeavesListResponse = { data?: any[]; error?: string };
 
 function toYmd(value: any): string {
   if (!value) return "";
@@ -120,16 +125,13 @@ export function LeaveCalendarView() {
     setLoadError(null);
 
     try {
-      const res = await fetch(`/api/leaves?limit=1000&year=${encodeURIComponent(String(year))}`, {
-        cache: "no-store",
-      });
-      const json = (await res.json()) as LeavesListResponse;
-      if (!res.ok) {
-        throw new Error(json.error || "فشل تحميل الإجازات");
+      const res = await leavesApi.requests.getAll({ limit: 1000, year });
+      if (!res.success) {
+        throw new Error(res.error || "فشل تحميل الإجازات");
       }
 
-      const mapped: CalendarEvent[] = Array.isArray(json.data)
-        ? json.data
+      const mapped: CalendarEvent[] = Array.isArray(res.data)
+        ? (res.data as any[])
             .map((r: any) => {
               const employeeName = r?.employee
                 ? `${String(r.employee.firstName ?? "")} ${String(r.employee.lastName ?? "")}`.trim()
@@ -435,8 +437,10 @@ export function LeaveCalendarView() {
                             <Tooltip key={event.id}>
                               <TooltipTrigger asChild>
                                 <div
-                                  className="truncate rounded px-1.5 py-0.5 text-xs text-white cursor-pointer"
-                                  style={{ backgroundColor: event.color }}
+                                  className={cn(
+                                    "truncate rounded px-1.5 py-0.5 text-xs text-white cursor-pointer",
+                                    pickLeaveBgClass(event.color)
+                                  )}
                                 >
                                   {event.employeeName}
                                 </div>
@@ -495,7 +499,7 @@ export function LeaveCalendarView() {
             ) : (
               legendItems.map((item) => (
                 <div key={`${item.name}-${item.color}`} className="flex items-center gap-2">
-                  <div className="h-4 w-4 rounded" style={{ backgroundColor: item.color }} />
+                  <div className={cn("h-4 w-4 rounded", pickLeaveBgClass(item.color))} />
                   <span className="text-sm">{item.name}</span>
                 </div>
               ))
@@ -536,8 +540,7 @@ export function LeaveCalendarView() {
                       <p className="font-medium">{event.employeeName}</p>
                       <div className="flex items-center gap-2">
                         <div
-                          className="h-2 w-2 rounded-full"
-                          style={{ backgroundColor: event.color }}
+                          className={cn("h-2 w-2 rounded-full", pickLeaveBgClass(event.color))}
                         />
                         <span className="text-sm text-muted-foreground">
                           {event.leaveTypeName}

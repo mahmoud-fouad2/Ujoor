@@ -6,9 +6,24 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/db";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import type { Prisma } from "@prisma/client";
 
 function isSuperAdmin(role: string | undefined) {
   return role === "SUPER_ADMIN";
+}
+
+function nonEmpty(value: string | null): string | undefined {
+  if (!value) return undefined;
+  const trimmed = value.trim();
+  return trimmed.length ? trimmed : undefined;
+}
+
+function parseYear(value: string | undefined): number | null {
+  if (!value) return new Date().getFullYear();
+  const year = Number(value);
+  if (!Number.isFinite(year) || !Number.isInteger(year)) return null;
+  if (year < 1970 || year > 2100) return null;
+  return year;
 }
 
 export async function GET(request: NextRequest) {
@@ -20,11 +35,11 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url);
-    const requestedTenantId = searchParams.get("tenantId") ?? undefined;
-    const employeeId = searchParams.get("employeeId") ?? undefined;
-    const departmentId = searchParams.get("departmentId") ?? undefined;
-    const leaveTypeId = searchParams.get("leaveTypeId") ?? undefined;
-    const yearParam = searchParams.get("year") ?? undefined;
+    const requestedTenantId = nonEmpty(searchParams.get("tenantId"));
+    const employeeId = nonEmpty(searchParams.get("employeeId"));
+    const departmentId = nonEmpty(searchParams.get("departmentId"));
+    const leaveTypeId = nonEmpty(searchParams.get("leaveTypeId"));
+    const yearParam = nonEmpty(searchParams.get("year"));
 
     const tenantId = isSuperAdmin(session.user.role)
       ? requestedTenantId ?? session.user.tenantId
@@ -34,9 +49,12 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Tenant required" }, { status: 400 });
     }
 
-    const year = yearParam ? Number(yearParam) : new Date().getFullYear();
+    const year = parseYear(yearParam);
+    if (year == null) {
+      return NextResponse.json({ error: "Invalid year" }, { status: 400 });
+    }
 
-    const where: any = { tenantId, year };
+    const where: Prisma.LeaveBalanceWhereInput = { tenantId, year };
     if (employeeId) where.employeeId = employeeId;
     if (leaveTypeId) where.leaveTypeId = leaveTypeId;
     if (departmentId) {

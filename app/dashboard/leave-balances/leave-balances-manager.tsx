@@ -48,6 +48,9 @@ import {
   getBalancePercentage,
 } from "@/lib/types/leave";
 import { useEmployees } from "@/hooks/use-employees";
+import { leavesApi } from "@/lib/api";
+import { cn } from "@/lib/utils";
+import { getLeaveTheme } from "@/lib/ui/leave-color";
 
 type UiLeaveBalance = {
   id: string;
@@ -75,16 +78,6 @@ type ApiLeaveType = {
   code: string;
   color?: string | null;
   isActive: boolean;
-};
-
-type LeaveBalancesResponse = {
-  data?: Array<any>;
-  error?: string;
-};
-
-type LeaveTypesResponse = {
-  data?: Array<any>;
-  error?: string;
 };
 
 function toNumber(value: any): number {
@@ -117,22 +110,19 @@ export function LeaveBalancesManager() {
 
     try {
       const [balancesRes, typesRes] = await Promise.all([
-        fetch(`/api/leave-balances?year=${encodeURIComponent(String(year))}`, { cache: "no-store" }),
-        fetch("/api/leave-types", { cache: "no-store" }),
+        leavesApi.balances.getAll({ year }),
+        leavesApi.types.getAll(),
       ]);
 
-      const balancesJson = (await balancesRes.json()) as LeaveBalancesResponse;
-      const typesJson = (await typesRes.json()) as LeaveTypesResponse;
-
-      if (!balancesRes.ok) {
-        throw new Error(balancesJson.error || "فشل تحميل أرصدة الإجازات");
+      if (!balancesRes.success) {
+        throw new Error(balancesRes.error || "فشل تحميل أرصدة الإجازات");
       }
-      if (!typesRes.ok) {
-        throw new Error(typesJson.error || "فشل تحميل أنواع الإجازات");
+      if (!typesRes.success) {
+        throw new Error(typesRes.error || "فشل تحميل أنواع الإجازات");
       }
 
-      const mappedTypes: ApiLeaveType[] = Array.isArray(typesJson.data)
-        ? typesJson.data.map((t: any) => ({
+      const mappedTypes: ApiLeaveType[] = Array.isArray(typesRes.data)
+        ? (typesRes.data as any[]).map((t: any) => ({
             id: String(t.id),
             name: String(t.name ?? ""),
             code: String(t.code ?? ""),
@@ -142,8 +132,8 @@ export function LeaveBalancesManager() {
         : [];
       setLeaveTypes(mappedTypes);
 
-      const mappedBalances: UiLeaveBalance[] = Array.isArray(balancesJson.data)
-        ? balancesJson.data.map((b: any) => {
+      const mappedBalances: UiLeaveBalance[] = Array.isArray(balancesRes.data)
+        ? (balancesRes.data as any[]).map((b: any) => {
             const entitled = toNumber(b.entitled);
             const carriedOver = toNumber(b.carriedOver);
             const adjustment = toNumber(b.adjustment);
@@ -238,19 +228,14 @@ export function LeaveBalancesManager() {
     if (!selectedBalance || adjustmentData.days <= 0 || !adjustmentData.reason) return;
 
     try {
-      const res = await fetch(`/api/leave-balances/${encodeURIComponent(selectedBalance.id)}/adjust`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          adjustmentType: adjustmentData.type === "add" ? "add" : "subtract",
-          days: adjustmentData.days,
-          reason: adjustmentData.reason,
-        }),
+      const res = await leavesApi.balances.adjustBalance(selectedBalance.id, {
+        adjustmentType: adjustmentData.type === "add" ? "add" : "subtract",
+        days: adjustmentData.days,
+        reason: adjustmentData.reason,
       });
 
-      const json = (await res.json()) as { data?: any; error?: string };
-      if (!res.ok) {
-        throw new Error(json.error || "فشل تعديل الرصيد");
+      if (!res.success) {
+        throw new Error(res.error || "فشل تعديل الرصيد");
       }
 
       toast.success("تم تعديل رصيد الإجازة");
@@ -364,37 +349,32 @@ export function LeaveBalancesManager() {
         </CardHeader>
         <CardContent>
           <div className="grid gap-4 md:grid-cols-4">
-            {leaveTypeStats.slice(0, 4).map((type) => (
-              <div
-                key={type.id}
-                className="rounded-lg border p-4"
-                style={{ borderColor: type.color ?? "#3B82F6" }}
-              >
-                <div className="flex items-center gap-2 mb-3">
-                  <div
-                    className="h-3 w-3 rounded-full"
-                    style={{ backgroundColor: type.color ?? "#3B82F6" }}
-                  />
-                  <span className="font-medium">{type.name}</span>
-                </div>
-                <div className="space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">المستخدم</span>
-                    <span>{type.totalTaken} من {type.totalEntitled}</span>
+            {leaveTypeStats.slice(0, 4).map((type) => {
+              const theme = getLeaveTheme(type.color);
+              return (
+                <div
+                  key={type.id}
+                  className={cn("rounded-lg border p-4", theme.border)}
+                >
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className={cn("h-3 w-3 rounded-full", theme.dot)} />
+                    <span className="font-medium">{type.name}</span>
                   </div>
-                  <Progress
-                    value={type.usageRate}
-                    className="h-2"
-                    style={{ 
-                      backgroundColor: `${type.color ?? "#3B82F6"}20`,
-                    }}
-                  />
-                  <div className="text-start text-sm font-medium" style={{ color: type.color ?? "#3B82F6" }}>
-                    {type.usageRate}%
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">المستخدم</span>
+                      <span>
+                        {type.totalTaken} من {type.totalEntitled}
+                      </span>
+                    </div>
+                    <Progress value={type.usageRate} className={cn("h-2", theme.progress)} />
+                    <div className={cn("text-start text-sm font-medium", theme.text)}>
+                      {type.usageRate}%
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </CardContent>
       </Card>
@@ -496,10 +476,10 @@ export function LeaveBalancesManager() {
                         <TableCell>
                           <div className="flex items-center gap-2">
                             <div
-                              className="h-3 w-3 rounded-full"
-                              style={{
-                                backgroundColor: balance.leaveTypeColor || "#6B7280",
-                              }}
+                              className={cn(
+                                "h-3 w-3 rounded-full",
+                                getLeaveTheme(balance.leaveTypeColor).dot
+                              )}
                             />
                             {balance.leaveTypeName}
                           </div>

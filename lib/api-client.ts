@@ -1,10 +1,13 @@
 /**
- * API Client Utilities
+ * Compatibility API client.
+ *
+ * This file previously implemented a second, conflicting API client.
+ * It now delegates to the unified client in lib/api/client.ts to keep response handling consistent.
  */
 
-const API_BASE = "/api";
+import apiClient, { type ApiResponse as UnifiedApiResponse } from "@/lib/api/client";
 
-interface ApiResponse<T> {
+export interface ApiResponse<T> {
   data?: T;
   error?: string;
   pagination?: {
@@ -19,42 +22,54 @@ interface FetchOptions extends RequestInit {
   params?: Record<string, string | number | boolean | undefined>;
 }
 
-async function apiRequest<T>(
-  endpoint: string,
-  options: FetchOptions = {}
-): Promise<ApiResponse<T>> {
-  const { params, ...fetchOptions } = options;
-
-  // Build URL with query params
-  let url = `${API_BASE}${endpoint}`;
-  if (params) {
-    const searchParams = new URLSearchParams();
-    Object.entries(params).forEach(([key, value]) => {
-      if (value !== undefined && value !== null) {
-        searchParams.append(key, String(value));
+function toLegacy<T>(res: UnifiedApiResponse<T>): ApiResponse<T> {
+  if (!res.success) return { error: res.error || "An error occurred" };
+  const meta = res.meta;
+  const pagination = meta?.page !== undefined && meta?.pageSize !== undefined
+    ? {
+        page: meta.page,
+        limit: meta.pageSize,
+        total: meta.total ?? 0,
+        totalPages: meta.totalPages ?? 0,
       }
-    });
-    const queryString = searchParams.toString();
-    if (queryString) {
-      url += `?${queryString}`;
-    }
+    : undefined;
+  return { data: res.data, pagination };
+}
+
+async function apiRequest<T>(endpoint: string, options: FetchOptions = {}): Promise<ApiResponse<T>> {
+  const { params, ...fetchOptions } = options;
+  const method = (fetchOptions.method || "GET").toUpperCase();
+  const headers = (fetchOptions.headers || {}) as Record<string, string>;
+
+  const body = fetchOptions.body;
+  const jsonBody = typeof body === "string" ? (() => { try { return JSON.parse(body); } catch { return undefined; } })() : body;
+
+  if (method === "GET") {
+    const res = await apiClient.get<T>(endpoint, { params, headers });
+    return toLegacy(res);
   }
 
-  const response = await fetch(url, {
-    ...fetchOptions,
-    headers: {
-      "Content-Type": "application/json",
-      ...fetchOptions.headers,
-    },
-  });
-
-  const data = await response.json();
-
-  if (!response.ok) {
-    throw new Error(data.error || "An error occurred");
+  if (method === "POST") {
+    const res = await apiClient.post<T>(endpoint, jsonBody, { headers });
+    return toLegacy(res);
   }
 
-  return data;
+  if (method === "PUT") {
+    const res = await apiClient.put<T>(endpoint, jsonBody, { headers });
+    return toLegacy(res);
+  }
+
+  if (method === "PATCH") {
+    const res = await apiClient.patch<T>(endpoint, jsonBody, { headers });
+    return toLegacy(res);
+  }
+
+  if (method === "DELETE") {
+    const res = await apiClient.delete<T>(endpoint, { headers });
+    return toLegacy(res);
+  }
+
+  return { error: `Unsupported method: ${method}` };
 }
 
 // Employee API
@@ -109,15 +124,15 @@ export const attendanceApi = {
     apiRequest<any[]>("/attendance", { params }),
   
   checkIn: (data: { employeeId?: string; location?: string; notes?: string }) =>
-    apiRequest<any>("/attendance", {
+    apiRequest<any>("/attendance/check-in", {
       method: "POST",
-      body: JSON.stringify({ type: "CHECK_IN", ...data }),
+      body: JSON.stringify(data),
     }),
   
   checkOut: (data: { employeeId?: string; location?: string; notes?: string }) =>
-    apiRequest<any>("/attendance", {
+    apiRequest<any>("/attendance/check-out", {
       method: "POST",
-      body: JSON.stringify({ type: "CHECK_OUT", ...data }),
+      body: JSON.stringify(data),
     }),
 };
 
@@ -213,11 +228,8 @@ export const documentsApi = {
   get: (id: string) => apiRequest<any>(`/documents/${id}`),
   
   upload: async (formData: FormData) => {
-    const response = await fetch(`${API_BASE}/documents`, {
-      method: "POST",
-      body: formData,
-    });
-    return response.json();
+    const res = await apiClient.upload<any>("/documents", formData);
+    return toLegacy(res);
   },
   
   update: (id: string, data: any) =>
@@ -265,7 +277,6 @@ export const announcementsApi = {
       method: "POST",
       body: JSON.stringify(data),
     }),
-  
   update: (id: string, data: any) =>
     apiRequest<any>(`/announcements/${id}`, {
       method: "PUT",

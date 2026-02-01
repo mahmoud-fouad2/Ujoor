@@ -7,6 +7,8 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/db";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { ExperienceLevel, JobPostingStatus, JobType, Prisma } from "@prisma/client";
+import { z } from "zod";
 
 // Map DB status to kebab-case
 function mapStatus(status: string): string {
@@ -21,6 +23,53 @@ function mapJobType(type: string): string {
 function mapExperienceLevel(level: string): string {
   return level.toLowerCase();
 }
+
+function parseJobPostingStatus(value: unknown): JobPostingStatus | null {
+  if (typeof value !== "string") return null;
+  const normalized = value.toUpperCase().replace(/-/g, "_");
+  return normalized in JobPostingStatus ? (normalized as JobPostingStatus) : null;
+}
+
+function parseJobType(value: unknown): JobType | null {
+  if (typeof value !== "string") return null;
+  const normalized = value.toUpperCase().replace(/-/g, "_");
+  return normalized in JobType ? (normalized as JobType) : null;
+}
+
+function parseExperienceLevel(value: unknown): ExperienceLevel | null {
+  if (typeof value !== "string") return null;
+  const normalized = value.toUpperCase();
+  return normalized in ExperienceLevel ? (normalized as ExperienceLevel) : null;
+}
+
+function isValidDate(value: unknown): boolean {
+  if (typeof value !== "string") return false;
+  const d = new Date(value);
+  return !Number.isNaN(d.getTime());
+}
+
+const jobPostingCreateSchema = z
+  .object({
+    title: z.string().min(2),
+    titleAr: z.string().min(2).optional().nullable(),
+    description: z.string().min(5),
+    requirements: z.string().optional().nullable(),
+    responsibilities: z.string().optional().nullable(),
+    benefits: z.string().optional().nullable(),
+    departmentId: z.string().optional().nullable(),
+    jobTitleId: z.string().optional().nullable(),
+    status: z.string().optional(),
+    jobType: z.string().optional(),
+    experienceLevel: z.string().optional(),
+    positions: z.number().int().positive().optional().default(1),
+    location: z.string().optional().nullable(),
+    salaryMin: z.union([z.string(), z.number()]).optional().nullable(),
+    salaryMax: z.union([z.string(), z.number()]).optional().nullable(),
+    salaryCurrency: z.string().min(1).optional().default("SAR"),
+    postedAt: z.string().refine(isValidDate, "Invalid postedAt").optional().nullable(),
+    expiresAt: z.string().refine(isValidDate, "Invalid expiresAt").optional().nullable(),
+  })
+  .strict();
 
 export async function GET(request: NextRequest) {
   try {
@@ -44,10 +93,17 @@ export async function GET(request: NextRequest) {
     const status = searchParams.get("status");
     const departmentId = searchParams.get("departmentId");
 
-    const where: any = { tenantId };
+    const where: Prisma.JobPostingWhereInput = { tenantId };
 
     if (status) {
-      where.status = status.toUpperCase().replace(/-/g, "_");
+      const parsed = parseJobPostingStatus(status);
+      if (!parsed) {
+        return NextResponse.json(
+          { success: false, error: `Invalid status: ${status}` },
+          { status: 400 }
+        );
+      }
+      where.status = parsed;
     }
 
     if (departmentId) {
@@ -135,7 +191,41 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const body = await request.json();
+    const parsedBody = jobPostingCreateSchema.safeParse(await request.json());
+    if (!parsedBody.success) {
+      return NextResponse.json(
+        { success: false, error: "Invalid request body", details: parsedBody.error.flatten() },
+        { status: 400 }
+      );
+    }
+
+    const body = parsedBody.data;
+
+    const status = body.status ? parseJobPostingStatus(body.status) : JobPostingStatus.DRAFT;
+    if (body.status && !status) {
+      return NextResponse.json(
+        { success: false, error: `Invalid status: ${body.status}` },
+        { status: 400 }
+      );
+    }
+
+    const jobType = body.jobType ? parseJobType(body.jobType) : JobType.FULL_TIME;
+    if (body.jobType && !jobType) {
+      return NextResponse.json(
+        { success: false, error: `Invalid jobType: ${body.jobType}` },
+        { status: 400 }
+      );
+    }
+
+    const experienceLevel = body.experienceLevel
+      ? parseExperienceLevel(body.experienceLevel)
+      : ExperienceLevel.MID;
+    if (body.experienceLevel && !experienceLevel) {
+      return NextResponse.json(
+        { success: false, error: `Invalid experienceLevel: ${body.experienceLevel}` },
+        { status: 400 }
+      );
+    }
 
     const jobPosting = await prisma.jobPosting.create({
       data: {
@@ -148,14 +238,14 @@ export async function POST(request: NextRequest) {
         benefits: body.benefits,
         departmentId: body.departmentId,
         jobTitleId: body.jobTitleId,
-        status: body.status ? body.status.toUpperCase().replace(/-/g, "_") : "DRAFT",
-        jobType: body.jobType ? body.jobType.toUpperCase().replace(/-/g, "_") : "FULL_TIME",
-        experienceLevel: body.experienceLevel ? body.experienceLevel.toUpperCase() : "MID",
-        positions: body.positions || 1,
+        status,
+        jobType,
+        experienceLevel,
+        positions: body.positions,
         location: body.location,
         salaryMin: body.salaryMin,
         salaryMax: body.salaryMax,
-        salaryCurrency: body.salaryCurrency || "SAR",
+        salaryCurrency: body.salaryCurrency,
         postedAt: body.postedAt ? new Date(body.postedAt) : null,
         expiresAt: body.expiresAt ? new Date(body.expiresAt) : null,
         createdById: session.user.id,

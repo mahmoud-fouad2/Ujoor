@@ -41,17 +41,19 @@ class ApiClient {
   }
 
   private buildUrl(endpoint: string, params?: Record<string, string | number | boolean | undefined>): string {
-    const url = new URL(`${this.baseUrl}${endpoint}`, window.location.origin);
-    
-    if (params) {
-      Object.entries(params).forEach(([key, value]) => {
-        if (value !== undefined && value !== null) {
-          url.searchParams.append(key, String(value));
-        }
-      });
-    }
-    
-    return url.toString();
+    let url = `${this.baseUrl}${endpoint}`;
+    if (!params) return url;
+
+    const searchParams = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== null) {
+        searchParams.append(key, String(value));
+      }
+    });
+
+    const qs = searchParams.toString();
+    if (qs) url += (url.includes("?") ? "&" : "?") + qs;
+    return url;
   }
 
   private async handleResponse<T>(response: Response): Promise<ApiResponse<T>> {
@@ -63,6 +65,13 @@ class ApiClient {
       if (contentType?.includes("application/json")) {
         const errorData = await response.json();
         errorMessage = errorData.message || errorData.error || errorMessage;
+      } else {
+        try {
+          const text = await response.text();
+          if (text) errorMessage = text;
+        } catch {
+          // ignore
+        }
       }
       
       return {
@@ -72,16 +81,47 @@ class ApiClient {
     }
 
     if (contentType?.includes("application/json")) {
-      const data = await response.json();
+      const payload = await response.json();
+
+      // Support multiple backend response shapes:
+      // - { success, data, error?, message?, meta? }
+      // - { data, pagination }
+      // - raw JSON (rare)
+      const payloadSuccess: boolean | undefined =
+        typeof payload?.success === "boolean" ? payload.success : undefined;
+
+      const error = payload?.error || payload?.message;
+      const pagination = payload?.pagination;
+      const meta = payload?.meta ||
+        (pagination
+          ? {
+              page: pagination.page,
+              pageSize: pagination.limit,
+              total: pagination.total,
+              totalPages: pagination.totalPages,
+            }
+          : undefined);
+
+      if (payloadSuccess === false) {
+        return { success: false, error: String(error || "Request failed"), data: payload?.data, message: payload?.message, meta };
+      }
+
+      // If backend doesn't send {success}, treat 2xx as success.
       return {
         success: true,
-        data: data.data ?? data,
-        message: data.message,
-        meta: data.meta,
+        data: payload?.data ?? payload,
+        message: payload?.message,
+        meta,
       };
     }
 
-    return { success: true };
+    // Non-JSON responses (csv, pdf, etc.)
+    try {
+      const blob = await response.blob();
+      return { success: true, data: blob as unknown as T };
+    } catch {
+      return { success: true };
+    }
   }
 
   async get<T>(endpoint: string, options?: RequestOptions): Promise<ApiResponse<T>> {

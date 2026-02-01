@@ -7,10 +7,34 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/db";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { ApplicationStatus, Prisma } from "@prisma/client";
+import { z } from "zod";
 
 function mapStatus(status: string): string {
   return status.toLowerCase().replace(/_/g, "-");
 }
+
+function parseApplicationStatus(value: unknown): ApplicationStatus | null {
+  if (typeof value !== "string") return null;
+  const normalized = value.toUpperCase().replace(/-/g, "_");
+  return normalized in ApplicationStatus ? (normalized as ApplicationStatus) : null;
+}
+
+const applicantCreateSchema = z
+  .object({
+    jobPostingId: z.string().min(1),
+    firstName: z.string().min(1),
+    lastName: z.string().min(1),
+    email: z.string().email(),
+    phone: z.string().optional().nullable(),
+    resumeUrl: z.string().url().optional().nullable(),
+    coverLetter: z.string().optional().nullable(),
+    status: z.string().optional(),
+    source: z.string().optional().default("career-portal"),
+    rating: z.number().int().min(1).max(5).optional().nullable(),
+    notes: z.string().optional().nullable(),
+  })
+  .strict();
 
 export async function GET(request: NextRequest) {
   try {
@@ -34,14 +58,21 @@ export async function GET(request: NextRequest) {
     const jobPostingId = searchParams.get("jobPostingId");
     const status = searchParams.get("status");
 
-    const where: any = { tenantId };
+    const where: Prisma.ApplicantWhereInput = { tenantId };
 
     if (jobPostingId) {
       where.jobPostingId = jobPostingId;
     }
 
     if (status) {
-      where.status = status.toUpperCase().replace(/-/g, "_");
+      const parsed = parseApplicationStatus(status);
+      if (!parsed) {
+        return NextResponse.json(
+          { success: false, error: `Invalid status: ${status}` },
+          { status: 400 }
+        );
+      }
+      where.status = parsed;
     }
 
     const applicants = await prisma.applicant.findMany({
@@ -111,7 +142,22 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const body = await request.json();
+    const parsedBody = applicantCreateSchema.safeParse(await request.json());
+    if (!parsedBody.success) {
+      return NextResponse.json(
+        { success: false, error: "Invalid request body", details: parsedBody.error.flatten() },
+        { status: 400 }
+      );
+    }
+
+    const body = parsedBody.data;
+    const status = body.status ? parseApplicationStatus(body.status) : ApplicationStatus.NEW;
+    if (body.status && !status) {
+      return NextResponse.json(
+        { success: false, error: `Invalid status: ${body.status}` },
+        { status: 400 }
+      );
+    }
 
     const applicant = await prisma.applicant.create({
       data: {
@@ -123,9 +169,9 @@ export async function POST(request: NextRequest) {
         phone: body.phone,
         resumeUrl: body.resumeUrl,
         coverLetter: body.coverLetter,
-        status: body.status ? body.status.toUpperCase().replace(/-/g, "_") : "NEW",
-        source: body.source || "career-portal",
-        rating: body.rating,
+        status,
+        source: body.source,
+        rating: body.rating ?? undefined,
         notes: body.notes,
       },
     });

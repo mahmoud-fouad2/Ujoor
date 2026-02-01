@@ -7,6 +7,9 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/db";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { InterviewStatus, Prisma } from "@prisma/client";
+import { InterviewType } from "@prisma/client";
+import { z } from "zod";
 
 function mapStatus(status: string): string {
   return status.toLowerCase().replace(/_/g, "-");
@@ -15,6 +18,38 @@ function mapStatus(status: string): string {
 function mapType(type: string): string {
   return type.toLowerCase().replace(/_/g, "-");
 }
+
+function parseInterviewStatus(value: unknown): InterviewStatus | null {
+  if (typeof value !== "string") return null;
+  const normalized = value.toUpperCase().replace(/-/g, "_");
+  return normalized in InterviewStatus ? (normalized as InterviewStatus) : null;
+}
+
+function parseInterviewType(value: unknown): InterviewType | null {
+  if (typeof value !== "string") return null;
+  const normalized = value.toUpperCase().replace(/-/g, "_");
+  return normalized in InterviewType ? (normalized as InterviewType) : null;
+}
+
+function isValidDate(value: unknown): boolean {
+  if (typeof value !== "string") return false;
+  const d = new Date(value);
+  return !Number.isNaN(d.getTime());
+}
+
+const interviewCreateSchema = z
+  .object({
+    applicantId: z.string().min(1),
+    jobPostingId: z.string().min(1),
+    type: z.string().optional(),
+    status: z.string().optional(),
+    scheduledAt: z.string().refine(isValidDate, "Invalid scheduledAt"),
+    duration: z.number().int().positive().optional().default(60),
+    location: z.string().optional().nullable(),
+    meetingLink: z.string().url().optional().nullable(),
+    interviewerId: z.string().optional().nullable(),
+  })
+  .strict();
 
 export async function GET(request: NextRequest) {
   try {
@@ -39,7 +74,7 @@ export async function GET(request: NextRequest) {
     const jobPostingId = searchParams.get("jobPostingId");
     const status = searchParams.get("status");
 
-    const where: any = { tenantId };
+    const where: Prisma.InterviewWhereInput = { tenantId };
 
     if (applicantId) {
       where.applicantId = applicantId;
@@ -50,7 +85,14 @@ export async function GET(request: NextRequest) {
     }
 
     if (status) {
-      where.status = status.toUpperCase().replace(/-/g, "_");
+      const parsed = parseInterviewStatus(status);
+      if (!parsed) {
+        return NextResponse.json(
+          { success: false, error: `Invalid status: ${status}` },
+          { status: 400 }
+        );
+      }
+      where.status = parsed;
     }
 
     const interviews = await prisma.interview.findMany({
@@ -135,17 +177,40 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const body = await request.json();
+    const parsedBody = interviewCreateSchema.safeParse(await request.json());
+    if (!parsedBody.success) {
+      return NextResponse.json(
+        { success: false, error: "Invalid request body", details: parsedBody.error.flatten() },
+        { status: 400 }
+      );
+    }
+
+    const body = parsedBody.data;
+    const type = body.type ? parseInterviewType(body.type) : InterviewType.HR;
+    if (body.type && !type) {
+      return NextResponse.json(
+        { success: false, error: `Invalid type: ${body.type}` },
+        { status: 400 }
+      );
+    }
+
+    const status = body.status ? parseInterviewStatus(body.status) : InterviewStatus.SCHEDULED;
+    if (body.status && !status) {
+      return NextResponse.json(
+        { success: false, error: `Invalid status: ${body.status}` },
+        { status: 400 }
+      );
+    }
 
     const interview = await prisma.interview.create({
       data: {
         tenantId,
         applicantId: body.applicantId,
         jobPostingId: body.jobPostingId,
-        type: body.type ? body.type.toUpperCase().replace(/-/g, "_") : "HR",
-        status: body.status ? body.status.toUpperCase().replace(/-/g, "_") : "SCHEDULED",
+        type,
+        status,
         scheduledAt: new Date(body.scheduledAt),
-        duration: body.duration || 60,
+        duration: body.duration,
         location: body.location,
         meetingLink: body.meetingLink,
         interviewerId: body.interviewerId,

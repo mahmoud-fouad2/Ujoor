@@ -64,8 +64,9 @@ import {
   leaveTypeColors,
 } from "@/lib/types/leave";
 import { toast } from "sonner";
-
-type LeaveTypesResponse = { data?: any[]; error?: string };
+import { leavesApi } from "@/lib/api";
+import { cn } from "@/lib/utils";
+import { getLeaveTheme } from "@/lib/ui/leave-color";
 
 function mapApplicableGendersToRestriction(value: unknown): LeaveType["genderRestriction"] {
   if (!Array.isArray(value) || value.length === 0) return "all";
@@ -219,13 +220,12 @@ export function LeaveTypesManager() {
     setLoadError(null);
 
     try {
-      const res = await fetch("/api/leave-types", { cache: "no-store" });
-      const json = (await res.json()) as LeaveTypesResponse;
-      if (!res.ok) {
-        throw new Error(json.error || "فشل تحميل أنواع الإجازات");
+      const res = await leavesApi.types.getAll();
+      if (!res.success) {
+        throw new Error(res.error || "فشل تحميل أنواع الإجازات");
       }
 
-      const mapped = Array.isArray(json.data) ? json.data.map(mapLeaveTypeFromApi) : [];
+      const mapped = Array.isArray(res.data) ? (res.data as any[]).map(mapLeaveTypeFromApi) : [];
       setLeaveTypes(mapped);
     } catch (err) {
       setLoadError(err instanceof Error ? err.message : "فشل تحميل أنواع الإجازات");
@@ -246,30 +246,25 @@ export function LeaveTypesManager() {
 
     setIsSaving(true);
     try {
-      const res = await fetch("/api/leave-types", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: formData.nameEn.trim(),
-          nameAr: formData.name.trim(),
-          code: toCode(formData.nameEn),
-          description: formData.description || undefined,
-          defaultDays: Number(formData.maxDaysPerYear ?? 0),
-          maxDays: Number(formData.maxDaysPerYear ?? 0),
-          carryOverDays: formData.carryOverAllowed ? Number(formData.maxCarryOverDays ?? 0) : 0,
-          isPaid: Boolean(formData.isPaid),
-          requiresApproval: true,
-          requiresAttachment: Boolean(formData.requiresAttachment),
-          minServiceMonths: Number(formData.minServiceMonths ?? 0),
-          applicableGenders: mapRestrictionToApplicableGenders(formData.genderRestriction),
-          color: formData.color,
-          isActive: Boolean(formData.isActive),
-        }),
+      const res = await leavesApi.types.createBackend({
+        name: formData.nameEn.trim(),
+        nameAr: formData.name.trim(),
+        code: toCode(formData.nameEn),
+        description: formData.description || undefined,
+        defaultDays: Number(formData.maxDaysPerYear ?? 0),
+        maxDays: Number(formData.maxDaysPerYear ?? 0),
+        carryOverDays: formData.carryOverAllowed ? Number(formData.maxCarryOverDays ?? 0) : 0,
+        isPaid: Boolean(formData.isPaid),
+        requiresApproval: true,
+        requiresAttachment: Boolean(formData.requiresAttachment),
+        minServiceMonths: Number(formData.minServiceMonths ?? 0),
+        applicableGenders: mapRestrictionToApplicableGenders(formData.genderRestriction),
+        color: formData.color,
+        isActive: Boolean(formData.isActive),
       });
 
-      const json = (await res.json()) as { data?: any; error?: string };
-      if (!res.ok) {
-        throw new Error(json.error || "فشل إنشاء نوع الإجازة");
+      if (!res.success) {
+        throw new Error(res.error || "فشل إنشاء نوع الإجازة");
       }
 
       toast.success("تم إنشاء نوع الإجازة");
@@ -292,30 +287,25 @@ export function LeaveTypesManager() {
 
     setIsSaving(true);
     try {
-      const res = await fetch(`/api/leave-types/${encodeURIComponent(selectedType.id)}` , {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: formData.nameEn.trim(),
-          nameAr: formData.name.trim(),
-          code: toCode(formData.nameEn),
-          description: formData.description || undefined,
-          defaultDays: Number(formData.maxDaysPerYear ?? 0),
-          maxDays: Number(formData.maxDaysPerYear ?? 0),
-          carryOverDays: formData.carryOverAllowed ? Number(formData.maxCarryOverDays ?? 0) : 0,
-          isPaid: Boolean(formData.isPaid),
-          requiresApproval: true,
-          requiresAttachment: Boolean(formData.requiresAttachment),
-          minServiceMonths: Number(formData.minServiceMonths ?? 0),
-          applicableGenders: mapRestrictionToApplicableGenders(formData.genderRestriction),
-          color: formData.color,
-          isActive: Boolean(formData.isActive),
-        }),
+      const res = await leavesApi.types.updateBackend(selectedType.id, {
+        name: formData.nameEn.trim(),
+        nameAr: formData.name.trim(),
+        code: toCode(formData.nameEn),
+        description: formData.description || undefined,
+        defaultDays: Number(formData.maxDaysPerYear ?? 0),
+        maxDays: Number(formData.maxDaysPerYear ?? 0),
+        carryOverDays: formData.carryOverAllowed ? Number(formData.maxCarryOverDays ?? 0) : 0,
+        isPaid: Boolean(formData.isPaid),
+        requiresApproval: true,
+        requiresAttachment: Boolean(formData.requiresAttachment),
+        minServiceMonths: Number(formData.minServiceMonths ?? 0),
+        applicableGenders: mapRestrictionToApplicableGenders(formData.genderRestriction),
+        color: formData.color,
+        isActive: Boolean(formData.isActive),
       });
 
-      const json = (await res.json()) as { data?: any; error?: string };
-      if (!res.ok) {
-        throw new Error(json.error || "فشل تعديل نوع الإجازة");
+      if (!res.success) {
+        throw new Error(res.error || "فشل تعديل نوع الإجازة");
       }
 
       toast.success("تم تعديل نوع الإجازة");
@@ -333,12 +323,9 @@ export function LeaveTypesManager() {
   const handleDelete = async (id: string) => {
     setIsSaving(true);
     try {
-      const res = await fetch(`/api/leave-types/${encodeURIComponent(id)}`, {
-        method: "DELETE",
-      });
-      const json = (await res.json()) as { ok?: boolean; error?: string };
-      if (!res.ok) {
-        throw new Error(json.error || "فشل حذف نوع الإجازة");
+      const res = await leavesApi.types.delete(id);
+      if (!res.success) {
+        throw new Error(res.error || "فشل حذف نوع الإجازة");
       }
       toast.success("تم حذف نوع الإجازة");
       await loadLeaveTypes();
@@ -355,14 +342,24 @@ export function LeaveTypesManager() {
 
     setIsSaving(true);
     try {
-      const res = await fetch(`/api/leave-types/${encodeURIComponent(id)}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ isActive: !type.isActive }),
+      const res = await leavesApi.types.updateBackend(id, {
+        name: type.nameEn,
+        nameAr: type.name,
+        code: toCode(type.nameEn),
+        description: type.description,
+        defaultDays: Number(type.maxDaysPerYear ?? 0),
+        maxDays: Number(type.maxDaysPerYear ?? 0),
+        carryOverDays: type.carryOverAllowed ? Number(type.maxCarryOverDays ?? 0) : 0,
+        isPaid: Boolean(type.isPaid),
+        requiresApproval: true,
+        requiresAttachment: Boolean(type.requiresAttachment),
+        minServiceMonths: Number(type.minServiceMonths ?? 0),
+        applicableGenders: mapRestrictionToApplicableGenders(type.genderRestriction),
+        color: type.color,
+        isActive: !type.isActive,
       });
-      const json = (await res.json()) as { data?: any; error?: string };
-      if (!res.ok) {
-        throw new Error(json.error || "فشل تحديث الحالة");
+      if (!res.success) {
+        throw new Error(res.error || "فشل تحديث الحالة");
       }
       await loadLeaveTypes();
     } catch (err) {
@@ -477,8 +474,10 @@ export function LeaveTypesManager() {
                   <TableCell>
                     <div className="flex items-center gap-3">
                       <div
-                        className="flex h-10 w-10 items-center justify-center rounded-lg text-white"
-                        style={{ backgroundColor: type.color }}
+                        className={cn(
+                          "flex h-10 w-10 items-center justify-center rounded-lg text-white",
+                          getLeaveTheme(type.color).bg
+                        )}
                       >
                         {categoryIcons[type.category]}
                       </div>
@@ -630,8 +629,10 @@ export function LeaveTypesManager() {
                         <SelectItem key={key} value={key}>
                           <div className="flex items-center gap-2">
                             <div
-                              className="h-3 w-3 rounded-full"
-                              style={{ backgroundColor: leaveTypeColors[key as LeaveCategory] }}
+                              className={cn(
+                                "h-3 w-3 rounded-full",
+                                getLeaveTheme(leaveTypeColors[key as LeaveCategory]).dot
+                              )}
                             />
                             {label}
                           </div>
