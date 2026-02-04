@@ -188,15 +188,9 @@ export function RequestsTable() {
                 )}
               </div>
             </TableCell>
-              {(() => {
-                const meta = getStatusMeta((request as any)?.status);
-                return (
-                  <Badge variant={meta.variant} className="gap-1">
-                    {meta.icon}
-                    {meta.label}
-                  </Badge>
-                );
-              })()}
+            <TableCell>
+              <div className="space-y-1">
+                <div className="flex items-center gap-2 text-sm">
                   <Users className="h-3 w-3 text-muted-foreground" />
                   {request.contactName}
                 </div>
@@ -216,10 +210,15 @@ export function RequestsTable() {
               <Badge variant="outline">{request.employeesCount || "غير محدد"}</Badge>
             </TableCell>
             <TableCell>
-              <Badge variant={statusConfig[request.status].variant} className="gap-1">
-                {statusConfig[request.status].icon}
-                {statusConfig[request.status].label}
-              </Badge>
+              {(() => {
+                const meta = getStatusMeta((request as any)?.status);
+                return (
+                  <Badge variant={meta.variant} className="gap-1">
+                    {meta.icon}
+                    {meta.label}
+                  </Badge>
+                );
+              })()}
             </TableCell>
             <TableCell>
               {new Date(request.createdAt).toLocaleDateString("ar-SA")}
