@@ -59,12 +59,28 @@ const statusConfig: Record<TenantStatus, { label: string; variant: "default" | "
     variant: "destructive",
     icon: <AlertCircle className="h-3 w-3" />
   },
+  cancelled: {
+    label: "ملغاة",
+    variant: "outline",
+    icon: <XCircle className="h-3 w-3" />,
+  },
   deleted: { 
     label: "محذوف", 
     variant: "outline",
     icon: <XCircle className="h-3 w-3" />
   },
 };
+
+function getStatusMeta(status: string) {
+  const meta = statusConfig[status as TenantStatus];
+  return (
+    meta ?? {
+      label: status,
+      variant: "outline" as const,
+      icon: <AlertCircle className="h-3 w-3" />,
+    }
+  );
+}
 
 const planLabels: Record<string, string> = {
   starter: "Starter",
@@ -164,13 +180,20 @@ export function TenantsTable() {
               </code>
             </TableCell>
             <TableCell>
-              <Badge variant={statusConfig[tenant.status].variant} className="gap-1">
-                {statusConfig[tenant.status].icon}
-                {statusConfig[tenant.status].label}
-              </Badge>
+              {(() => {
+                const meta = getStatusMeta(String((tenant as any)?.status ?? "unknown"));
+                return (
+                  <Badge variant={meta?.variant ?? "outline"} className="gap-1">
+                    {meta?.icon}
+                    {meta?.label ?? "—"}
+                  </Badge>
+                );
+              })()}
             </TableCell>
             <TableCell>
-              <Badge variant="outline">{planLabels[tenant.plan]}</Badge>
+              <Badge variant="outline">
+                {planLabels[String((tenant as any)?.plan ?? "").toLowerCase()] ?? String((tenant as any)?.plan ?? "—")}
+              </Badge>
             </TableCell>
             <TableCell className="text-center">{tenant.usersCount}</TableCell>
             <TableCell className="text-center">{tenant.employeesCount}</TableCell>

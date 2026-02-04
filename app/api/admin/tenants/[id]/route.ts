@@ -9,6 +9,16 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import type { Tenant, TenantStatus } from "@/lib/types/tenant";
 
+function mapPlanFromDb(plan: unknown): Tenant["plan"] {
+  const v = String(plan ?? "").toUpperCase();
+  if (v === "ENTERPRISE") return "enterprise";
+  if (v === "PROFESSIONAL" || v === "BUSINESS") return "business";
+  if (v === "BASIC" || v === "STARTER" || v === "TRIAL") return "starter";
+  const lower = String(plan ?? "").toLowerCase();
+  if (lower === "enterprise" || lower === "business" || lower === "starter") return lower as Tenant["plan"];
+  return "starter";
+}
+
 // Map DB tenant to client format
 function mapTenant(t: any): Tenant {
   return {
@@ -17,7 +27,7 @@ function mapTenant(t: any): Tenant {
     nameAr: t.nameAr ?? t.name,
     slug: t.slug,
     status: (t.status?.toLowerCase() ?? "pending") as TenantStatus,
-    plan: (t.plan?.toLowerCase() ?? "starter") as Tenant["plan"],
+    plan: mapPlanFromDb(t.plan),
     email: t.email ?? "",
     country: t.country ?? "SA",
     defaultLocale: t.defaultLocale ?? "ar",

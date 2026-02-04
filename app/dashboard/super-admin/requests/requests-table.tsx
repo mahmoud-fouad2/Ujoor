@@ -58,6 +58,18 @@ const statusConfig: Record<SubscriptionRequest["status"], { label: string; varia
   },
 };
 
+function getStatusMeta(status: unknown) {
+  const key = String(status ?? "pending") as SubscriptionRequest["status"];
+  const meta = (statusConfig as Record<string, any>)[key];
+  return (
+    meta ?? {
+      label: String(status ?? "—"),
+      variant: "secondary" as const,
+      icon: <Clock className="h-3 w-3" />,
+    }
+  );
+}
+
 export function RequestsTable() {
   const [requests, setRequests] = React.useState<SubscriptionRequest[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
@@ -176,9 +188,15 @@ export function RequestsTable() {
                 )}
               </div>
             </TableCell>
-            <TableCell>
-              <div className="space-y-1">
-                <div className="flex items-center gap-2 text-sm">
+              {(() => {
+                const meta = getStatusMeta((request as any)?.status);
+                return (
+                  <Badge variant={meta.variant} className="gap-1">
+                    {meta.icon}
+                    {meta.label}
+                  </Badge>
+                );
+              })()}
                   <Users className="h-3 w-3 text-muted-foreground" />
                   {request.contactName}
                 </div>

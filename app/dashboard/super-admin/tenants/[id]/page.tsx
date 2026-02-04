@@ -31,8 +31,18 @@ const statusConfig: Record<TenantStatus, { label: string; variant: "default" | "
   active: { label: "نشط", variant: "default" },
   pending: { label: "معلق", variant: "secondary" },
   suspended: { label: "موقوف", variant: "destructive" },
+  cancelled: { label: "ملغاة", variant: "outline" },
   deleted: { label: "محذوف", variant: "outline" },
 };
+
+function getStatusMeta(status: string) {
+  return (
+    statusConfig[status as TenantStatus] ?? {
+      label: status,
+      variant: "outline" as const,
+    }
+  );
+}
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -124,9 +134,14 @@ export default function TenantDetailsPage({ params }: PageProps) {
           <h1 className="text-2xl font-bold flex items-center gap-2">
             <Building2 className="h-6 w-6" />
             {tenant.nameAr}
-            <Badge variant={statusConfig[tenant.status].variant} className="ms-2">
-              {statusConfig[tenant.status].label}
-            </Badge>
+            {(() => {
+              const meta = getStatusMeta(String((tenant as any)?.status ?? "unknown"));
+              return (
+                <Badge variant={meta?.variant ?? "outline"} className="ms-2">
+                  {meta?.label ?? "—"}
+                </Badge>
+              );
+            })()}
           </h1>
           <p className="text-muted-foreground">{tenant.name}</p>
         </div>

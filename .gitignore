@@ -25,6 +25,15 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
+# local temp artifacts
+/tmp/
+*.cookies.txt
+*.out.log
+*.err.log
+
+# lockfiles (project uses pnpm)
+package-lock.json
+
 # local env files
 .env
 .env*.local

@@ -5,6 +5,16 @@ import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/db";
 import type { Tenant, TenantStatus } from "@/lib/types/tenant";
 
+function mapPlanFromDb(plan: unknown): Tenant["plan"] {
+  const v = String(plan ?? "").toUpperCase();
+  if (v === "ENTERPRISE") return "enterprise";
+  if (v === "PROFESSIONAL" || v === "BUSINESS") return "business";
+  if (v === "BASIC" || v === "STARTER" || v === "TRIAL") return "starter";
+  const lower = String(plan ?? "").toLowerCase();
+  if (lower === "enterprise" || lower === "business" || lower === "starter") return lower as Tenant["plan"];
+  return "starter";
+}
+
 function isValidSlug(value: string): boolean {
   return /^[a-z0-9-]{3,30}$/.test(value);
 }
@@ -25,7 +35,7 @@ function mapTenant(t: any): Tenant {
     nameAr: t.nameAr ?? t.name,
     slug: t.slug,
     status: (t.status?.toLowerCase() ?? "pending") as TenantStatus,
-    plan: (t.plan?.toLowerCase() ?? "starter") as Tenant["plan"],
+    plan: mapPlanFromDb(t.plan),
     email: "",
     country: "SA",
     defaultLocale: "ar",

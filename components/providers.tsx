@@ -1,42 +1,19 @@
 "use client";
 
-import { MantineProvider } from "@mantine/core";
 import { ThemeProvider } from "next-themes";
-import { useState } from "react";
 import { Toaster } from "./ui/sonner";
 import { LocaleTransitionOverlay } from "./locale-transition";
 import { RouteProgress } from "./route-progress";
-
-function getCookieValue(cookieName: string): string | undefined {
-  if (typeof document === "undefined") return undefined;
-  const match = document.cookie
-    .split(";")
-    .map((c) => c.trim())
-    .find((c) => c.startsWith(`${cookieName}=`));
-  if (!match) return undefined;
-  return decodeURIComponent(match.split("=").slice(1).join("="));
-}
-
-type UiTheme = "shadcn" | "mantine";
+import { ConsoleNoiseGuard } from "./console-noise-guard";
 
 export default function Providers({ children }: { children: React.ReactNode }) {
-  const [uiTheme] = useState<UiTheme>(() => {
-    const value = getCookieValue("ujoors_ui_theme");
-    return value === "mantine" || value === "shadcn" ? value : "shadcn";
-  });
-
   return (
     <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
-      <MantineProvider
-        // Mantine is optional; wrapping is safe for shadcn screens.
-        // We will progressively route shared components through a theme adapter.
-        theme={{}}
-      >
-        {children}
-        <RouteProgress />
-        <LocaleTransitionOverlay />
-        <Toaster />
-      </MantineProvider>
+      {children}
+      <ConsoleNoiseGuard />
+      <RouteProgress />
+      <LocaleTransitionOverlay />
+      <Toaster />
     </ThemeProvider>
   );
 }
