@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { Bell, HelpCircle, LogOut, User, KeyRound, ChevronLeft, ChevronRight, Moon, Sun } from "lucide-react";
+import { Bell, HelpCircle, LogOut, User, KeyRound, ChevronLeft, ChevronRight, Moon, Sun, Mail } from "lucide-react";
 import { getSession } from "next-auth/react";
 import { useTheme } from "next-themes";
 

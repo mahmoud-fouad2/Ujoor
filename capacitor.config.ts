@@ -8,7 +8,6 @@ const config: CapacitorConfig = {
   // This project is a Next.js app (not statically exportable because of API routes/DB/auth).
   // For APK testing we typically point the Android WebView at a running server.
   webDir: "public",
-  bundledWebRuntime: false,
   ...(serverUrl
     ? {
         server: {
