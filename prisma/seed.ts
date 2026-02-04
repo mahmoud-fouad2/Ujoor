@@ -218,7 +218,7 @@ async function main() {
         data: {
           tenantId: tenant.id,
           userId: tenantAdmin.id,
-          employeeNumber: `EMP001-${tenant.slug.toUpperCase()}`,
+          employeeNumber: "000001",
           firstName: "مدير",
           lastName: tenantData.nameAr,
           email: tenantData.adminEmail,

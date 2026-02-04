@@ -97,6 +97,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    // Restrict employee creation to privileged roles
+    if (!(["SUPER_ADMIN", "TENANT_ADMIN", "HR_MANAGER"] as const).includes(session.user.role as any)) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
     const tenantId = session.user.tenantId;
     
     if (!tenantId) {
@@ -105,19 +110,47 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
 
-    // Generate employee number
-    const lastEmployee = await prisma.employee.findFirst({
-      where: { tenantId },
-      orderBy: { employeeNumber: "desc" },
-    });
+    if (!body?.firstName || !body?.lastName || !body?.email || !body?.hireDate) {
+      return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+    }
 
-    const nextNumber = lastEmployee 
-      ? String(parseInt(lastEmployee.employeeNumber) + 1).padStart(6, "0")
-      : "000001";
+    const userId = body.userId ? String(body.userId) : null;
+    if (userId) {
+      const user = await prisma.user.findFirst({
+        where: { id: userId, tenantId },
+        select: { id: true },
+      });
+      if (!user) {
+        return NextResponse.json({ error: "Invalid userId" }, { status: 400 });
+      }
+
+      const alreadyLinked = await prisma.employee.findUnique({
+        where: { userId },
+        select: { id: true },
+      });
+      if (alreadyLinked) {
+        return NextResponse.json({ error: "User is already linked to an employee" }, { status: 400 });
+      }
+    }
+
+    // Generate employee number
+    // Seed data may contain non-numeric employee numbers (e.g. "EMP001-DEMO").
+    // To avoid generating "NaN" and hitting unique constraints, compute the max
+    // numeric employee number within the tenant and increment it.
+    const maxNumeric = await prisma.$queryRaw<Array<{ max: number | null }>>`
+      SELECT MAX(CAST("employeeNumber" AS INT)) as max
+      FROM "Employee"
+      WHERE "tenantId" = ${tenantId}
+        AND "employeeNumber" ~ '^[0-9]+$'
+    `;
+
+    const currentMax = maxNumeric?.[0]?.max ?? 0;
+    const nextNumber = String(currentMax + 1).padStart(6, "0");
 
     const employee = await prisma.employee.create({
       data: {
         tenantId,
+        userId: userId ?? undefined,
         employeeNumber: nextNumber,
         firstName: body.firstName,
         lastName: body.lastName,
