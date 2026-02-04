@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { generateMeta } from "@/lib/utils";
-import { OrganizationManager } from "./organization-manager";
+import { OrganizationManager } from "./organization-manager-new";
 
 export async function generateMetadata(): Promise<Metadata> {
   return generateMeta({

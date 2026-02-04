@@ -17,25 +17,27 @@ export default async function Page({ children }: { children: React.ReactNode }) 
   const sidebarSide = dir === "rtl" ? "right" : "left";
 
   return (
-    <SidebarProvider
-      style={
-        {
-          "--sidebar-width": "calc(var(--spacing) * 72)",
-          "--header-height": "calc(var(--spacing) * 12)",
-        } as React.CSSProperties
-      }
-    >
-      <AppSidebar variant="inset" side={sidebarSide} />
-      <SidebarInset>
-        <SiteHeader locale={locale} dir={dir} />
-        <div className="flex flex-1 flex-col">
-          <div className="@container/main flex flex-1 flex-col gap-2">
-            <div className="flex flex-col gap-4  md:gap-6 p-4 lg:p-6">
-              <PageTransition>{children}</PageTransition>
+    <div lang={locale} dir={dir} className="min-h-screen">
+      <SidebarProvider
+        style={
+          {
+            "--sidebar-width": "calc(var(--spacing) * 72)",
+            "--header-height": "calc(var(--spacing) * 12)",
+          } as React.CSSProperties
+        }
+      >
+        <AppSidebar variant="inset" side={sidebarSide} />
+        <SidebarInset>
+          <SiteHeader locale={locale} dir={dir} />
+          <div className="flex flex-1 flex-col">
+            <div className="@container/main flex flex-1 flex-col gap-2">
+              <div className="flex flex-col gap-4  md:gap-6 p-4 lg:p-6">
+                <PageTransition>{children}</PageTransition>
+              </div>
             </div>
           </div>
-        </div>
-      </SidebarInset>
-    </SidebarProvider>
+        </SidebarInset>
+      </SidebarProvider>
+    </div>
   )
 }

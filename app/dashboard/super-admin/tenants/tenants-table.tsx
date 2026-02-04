@@ -225,7 +225,7 @@ export function TenantsTable() {
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild>
                     <a
-                      href={`/?tenant=${encodeURIComponent(tenant.slug)}&next=${encodeURIComponent("/dashboard")}`}
+                      href={buildTenantUrl(tenant.slug, "/dashboard")}
                       target="_blank"
                       rel="noreferrer"
                     >

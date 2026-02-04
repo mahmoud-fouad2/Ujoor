@@ -1,7 +1,6 @@
 "use client"
 
 import * as React from "react"
-import { useState, useEffect } from "react"
 import {
   IconChartBar,
   IconDashboard,
@@ -13,28 +12,22 @@ import {
 } from "@tabler/icons-react";
 import Link from "next/link";
 import { getSession } from "next-auth/react";
+import { useClientLocale } from "@/lib/i18n/use-client-locale";
 
 import { NavMain } from "@/components/nav-main"
+import { NavUser } from "@/components/nav-user"
 import {
   Sidebar,
   SidebarContent,
+  SidebarFooter,
   SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
 
-// Safe locale getter - returns default during SSR
-function useLocale(): "ar" | "en" {
-  const [locale, setLocale] = useState<"ar" | "en">("ar");
-  
-  useEffect(() => {
-    const lang = document.documentElement.lang;
-    setLocale(lang === "en" ? "en" : "ar");
-  }, []);
-  
-  return locale;
-}
+
+type NavItem = { title: string; url: string; icon: any };
 
 function getCookieValue(cookieName: string): string | undefined {
   if (typeof document === "undefined") return undefined;
@@ -46,12 +39,10 @@ function getCookieValue(cookieName: string): string | undefined {
   return decodeURIComponent(match.split("=").slice(1).join("="));
 }
 
-type NavItem = { title: string; url: string; icon: any };
-
 function getNav(locale: "ar" | "en", role?: string, hasTenant?: boolean): NavItem[] {
   const p = locale === "en" ? "/en" : "";
 
-  // SUPER_ADMIN without tenant context: avoid tenant-only pages that will redirect to landing.
+  // SUPER_ADMIN without tenant context: show only platform admin area.
   if (role === "SUPER_ADMIN" && !hasTenant) {
     return [
       {
@@ -72,21 +63,25 @@ function getNav(locale: "ar" | "en", role?: string, hasTenant?: boolean): NavIte
     ];
   }
 
+  // When a tenant is selected (cookie/subdomain), hide platform-only pages.
+  // SUPER_ADMIN may still access them via the dedicated super-admin dashboard.
+  const platformShortcut: NavItem[] =
+    role === "SUPER_ADMIN" && hasTenant
+      ? [
+          {
+            title: locale === "ar" ? "لوحة السوبر أدمن" : "Platform Admin",
+            url: `${p}/dashboard/super-admin`,
+            icon: IconDashboard,
+          },
+        ]
+      : [];
+
   return [
+    ...platformShortcut,
     {
       title: locale === "ar" ? "الرئيسية" : "Dashboard",
       url: `${p}/dashboard`,
       icon: IconDashboard,
-    },
-    {
-      title: locale === "ar" ? "طلبات الاشتراك (Super Admin)" : "Subscription Requests (Super Admin)",
-      url: `${p}/dashboard/super-admin/requests`,
-      icon: IconListDetails,
-    },
-    {
-      title: locale === "ar" ? "الشركات (Super Admin)" : "Tenants (Super Admin)",
-      url: `${p}/dashboard/super-admin/tenants`,
-      icon: IconUsers,
     },
     {
       title: locale === "ar" ? "الموظفون" : "Employees",
@@ -132,10 +127,11 @@ function getNav(locale: "ar" | "en", role?: string, hasTenant?: boolean): NavIte
 }
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
-  const locale = useLocale();
+  const locale = useClientLocale("ar");
   const p = locale === "en" ? "/en" : "";
   const [role, setRole] = React.useState<string | undefined>(undefined);
   const [hasTenant, setHasTenant] = React.useState<boolean>(false);
+  const [user, setUser] = React.useState<{ name: string; email: string; avatar: string } | null>(null);
 
   React.useEffect(() => {
     let mounted = true;
@@ -143,7 +139,14 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       const tenant = getCookieValue("ujoors_tenant");
       if (mounted) setHasTenant(Boolean(tenant));
       const session = await getSession();
-      if (mounted) setRole((session?.user as any)?.role);
+      if (mounted) {
+        const sUser = session?.user as any;
+        setRole(sUser?.role);
+        const name = sUser?.name || `${sUser?.firstName || ""} ${sUser?.lastName || ""}`.trim() || "User";
+        const email = sUser?.email || "";
+        const avatar = sUser?.avatar || "/images/avatars/1.png";
+        setUser({ name, email, avatar });
+      }
     })();
     return () => {
       mounted = false;
@@ -179,6 +182,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       <SidebarContent>
         <NavMain items={navItems} />
       </SidebarContent>
+      <SidebarFooter>
+        {user ? <NavUser user={user} /> : null}
+      </SidebarFooter>
     </Sidebar>
   )
 }

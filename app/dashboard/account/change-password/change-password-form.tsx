@@ -26,7 +26,8 @@ export function ChangePasswordForm({ locale }: { locale: "ar" | "en" }) {
         saving: "جارٍ الحفظ...",
         required: "يرجى تعبئة جميع الحقول.",
         mismatch: "كلمتا المرور غير متطابقتين.",
-        success: "تم حفظ كلمة المرور (تجريبيًا).",
+        success: "تم تغيير كلمة المرور بنجاح.",
+        minLength: "كلمة المرور يجب أن تكون 6 أحرف على الأقل.",
       };
     }
 
@@ -39,13 +40,19 @@ export function ChangePasswordForm({ locale }: { locale: "ar" | "en" }) {
       saving: "Saving...",
       required: "Please fill in all fields.",
       mismatch: "Passwords do not match.",
-      success: "Password saved (demo).",
+      success: "Password changed successfully.",
+      minLength: "Password must be at least 6 characters.",
     };
   }, [locale]);
 
   const onSave = async () => {
     if (!current || !next || !confirm) {
       toast.error(copy.required);
+      return;
+    }
+
+    if (next.length < 6) {
+      toast.error(copy.minLength);
       return;
     }
 
@@ -56,14 +63,27 @@ export function ChangePasswordForm({ locale }: { locale: "ar" | "en" }) {
 
     setIsSaving(true);
     try {
-      // TODO: Replace with API call to change password
-      await new Promise((resolve) => setTimeout(resolve, 500)); // Simulate API delay
+      const res = await fetch("/api/account/change-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          currentPassword: current,
+          newPassword: next,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to change password");
+      }
+
       toast.success(copy.success);
       setCurrent("");
       setNext("");
       setConfirm("");
-    } catch {
-      toast.error(locale === "ar" ? "تعذر الحفظ." : "Could not save.");
+    } catch (error: any) {
+      toast.error(error.message || (locale === "ar" ? "تعذر الحفظ." : "Could not save."));
     } finally {
       setIsSaving(false);
     }

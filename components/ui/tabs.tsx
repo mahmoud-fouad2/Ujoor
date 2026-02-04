@@ -4,15 +4,19 @@ import * as React from "react"
 import { Tabs as TabsPrimitive } from "radix-ui"
 
 import { cn } from "@/lib/utils"
+import { useAppDir } from "@/components/direction-context"
 
 function Tabs({
   className,
+  dir,
   ...props
 }: React.ComponentProps<typeof TabsPrimitive.Root>) {
+  const appDir = useAppDir()
   return (
     <TabsPrimitive.Root
       data-slot="tabs"
       className={cn("flex flex-col gap-2", className)}
+      dir={dir ?? appDir}
       {...props}
     />
   )

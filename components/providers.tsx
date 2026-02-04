@@ -5,15 +5,24 @@ import { Toaster } from "./ui/sonner";
 import { LocaleTransitionOverlay } from "./locale-transition";
 import { RouteProgress } from "./route-progress";
 import { ConsoleNoiseGuard } from "./console-noise-guard";
+import { AppDirectionProvider } from "./direction-context";
 
-export default function Providers({ children }: { children: React.ReactNode }) {
+export default function Providers({
+  children,
+  dir,
+}: {
+  children: React.ReactNode;
+  dir: "ltr" | "rtl";
+}) {
   return (
     <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
-      {children}
-      <ConsoleNoiseGuard />
-      <RouteProgress />
-      <LocaleTransitionOverlay />
-      <Toaster />
+      <AppDirectionProvider dir={dir}>
+        {children}
+        <ConsoleNoiseGuard />
+        <RouteProgress />
+        <LocaleTransitionOverlay />
+        <Toaster />
+      </AppDirectionProvider>
     </ThemeProvider>
   );
 }

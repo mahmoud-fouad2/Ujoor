@@ -7,6 +7,7 @@ import { NextAuthOptions, getServerSession } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { compare, hash } from "bcryptjs";
 import prisma from "@/lib/db";
+import { logger } from "@/lib/logger";
 import { redirect } from "next/navigation";
 
 // ============================================
@@ -142,11 +143,21 @@ export const authOptions: NextAuthOptions = {
                   : undefined,
             },
           });
+          
+          logger.auth("login_failed", credentials.email, {
+            reason: "invalid_credentials",
+            attempts: user.failedLoginAttempts,
+          });
+          
           throw new Error("البريد الإلكتروني أو كلمة المرور غير صحيحة");
         }
 
         // Check tenant status (if not super admin)
         if (user.tenant && user.tenant.status !== "ACTIVE") {
+          logger.auth("login_failed", user.id, {
+            reason: "tenant_inactive",
+            tenantId: user.tenantId,
+          });
           throw new Error("حساب المنشأة معطل. تواصل مع الدعم الفني");
         }
 
@@ -169,6 +180,11 @@ export const authOptions: NextAuthOptions = {
             entity: "User",
             entityId: user.id,
           },
+        });
+
+        logger.auth("login", user.id, {
+          tenantId: user.tenantId,
+          role: user.role,
         });
 
         return {

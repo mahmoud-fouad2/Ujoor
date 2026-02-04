@@ -3,10 +3,31 @@ import type { PrismaClient } from "@prisma/client";
 
 const DEFAULT_REFRESH_TTL_DAYS = 30;
 
+let warnedMissingRefreshSecret = false;
+
 function getRefreshSecret(): string {
-  const secret = process.env.MOBILE_REFRESH_TOKEN_SECRET;
-  if (!secret) throw new Error("MOBILE_REFRESH_TOKEN_SECRET is not set");
-  return secret;
+  const explicit = process.env.MOBILE_REFRESH_TOKEN_SECRET;
+  if (explicit) return explicit;
+
+  const isProd = process.env.NODE_ENV === "production";
+  if (isProd) throw new Error("MOBILE_REFRESH_TOKEN_SECRET is not set");
+
+  const fallback =
+    process.env.MOBILE_JWT_SECRET ??
+    process.env.NEXTAUTH_SECRET ??
+    process.env.AUTH_SECRET ??
+    process.env.JWT_SECRET ??
+    "dev-mobile-refresh-token-secret";
+
+  if (!warnedMissingRefreshSecret) {
+    warnedMissingRefreshSecret = true;
+    // eslint-disable-next-line no-console
+    console.warn(
+      "[mobile] MOBILE_REFRESH_TOKEN_SECRET is not set; using a development fallback secret (set MOBILE_REFRESH_TOKEN_SECRET to silence this)."
+    );
+  }
+
+  return fallback;
 }
 
 export function hashRefreshToken(rawToken: string): string {

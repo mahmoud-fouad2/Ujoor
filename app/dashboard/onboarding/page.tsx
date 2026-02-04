@@ -1,4 +1,4 @@
-import { OnboardingManager } from "./onboarding-manager";
+import { OnboardingManagerNew } from "./onboarding-manager-new";
 
 export default function OnboardingPage() {
   return (
@@ -9,7 +9,7 @@ export default function OnboardingPage() {
           <p className="text-muted-foreground">متابعة إجراءات الموظفين الجدد</p>
         </div>
       </div>
-      <OnboardingManager />
+      <OnboardingManagerNew />
     </div>
   );
 }

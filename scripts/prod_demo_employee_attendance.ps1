@@ -51,6 +51,55 @@ function Invoke-CurlJson {
   throw "Request failed after $MaxRetries retries"
 }
 
+function Invoke-CurlJsonWithStatus {
+  param(
+    [Parameter(Mandatory=$true)][string[]]$Args,
+    [int]$MaxRetries = 6,
+    [int]$BaseDelaySeconds = 10
+  )
+
+  for ($attempt = 1; $attempt -le $MaxRetries; $attempt++) {
+    $raw = (& curl.exe @Args)
+    $text = $raw -join "`n"
+
+    $status = $null
+    if ($text -match "HTTP/\d\.\d\s+(\d{3})") {
+      $status = [int]$Matches[1]
+    }
+
+    if ($status -eq 429) {
+      $reset = $null
+      if ($text -match "(?im)^x-ratelimit-reset:\s*(\d+)") {
+        $reset = [int64]$Matches[1]
+      }
+      $now = [int64][DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
+      $wait = if ($reset -and $reset -gt $now) { [Math]::Min(120, [int]($reset - $now + 2)) } else { $BaseDelaySeconds * $attempt }
+      Write-Host "Rate limited (429). Waiting $wait seconds then retrying..." -ForegroundColor Yellow
+      [System.Threading.Thread]::Sleep($wait * 1000)
+      continue
+    }
+
+    if ($status -ge 500 -and $status -lt 600) {
+      $wait = [Math]::Min(60, $BaseDelaySeconds * $attempt)
+      Write-Host "Server error ($status). Waiting $wait seconds then retrying..." -ForegroundColor Yellow
+      [System.Threading.Thread]::Sleep($wait * 1000)
+      continue
+    }
+
+    $body = ($text -split "\r?\n\r?\n", 2)[1]
+    $json = $null
+    try {
+      if ($body) { $json = ($body | ConvertFrom-Json) }
+    } catch {
+      $json = $null
+    }
+
+    return [pscustomobject]@{ Status = $status; Json = $json; Raw = $text }
+  }
+
+  throw "Request failed after $MaxRetries retries"
+}
+
 Write-Host "[1/5] NextAuth login (cookie) as tenant admin" -ForegroundColor Cyan
 $csrf = Invoke-CurlJson -Args @('-sS','-c',$cookie,'-b',$cookie,"$BaseUrl/api/auth/csrf")
 if (-not $csrf.csrfToken) { throw "No csrfToken" }
@@ -85,9 +134,13 @@ $userPayload = @{
   role      = 'EMPLOYEE'
   phone     = '0500000002'
 } | ConvertTo-Json -Compress
-$userRes = Invoke-CurlJson -Args @('-sS','-X','POST','-c',$cookie,'-b',$cookie,'-H','Content-Type: application/json','--data-binary',$userPayload,"$BaseUrl/api/users")
-if (-not $userRes.data.id) { throw ('User create failed: ' + (($userRes | ConvertTo-Json -Depth 10))) }
-$userId = $userRes.data.id
+$userResp = Invoke-CurlJsonWithStatus -Args @('-sS','-i','-X','POST','-c',$cookie,'-b',$cookie,'-H','Content-Type: application/json','--data-binary',$userPayload,"$BaseUrl/api/users")
+if ($userResp.Status -ne 201 -or -not $userResp.Json -or -not $userResp.Json.data -or -not $userResp.Json.data.id) {
+  Write-Host "User create failed (HTTP $($userResp.Status))" -ForegroundColor Yellow
+  Write-Host (($userResp.Raw -split "`n" | Select-Object -First 60) -join "`n") -ForegroundColor DarkYellow
+  throw ('User create failed: ' + (($userResp.Json | ConvertTo-Json -Depth 10)))
+}
+$userId = $userResp.Json.data.id
 
 Write-Host "[3/5] Link Employee record" -ForegroundColor Cyan
 $empPayload = @{

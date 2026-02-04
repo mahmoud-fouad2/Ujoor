@@ -12,6 +12,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import type { Tenant } from "@/lib/types/tenant";
 import { TenantSettingsForm } from "./tenant-settings-form";
 import { tenantsService } from "@/lib/api";
+import { TenantAdminCredentialsCard } from "./tenant-admin-credentials-card";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -122,6 +123,8 @@ export default function TenantSettingsPage({ params }: PageProps) {
           <TenantSettingsForm tenant={tenant} />
         </CardContent>
       </Card>
+
+      <TenantAdminCredentialsCard tenantId={tenant.id} />
 
       {/* Danger Zone */}
       <Card className="border-destructive">

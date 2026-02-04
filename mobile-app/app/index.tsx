@@ -14,9 +14,8 @@ export default function Index() {
     );
   }
 
-  if (auth.status === "signedIn") {
-    return <Redirect href="/(app)" />;
-  }
-
+  // Always start from the login screen on mobile.
+  // If the user already has a saved session, the login screen will immediately
+  // prompt biometrics (when enabled) and then redirect into the app.
   return <Redirect href="/(auth)/login" />;
 }

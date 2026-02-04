@@ -46,8 +46,12 @@ export default function HomeScreen() {
 
   useEffect(() => {
     (async () => {
-      // On first entry, refresh session (also triggers biometrics if enabled)
-      const token = (await auth.refreshSession()) ?? auth.accessToken;
+      // On first entry, try the current access token first.
+      // If it's missing/expired, refresh (which may trigger biometrics).
+      let token = auth.accessToken;
+      if (!token) {
+        token = await auth.refreshSession();
+      }
 
       if (!token) {
         setLoading(false);

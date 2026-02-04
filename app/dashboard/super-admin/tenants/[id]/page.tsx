@@ -226,10 +226,10 @@ export default function TenantDetailsPage({ params }: PageProps) {
                 <div className="flex items-center gap-3">
                   <Globe className="h-4 w-4 text-muted-foreground" />
                   <div>
-                    <p className="text-sm text-muted-foreground">الـ Subdomain</p>
+                    <p className="text-sm text-muted-foreground">رابط لوحة الشركة</p>
                     <p className="font-medium">
                       <code className="rounded bg-muted px-2 py-1">
-                        {tenant.slug}.ujoors.com
+                        {buildTenantUrl(tenant.slug, "/dashboard")}
                       </code>
                     </p>
                   </div>
@@ -238,7 +238,7 @@ export default function TenantDetailsPage({ params }: PageProps) {
                   <Mail className="h-4 w-4 text-muted-foreground" />
                   <div>
                     <p className="text-sm text-muted-foreground">البريد الإلكتروني</p>
-                    <p className="font-medium">{tenant.email}</p>
+                    <p className="font-medium" dir="ltr">{tenant.email || "-"}</p>
                   </div>
                 </div>
                 {tenant.phone && (

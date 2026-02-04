@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { IconPlus, IconRefresh } from "@tabler/icons-react";
+import { ExportButton } from "@/components/export-button";
 
 import type { Employee, Department, JobTitle, ContractType, EmployeeStatus } from "@/lib/types/core-hr";
 import { departmentsService, employeesService, jobTitlesService } from "@/lib/api";
@@ -25,6 +26,7 @@ import { EmployeeDeleteDialog } from "./_components/employee-delete-dialog";
 import { EmployeesFilters } from "./_components/employees-filters";
 import { EmployeesList } from "./_components/employees-list";
 import { EmployeesStats } from "./_components/employees-stats";
+import { EmployeesImportDialog } from "./_components/employees-import-dialog";
 import type { EmployeeFormData } from "./_components/employee-form-schema";
 import { employeeSchema } from "./_components/employee-form-schema";
 
@@ -35,9 +37,11 @@ export function EmployeesManager() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("");
   const [filterDept, setFilterDept] = useState<string>("all");
   const [filterStatus, setFilterStatus] = useState<string>("all");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
   const [viewingEmployee, setViewingEmployee] = useState<Employee | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -84,6 +88,11 @@ export function EmployeesManager() {
     loadData();
   }, [fetchEmployees, fetchDepartments, fetchJobTitles]);
 
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearchQuery(searchQuery), 200);
+    return () => clearTimeout(t);
+  }, [searchQuery]);
+
   const form = useForm<EmployeeFormData>({
     resolver: zodResolver(employeeSchema),
     defaultValues: {
@@ -107,7 +116,7 @@ export function EmployeesManager() {
 
   // Filter
   const filteredEmployees = employees.filter((emp) => {
-    const query = searchQuery.toLowerCase();
+    const query = debouncedSearchQuery.toLowerCase();
     const matchesSearch =
       emp.firstName?.toLowerCase().includes(query) ||
       emp.firstNameAr?.toLowerCase().includes(query) ||
@@ -319,6 +328,16 @@ export function EmployeesManager() {
               <CardDescription>إدارة بيانات الموظفين</CardDescription>
             </div>
             <div className="flex gap-2">
+              <ExportButton 
+                type="employees" 
+                filters={{ 
+                  departmentId: filterDept !== "all" ? filterDept : "",
+                  status: filterStatus !== "all" ? filterStatus : ""
+                }} 
+              />
+              <Button variant="outline" onClick={() => setIsImportDialogOpen(true)}>
+                استيراد CSV
+              </Button>
               <Button variant="outline" size="icon" onClick={fetchEmployees} title="تحديث">
                 <IconRefresh className="h-4 w-4" />
               </Button>
@@ -376,6 +395,12 @@ export function EmployeesManager() {
         onOpenChange={setDeleteDialogOpen}
         employee={employeeToDelete}
         onConfirm={confirmDelete}
+      />
+
+      <EmployeesImportDialog
+        open={isImportDialogOpen}
+        onOpenChange={setIsImportDialogOpen}
+        onImported={fetchEmployees}
       />
     </div>
   );

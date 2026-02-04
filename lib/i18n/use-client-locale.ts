@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useSyncExternalStore } from "react";
 import type { AppLocale } from "./types";
 
 /**
@@ -8,29 +8,23 @@ import type { AppLocale } from "./types";
  * Returns a default value during SSR to prevent hydration mismatches.
  */
 export function useClientLocale(defaultLocale: AppLocale = "ar"): AppLocale {
-  const [locale, setLocale] = useState<AppLocale>(defaultLocale);
-  const [mounted, setMounted] = useState(false);
+  return useSyncExternalStore(
+    // Locale changes are applied via full reload in this app, so no subscription needed.
+    () => () => {},
+    () => {
+      // Get locale from cookie first
+      const match = document.cookie.match(/(?:^|; )ujoors_locale=([^;]+)/);
+      const cookieValue = match?.[1];
+      const cookieLocale = cookieValue === "en" ? "en" : cookieValue === "ar" ? "ar" : undefined;
 
-  useEffect(() => {
-    setMounted(true);
-    
-    // Get locale from cookie first
-    const match = document.cookie.match(/(?:^|; )ujoors_locale=([^;]+)/);
-    const cookieLocale = match?.[1] === "en" ? "en" : match?.[1] === "ar" ? "ar" : undefined;
-    
-    if (cookieLocale) {
-      setLocale(cookieLocale);
-    } else {
+      if (cookieLocale) return cookieLocale;
+
       // Fallback to <html lang>
       const lang = document.documentElement.lang;
-      setLocale(lang === "en" ? "en" : "ar");
-    }
-  }, []);
-
-  // During SSR and initial render, return default to prevent hydration mismatch
-  if (!mounted) return defaultLocale;
-  
-  return locale;
+      return lang === "en" ? "en" : "ar";
+    },
+    () => defaultLocale
+  );
 }
 
 /**
@@ -38,11 +32,10 @@ export function useClientLocale(defaultLocale: AppLocale = "ar"): AppLocale {
  * Useful for preventing hydration mismatches.
  */
 export function useHydrated(): boolean {
-  const [hydrated, setHydrated] = useState(false);
-
-  useEffect(() => {
-    setHydrated(true);
-  }, []);
-
-  return hydrated;
+  // During SSR + hydration: false, after hydration: true
+  return useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false
+  );
 }

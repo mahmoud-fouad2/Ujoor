@@ -12,6 +12,10 @@ function stripPort(host: string): { host: string; port: string | null } {
   return { host: host.slice(0, idx), port: host.slice(idx + 1) };
 }
 
+function hostWithoutPort(host: string): string {
+  return stripPort(host).host.toLowerCase();
+}
+
 function normalizeBaseDomain(domain: string): string {
   const { host, port } = stripPort(domain);
   const cleanHost = host.toLowerCase();
@@ -54,7 +58,26 @@ export function buildTenantUrl(
   const domain = normalizeBaseDomain(runtimeDomain);
   const protocol = domain.includes("localhost") || /^[0-9.]+(?::\d+)?$/.test(domain) ? "http" : "https";
   const normalizedPath = path.startsWith("/") ? path : `/${path}`;
-  return `${protocol}://${tenantSlug}.${domain}${normalizedPath}`;
+
+  const mode = (
+    process.env.NEXT_PUBLIC_UJOORS_TENANT_URL_MODE ||
+    process.env.UJOORS_TENANT_URL_MODE ||
+    "auto"
+  ).toLowerCase();
+
+  const cleanHost = hostWithoutPort(domain);
+  const mustUsePath =
+    mode === "path" ||
+    (mode === "auto" &&
+      (cleanHost.endsWith(".onrender.com") ||
+        cleanHost.endsWith(".vercel.app") ||
+        cleanHost.endsWith(".netlify.app")));
+
+  if (mode === "subdomain" || (!mustUsePath && mode !== "path")) {
+    return `${protocol}://${tenantSlug}.${domain}${normalizedPath}`;
+  }
+
+  return `${protocol}://${domain}/t/${tenantSlug}${normalizedPath}`;
 }
 
 /**

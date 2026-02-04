@@ -11,15 +11,8 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { TableEmptyRow } from "@/components/empty-states/table-empty-row";
+import { useVirtualizer } from "@tanstack/react-virtual";
+import * as React from "react";
 
 import type { Employee } from "@/lib/types/core-hr";
 import { getEmployeeFullName } from "@/lib/types/core-hr";
@@ -43,6 +36,23 @@ export function EmployeesList({
   onEdit: (employee: Employee) => void;
   onDelete: (employee: Employee) => void;
 }) {
+  const parentRef = React.useRef<HTMLDivElement | null>(null);
+  const spacerRef = React.useRef<HTMLDivElement | null>(null);
+  // eslint-disable-next-line react-hooks/incompatible-library
+  const rowVirtualizer = useVirtualizer({
+    count: employees.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => 64,
+    overscan: 10,
+  });
+
+  const totalSize = rowVirtualizer.getTotalSize();
+
+  React.useEffect(() => {
+    if (!spacerRef.current) return;
+    spacerRef.current.style.height = `${totalSize}px`;
+  }, [totalSize]);
+
   return (
     <>
       <div className="md:hidden space-y-3">
@@ -119,69 +129,92 @@ export function EmployeesList({
       </div>
 
       <div className="hidden md:block rounded-md border">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="text-start">الرقم</TableHead>
-              <TableHead className="text-start">الاسم</TableHead>
-              <TableHead className="text-start">القسم</TableHead>
-              <TableHead className="text-start">المسمى</TableHead>
-              <TableHead className="text-start">الحالة</TableHead>
-              <TableHead className="text-start">تاريخ التعيين</TableHead>
-              <TableHead className="text-start w-[120px]">إجراءات</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {employees.length === 0 ? (
-              <TableEmptyRow
-                colSpan={7}
-                title="لا يوجد موظفون"
-                description="ابدأ بإضافة أول موظف لعرض البيانات هنا."
-                icon={<IconUser className="size-5" />}
-                actionLabel="إضافة موظف"
-                onAction={onAdd}
-              />
-            ) : (
-              employees.map((emp) => (
-                <TableRow key={emp.id}>
-                  <TableCell>
-                    <Badge variant="outline">{emp.employeeNumber}</Badge>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      <div className="size-8 rounded-full bg-muted flex items-center justify-center">
-                        <IconUser className="size-4" />
-                      </div>
+        <div className="border-b bg-muted/50">
+          <div className="grid grid-cols-[140px_2fr_1fr_1fr_140px_160px_140px] items-center gap-2 px-3 py-2 text-sm font-medium">
+            <div className="text-start">الرقم</div>
+            <div className="text-start">الاسم</div>
+            <div className="text-start">القسم</div>
+            <div className="text-start">المسمى</div>
+            <div className="text-start">الحالة</div>
+            <div className="text-start">تاريخ التعيين</div>
+            <div className="text-start">إجراءات</div>
+          </div>
+        </div>
+
+        {employees.length === 0 ? (
+          <div className="p-3">
+            <Empty className="border rounded-lg">
+              <EmptyHeader>
+                <EmptyMedia variant="icon">
+                  <IconUser className="size-5" />
+                </EmptyMedia>
+                <EmptyTitle>لا يوجد موظفون</EmptyTitle>
+                <EmptyDescription>ابدأ بإضافة أول موظف لعرض البيانات هنا.</EmptyDescription>
+              </EmptyHeader>
+              <EmptyContent>
+                <Button onClick={onAdd}>
+                  <IconPlus className="ms-2 h-4 w-4" />
+                  إضافة موظف
+                </Button>
+              </EmptyContent>
+            </Empty>
+          </div>
+        ) : (
+          <div ref={parentRef} className="max-h-[520px] overflow-auto">
+            <div ref={spacerRef} className="relative">
+              {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+                const emp = employees[virtualRow.index];
+                return (
+                  <div
+                    key={emp.id}
+                    className="absolute top-0 start-0 w-full border-b will-change-transform"
+                    ref={(el) => {
+                      if (!el) return;
+                      el.style.transform = `translateY(${virtualRow.start}px)`;
+                    }}
+                    data-index={virtualRow.index}
+                  >
+                    <div className="grid grid-cols-[140px_2fr_1fr_1fr_140px_160px_140px] items-center gap-2 px-3 py-2 text-sm hover:bg-muted/50">
                       <div>
-                        <div className="font-medium">{getEmployeeFullName(emp, "ar")}</div>
-                        <div className="text-sm text-muted-foreground">{emp.email}</div>
+                        <Badge variant="outline">{emp.employeeNumber}</Badge>
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <div className="size-8 rounded-full bg-muted flex items-center justify-center shrink-0">
+                            <IconUser className="size-4" />
+                          </div>
+                          <div className="min-w-0">
+                            <div className="font-medium truncate">{getEmployeeFullName(emp, "ar")}</div>
+                            <div className="text-xs text-muted-foreground truncate">{emp.email}</div>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="truncate">{getDeptName(emp.departmentId)}</div>
+                      <div className="truncate">{getJobName(emp.jobTitleId)}</div>
+                      <div>
+                        <EmployeeStatusBadge status={emp.status} />
+                      </div>
+                      <div className="truncate">{emp.hireDate}</div>
+                      <div>
+                        <div className="flex items-center gap-1 justify-start">
+                          <Button variant="ghost" size="icon" onClick={() => onView(emp)} title="عرض">
+                            <IconEye className="h-4 w-4" />
+                          </Button>
+                          <Button variant="ghost" size="icon" onClick={() => onEdit(emp)} title="تعديل">
+                            <IconPencil className="h-4 w-4" />
+                          </Button>
+                          <Button variant="ghost" size="icon" onClick={() => onDelete(emp)} title="حذف">
+                            <IconTrash className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </div>
                     </div>
-                  </TableCell>
-                  <TableCell>{getDeptName(emp.departmentId)}</TableCell>
-                  <TableCell>{getJobName(emp.jobTitleId)}</TableCell>
-                  <TableCell>
-                    <EmployeeStatusBadge status={emp.status} />
-                  </TableCell>
-                  <TableCell>{emp.hireDate}</TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-1">
-                      <Button variant="ghost" size="icon" onClick={() => onView(emp)} title="عرض">
-                        <IconEye className="h-4 w-4" />
-                      </Button>
-                      <Button variant="ghost" size="icon" onClick={() => onEdit(emp)} title="تعديل">
-                        <IconPencil className="h-4 w-4" />
-                      </Button>
-                      <Button variant="ghost" size="icon" onClick={() => onDelete(emp)} title="حذف">
-                        <IconTrash className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
     </>
   );

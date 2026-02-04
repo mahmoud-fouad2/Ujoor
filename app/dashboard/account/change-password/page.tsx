@@ -16,8 +16,8 @@ export default async function ChangePasswordPage() {
         <h1 className="text-2xl font-bold">{t.common.changePassword}</h1>
         <p className="text-muted-foreground">
           {locale === "ar"
-            ? "هذه شاشة تجريبية حتى يتم ربطها بنظام المصادقة."
-            : "This is a placeholder screen until authentication is wired."}
+            ? "قم بتغيير كلمة المرور الخاصة بك للحفاظ على أمان حسابك."
+            : "Change your password to keep your account secure."}
         </p>
       </div>
 

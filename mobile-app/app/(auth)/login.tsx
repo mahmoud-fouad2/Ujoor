@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { KeyboardAvoidingView, Platform, View } from "react-native";
 import { useRouter } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
@@ -22,6 +22,34 @@ export default function LoginScreen() {
   const [error, setError] = useState<string | null>(null);
   const [diag, setDiag] = useState<string | null>(null);
   const [testing, setTesting] = useState(false);
+
+  // On app launch, keep the user on the login screen.
+  // If there's a saved session (refresh token), unlock via biometrics first
+  // (when enabled) and then continue into the app.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (auth.status === "boot") return;
+      if (auth.status !== "signedIn") return;
+
+      setDiag(null);
+      setError(null);
+      setLoading(true);
+      try {
+        const token = await auth.refreshSession();
+        if (!token) return;
+        if (cancelled) return;
+        router.replace("/(app)");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [auth.status]);
 
   const isProbablyWrongForPhone =
     apiBaseUrl.includes("10.0.2.2") || apiBaseUrl.includes("localhost") || apiBaseUrl.includes("127.0.0.1");

@@ -79,6 +79,13 @@ export function DashboardHeaderActions({
   }, [locale]);
 
   const isSuperAdminNoTenant = role === "SUPER_ADMIN" && !hasTenant;
+  const isSuperAdminWithTenant = role === "SUPER_ADMIN" && hasTenant;
+
+  const exitTenantContext = () => {
+    const maxAge = 0;
+    document.cookie = `ujoors_tenant=; path=/; max-age=${maxAge}; samesite=lax`;
+    window.location.href = "/dashboard/super-admin";
+  };
   const demoTenants = [
     { slug: "demo", labelAr: "Demo", labelEn: "Demo" },
     { slug: "elite-tech", labelAr: "النخبة للتقنية", labelEn: "Elite Tech" },
@@ -161,6 +168,15 @@ export function DashboardHeaderActions({
 
   return (
     <div className="flex items-center gap-2">
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        aria-label={locale === "ar" ? "تبديل المظهر" : "Toggle theme"}
+        onClick={toggleTheme}
+      >
+        {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+      </Button>
       {/* Help */}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
@@ -355,10 +371,27 @@ export function DashboardHeaderActions({
                 {t.common.viewProfile}
               </Link>
             </DropdownMenuItem>
+            {isSuperAdminWithTenant ? (
+              <DropdownMenuItem
+                onSelect={(e: Event) => {
+                  e.preventDefault();
+                  exitTenantContext();
+                }}
+              >
+                <ChevronLeft className="me-2 h-4 w-4" />
+                {locale === "ar" ? "الرجوع للوحة السوبر أدمن" : "Back to Super Admin"}
+              </DropdownMenuItem>
+            ) : null}
             <DropdownMenuItem asChild>
               <Link href={`${p}/dashboard/account/change-password`}>
                 <KeyRound className="me-2 h-4 w-4" />
                 {t.common.changePassword}
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <Link href={`${p}/dashboard/account/change-email`}>
+                <Mail className="me-2 h-4 w-4" />
+                {locale === "ar" ? "تغيير البريد الإلكتروني" : "Change email"}
               </Link>
             </DropdownMenuItem>
             <DropdownMenuItem

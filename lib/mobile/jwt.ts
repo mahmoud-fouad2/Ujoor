@@ -8,12 +8,30 @@ export type MobileTokenPayload = {
   deviceId: string;
 };
 
+let warnedMissingMobileJwtSecret = false;
+
 function getSecret(): Uint8Array {
-  const secret = process.env.MOBILE_JWT_SECRET;
-  if (!secret) {
-    throw new Error("MOBILE_JWT_SECRET is not set");
+  const explicit = process.env.MOBILE_JWT_SECRET;
+  if (explicit) return new TextEncoder().encode(explicit);
+
+  const isProd = process.env.NODE_ENV === "production";
+  if (isProd) throw new Error("MOBILE_JWT_SECRET is not set");
+
+  const fallback =
+    process.env.NEXTAUTH_SECRET ??
+    process.env.AUTH_SECRET ??
+    process.env.JWT_SECRET ??
+    "dev-mobile-jwt-secret";
+
+  if (!warnedMissingMobileJwtSecret) {
+    warnedMissingMobileJwtSecret = true;
+    // eslint-disable-next-line no-console
+    console.warn(
+      "[mobile] MOBILE_JWT_SECRET is not set; using a development fallback secret (set MOBILE_JWT_SECRET to silence this)."
+    );
   }
-  return new TextEncoder().encode(secret);
+
+  return new TextEncoder().encode(fallback);
 }
 
 export async function issueMobileAccessToken(payload: MobileTokenPayload, opts?: { ttlSeconds?: number }) {

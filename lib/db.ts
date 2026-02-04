@@ -6,6 +6,7 @@
 
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
+import { createAuditMiddleware } from "./audit/middleware";
 
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
@@ -27,10 +28,27 @@ function createPrismaClient() {
   // PrismaPg supports standard `postgresql://` URLs (Render, etc.).
   const adapter = new PrismaPg({ connectionString: connString });
 
-  return new PrismaClient({
+  const client = new PrismaClient({
     adapter,
     log: process.env.NODE_ENV === "development" ? ["query", "error", "warn"] : ["error"],
   });
+
+  // Add audit logging middleware
+  if (process.env.ENABLE_AUDIT_LOGGING !== "false") {
+    // Prisma driver-adapter typings may not expose $use in some versions.
+    // Guard at runtime and keep middleware registration safe.
+    const anyClient = client as any;
+    if (typeof anyClient.$use === "function") {
+      anyClient.$use(createAuditMiddleware(anyClient));
+    } else {
+      // Avoid crashing on startup; audit can still be done manually in routes.
+      console.warn(
+        "Prisma middleware ($use) is not available; automatic audit logging is disabled."
+      );
+    }
+  }
+
+  return client;
 }
 
 export const prisma = globalForPrisma.prisma ?? createPrismaClient();

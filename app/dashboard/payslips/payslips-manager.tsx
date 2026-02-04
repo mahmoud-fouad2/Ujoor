@@ -167,7 +167,13 @@ export function PayslipsManager() {
       sent: { label: "تم الإرسال", variant: "default" },
       viewed: { label: "تم الاطلاع", variant: "default" },
     };
-    return <Badge variant={labels[status].variant}>{labels[status].label}</Badge>;
+
+    const meta = (labels as Record<string, { label: string; variant: "default" | "secondary" | "outline" }>)[status] ?? {
+      label: String(status ?? "غير معروف"),
+      variant: "outline" as const,
+    };
+
+    return <Badge variant={meta.variant}>{meta.label}</Badge>;
   };
 
   const currentPeriod = periods.find((p) => p.id === periodFilter);

@@ -73,7 +73,7 @@ export default async function RootLayout({
   return (
     <html lang={locale} dir={dir} suppressHydrationWarning>
       <body className={`${ibmPlexSansArabic.variable} font-sans`}>
-        <Providers>{children}</Providers>
+        <Providers dir={dir}>{children}</Providers>
       </body>
     </html>
   );

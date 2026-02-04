@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react";
+import { useClientLocale } from "@/lib/i18n/use-client-locale";
 import {
   IconDotsVertical,
   IconLogout,
@@ -44,14 +44,7 @@ export function NavUser({
 }) {
   const { isMobile, state } = useSidebar()
   const { theme, setTheme } = useTheme()
-  const [locale, setLocale] = useState<"ar" | "en">("ar");
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-    const lang = document.documentElement.lang;
-    setLocale(lang === "en" ? "en" : "ar");
-  }, []);
+  const locale = useClientLocale("ar");
 
   const toggleLocale = () => {
     const next = locale === "ar" ? "en" : "ar";
