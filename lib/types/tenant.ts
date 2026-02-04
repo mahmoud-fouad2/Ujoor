@@ -3,7 +3,7 @@
  * أنواع بيانات الشركات (Tenants)
  */
 
-export type TenantStatus = "active" | "suspended" | "pending" | "deleted";
+export type TenantStatus = "active" | "suspended" | "pending" | "cancelled" | "deleted";
 export type SubscriptionPlan = "starter" | "business" | "enterprise";
 
 export interface Tenant {
