@@ -134,24 +134,48 @@ export async function POST(request: NextRequest) {
     }
 
     // Generate employee number
-    // Seed data may contain non-numeric employee numbers (e.g. "EMP001-DEMO").
-    // To avoid generating "NaN" and hitting unique constraints, compute the max
-    // numeric employee number within the tenant and increment it.
-    const maxNumeric = await prisma.$queryRaw<Array<{ max: number | null }>>`
-      SELECT MAX(CAST("employeeNumber" AS INT)) as max
-      FROM "Employee"
-      WHERE "tenantId" = ${tenantId}
-        AND "employeeNumber" ~ '^[0-9]+$'
-    `;
+    // Production data may contain non-numeric employee numbers (e.g. "EMP001-DEMO").
+    // Use a fast DB max query when available, but fall back to a JS scan if the DB
+    // doesn't support the regex/cast (or if it errors for any reason).
+    let nextNumber: string;
+    try {
+      const maxNumeric = await prisma.$queryRaw<Array<{ max: number | null }>>`
+        SELECT MAX(CAST("employeeNumber" AS INT)) as max
+        FROM "Employee"
+        WHERE "tenantId" = ${tenantId}
+          AND "employeeNumber" ~ '^[0-9]+$'
+      `;
+      const currentMax = maxNumeric?.[0]?.max ?? 0;
+      nextNumber = String(currentMax + 1).padStart(6, "0");
+    } catch {
+      const rows = await prisma.employee.findMany({
+        where: { tenantId },
+        select: { employeeNumber: true },
+        take: 2000,
+      });
 
-    const currentMax = maxNumeric?.[0]?.max ?? 0;
-    const nextNumber = String(currentMax + 1).padStart(6, "0");
+      let max = 0;
+      for (const r of rows) {
+        const n = r.employeeNumber;
+        if (typeof n === "string" && /^\d+$/.test(n)) {
+          const parsed = Number.parseInt(n, 10);
+          if (Number.isFinite(parsed) && parsed > max) max = parsed;
+        }
+      }
 
-    const employee = await prisma.employee.create({
-      data: {
-        tenantId,
-        userId: userId ?? undefined,
-        employeeNumber: nextNumber,
+      nextNumber = String(max + 1).padStart(6, "0");
+    }
+
+    // Avoid rare collisions under concurrency by retrying a few numbers forward.
+    let employee = null as any;
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const candidate = String(Number.parseInt(nextNumber, 10) + attempt).padStart(6, "0");
+      try {
+        employee = await prisma.employee.create({
+          data: {
+            tenantId,
+            userId: userId ?? undefined,
+            employeeNumber: candidate,
         firstName: body.firstName,
         lastName: body.lastName,
         firstNameAr: body.firstNameAr,
@@ -172,12 +196,23 @@ export async function POST(request: NextRequest) {
         shiftId: body.shiftId,
         workLocation: body.workLocation,
         baseSalary: body.baseSalary,
-      },
-      include: {
-        department: true,
-        jobTitle: true,
-      },
-    });
+          },
+          include: {
+            department: true,
+            jobTitle: true,
+          },
+        });
+        break;
+      } catch (e: any) {
+        // Unique constraint collision on (tenantId, employeeNumber)
+        if (e?.code === "P2002") continue;
+        throw e;
+      }
+    }
+
+    if (!employee) {
+      return NextResponse.json({ error: "Failed to allocate employee number" }, { status: 500 });
+    }
 
     return NextResponse.json({ data: employee }, { status: 201 });
   } catch (error) {
