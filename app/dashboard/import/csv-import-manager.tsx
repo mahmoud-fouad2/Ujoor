@@ -267,17 +267,19 @@ export function CSVImportManager() {
 
                   <TabsContent value="upload" className="space-y-4">
                     {/* File Input */}
-                    <div
-                      className="border-2 border-dashed rounded-lg p-8 text-center cursor-pointer hover:border-primary transition-colors"
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      className="hidden"
+                      accept=".csv"
+                      onChange={handleFileSelect}
+                      aria-label="رفع ملف CSV"
+                    />
+                    <button
+                      type="button"
+                      className="w-full border-2 border-dashed rounded-lg p-8 text-center cursor-pointer hover:border-primary transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                       onClick={() => fileInputRef.current?.click()}
                     >
-                      <input
-                        ref={fileInputRef}
-                        type="file"
-                        className="hidden"
-                        accept=".csv"
-                        onChange={handleFileSelect}
-                      />
                       {importFile ? (
                         <div className="flex items-center justify-center gap-2">
                           <IconFileSpreadsheet className="h-8 w-8 text-green-500" />
@@ -297,7 +299,7 @@ export function CSVImportManager() {
                           </p>
                         </>
                       )}
-                    </div>
+                    </button>
 
                     {/* Progress */}
                     {importStatus === "validating" && (

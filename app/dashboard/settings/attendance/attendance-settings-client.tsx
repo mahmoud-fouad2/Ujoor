@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -63,11 +64,20 @@ export default function AttendanceSettingsClient({ locale }: { locale: Locale })
         fetch("/api/attendance/locations", { cache: "no-store" }),
       ]);
 
-      const pJson = await pRes.json();
-      const lJson = await lRes.json();
+      const pJson = await pRes.json().catch(() => null);
+      const lJson = await lRes.json().catch(() => null);
 
-      if (pRes.ok) setPolicy(pJson.data);
-      if (lRes.ok) setLocations(lJson.data?.items ?? []);
+      if (pRes.ok) {
+        setPolicy(pJson?.data ?? null);
+      } else {
+        toast.error(pJson?.error ?? t(locale, "تعذر تحميل سياسة الحضور.", "Failed to load policy."));
+      }
+
+      if (lRes.ok) {
+        setLocations(lJson?.data?.items ?? []);
+      } else {
+        toast.error(lJson?.error ?? t(locale, "تعذر تحميل مواقع العمل.", "Failed to load locations."));
+      }
     } finally {
       setLoading(false);
     }
@@ -93,11 +103,15 @@ export default function AttendanceSettingsClient({ locale }: { locale: Locale })
 
       if (!res.ok) {
         const json = await res.json().catch(() => null);
-        alert(json?.error ?? "Failed to save");
+        toast.error(
+          json?.error ??
+            t(locale, "تعذر حفظ السياسة.", "Failed to save policy.")
+        );
         return;
       }
 
       await loadAll();
+      toast.success(t(locale, "تم حفظ السياسة بنجاح.", "Policy saved."));
     } finally {
       setSavingPolicy(false);
     }
@@ -122,7 +136,10 @@ export default function AttendanceSettingsClient({ locale }: { locale: Locale })
 
       const json = await res.json().catch(() => null);
       if (!res.ok) {
-        alert(json?.error ?? "Failed to create");
+        toast.error(
+          json?.error ??
+            t(locale, "تعذر إنشاء الموقع.", "Failed to create location.")
+        );
         return;
       }
 
@@ -137,6 +154,7 @@ export default function AttendanceSettingsClient({ locale }: { locale: Locale })
         isActive: true,
       });
       await loadAll();
+      toast.success(t(locale, "تمت إضافة الموقع.", "Location created."));
     } finally {
       setCreating(false);
     }
@@ -150,10 +168,17 @@ export default function AttendanceSettingsClient({ locale }: { locale: Locale })
     });
     if (!res.ok) {
       const json = await res.json().catch(() => null);
-      alert(json?.error ?? "Failed to update");
+      toast.error(
+        json?.error ?? t(locale, "تعذر تحديث الموقع.", "Failed to update.")
+      );
       return;
     }
     await loadAll();
+    toast.success(
+      current
+        ? t(locale, "تم تعطيل الموقع.", "Location disabled.")
+        : t(locale, "تم تفعيل الموقع.", "Location enabled.")
+    );
   }
 
   async function deleteLocation(id: string) {
@@ -167,10 +192,13 @@ export default function AttendanceSettingsClient({ locale }: { locale: Locale })
     });
     if (!res.ok) {
       const json = await res.json().catch(() => null);
-      alert(json?.error ?? "Failed to delete");
+      toast.error(
+        json?.error ?? t(locale, "تعذر حذف الموقع.", "Failed to delete.")
+      );
       return;
     }
     await loadAll();
+    toast.success(t(locale, "تم حذف الموقع.", "Location deleted."));
   }
 
   const isRtl = locale === "ar";

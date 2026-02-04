@@ -58,6 +58,16 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -78,6 +88,8 @@ export function TrainingCoursesManager() {
   const [courses, setCourses] = React.useState<TrainingCourse[]>([]);
   const [searchQuery, setSearchQuery] = React.useState("");
   const [statusFilter, setStatusFilter] = React.useState<string>("all");
+  const [deleteCourseId, setDeleteCourseId] = React.useState<string | null>(null);
+  const [isDeletingCourse, setIsDeletingCourse] = React.useState(false);
   const [categoryFilter, setCategoryFilter] = React.useState<string>("all");
   const [isAddSheetOpen, setIsAddSheetOpen] = React.useState(false);
   const [selectedCourse, setSelectedCourse] = React.useState<TrainingCourse | null>(null);
@@ -225,20 +237,28 @@ export function TrainingCoursesManager() {
   };
 
   const handleDeleteCourse = async (id: string) => {
-    try {
-      if (!confirm("هل أنت متأكد من حذف هذه الدورة؟")) return;
+    setDeleteCourseId(id);
+  };
 
-      const res = await fetch(`/api/training/courses/${id}`, { method: "DELETE" });
+  const confirmDeleteCourse = async () => {
+    try {
+      if (!deleteCourseId || isDeletingCourse) return;
+      setIsDeletingCourse(true);
+
+      const res = await fetch(`/api/training/courses/${deleteCourseId}`, { method: "DELETE" });
       if (!res.ok) {
         const err = await res.json().catch(() => null);
         throw new Error(err?.error || "Failed to delete course");
       }
 
       toast.success("تم حذف الدورة");
+      setDeleteCourseId(null);
       await refresh();
     } catch (e: any) {
       console.error(e);
       toast.error(e?.message || "فشل حذف الدورة");
+    } finally {
+      setIsDeletingCourse(false);
     }
   };
 
@@ -786,6 +806,27 @@ export function TrainingCoursesManager() {
           )}
         </SheetContent>
       </Sheet>
+
+      <AlertDialog open={deleteCourseId !== null} onOpenChange={(open) => !open && setDeleteCourseId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>حذف الدورة</AlertDialogTitle>
+            <AlertDialogDescription>
+              هل أنت متأكد من حذف هذه الدورة؟ لا يمكن التراجع عن هذا الإجراء.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeletingCourse}>إلغاء</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => void confirmDeleteCourse()}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={isDeletingCourse}
+            >
+              {isDeletingCourse ? "جارٍ الحذف..." : "حذف"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

@@ -153,7 +153,7 @@ export default async function SuperAdminPage() {
                       {tenant.nameAr ?? tenant.name}
                     </Link>
                     <p className="text-sm text-muted-foreground">
-                      {tenant.slug}.ujoors.com • {tenant._count.users} مستخدم
+                      /t/{tenant.slug} • {tenant._count.users} مستخدم
                     </p>
                   </div>
                   <Badge

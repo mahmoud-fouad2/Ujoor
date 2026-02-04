@@ -35,9 +35,13 @@ export default function RequestsPage() {
               <Input
                 placeholder="البحث باسم الشركة أو البريد الإلكتروني..."
                 className="ps-9"
+                aria-label="البحث باسم الشركة أو البريد الإلكتروني"
               />
             </div>
-            <select className="rounded-md border border-input bg-background px-3 py-2 text-sm">
+            <select
+              className="rounded-md border border-input bg-background px-3 py-2 text-sm"
+              aria-label="تصفية حسب الحالة"
+            >
               <option value="">جميع الحالات</option>
               <option value="pending">معلقة</option>
               <option value="approved">مقبولة</option>

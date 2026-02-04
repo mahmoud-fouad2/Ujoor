@@ -50,3 +50,6 @@ next-env.d.ts
 /lib/generated/prisma
 /prisma/migrations/*_migration.sql
 
+# capacitor android (generated locally; currently untracked)
+/android/
+

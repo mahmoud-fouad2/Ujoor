@@ -53,6 +53,16 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -74,6 +84,7 @@ export function JobPostingsManager() {
   const [isAddSheetOpen, setIsAddSheetOpen] = React.useState(false);
   const [selectedJob, setSelectedJob] = React.useState<JobPosting | null>(null);
   const [isViewSheetOpen, setIsViewSheetOpen] = React.useState(false);
+  const [deleteJobId, setDeleteJobId] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     let isMounted = true;
@@ -124,9 +135,13 @@ export function JobPostingsManager() {
   };
 
   const handleDeleteJob = (id: string) => {
-    if (confirm("هل أنت متأكد من حذف هذه الوظيفة؟")) {
-      setJobs(jobs.filter((j) => j.id !== id));
-    }
+    setDeleteJobId(id);
+  };
+
+  const confirmDeleteJob = () => {
+    if (!deleteJobId) return;
+    setJobs((prev) => prev.filter((j) => j.id !== deleteJobId));
+    setDeleteJobId(null);
   };
 
   return (
@@ -505,6 +520,26 @@ export function JobPostingsManager() {
           )}
         </SheetContent>
       </Sheet>
+
+      <AlertDialog open={deleteJobId !== null} onOpenChange={(open) => !open && setDeleteJobId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>حذف الوظيفة</AlertDialogTitle>
+            <AlertDialogDescription>
+              هل أنت متأكد من حذف هذه الوظيفة؟ لا يمكن التراجع عن هذا الإجراء.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>إلغاء</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDeleteJob}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              حذف
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

@@ -179,7 +179,7 @@
   
   /* Smooth transitions for all interactive elements */
   button, a, [role="button"], [data-slot] {
-    @apply transition-all duration-200;
+    @apply transition-colors duration-200 motion-reduce:transition-none;
   }
   
   /* Better hover states */
@@ -209,6 +209,12 @@
   .premium-float {
     animation: premium-float 10s ease-in-out infinite;
     will-change: transform;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .premium-float {
+      animation: none;
+    }
   }
   
   /* Custom scrollbar for RTL */

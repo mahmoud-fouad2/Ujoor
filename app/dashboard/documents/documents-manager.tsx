@@ -415,17 +415,19 @@ export function DocumentsManager() {
               {/* File Input */}
               <div className="space-y-2">
                 <Label>اختر الملف</Label>
-                <div
-                  className="border-2 border-dashed rounded-lg p-6 text-center cursor-pointer hover:border-primary transition-colors"
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  className="hidden"
+                  accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                  onChange={handleFileSelect}
+                  aria-label="رفع مستند"
+                />
+                <button
+                  type="button"
+                  className="w-full border-2 border-dashed rounded-lg p-6 text-center cursor-pointer hover:border-primary transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                   onClick={() => fileInputRef.current?.click()}
                 >
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    className="hidden"
-                    accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
-                    onChange={handleFileSelect}
-                  />
                   {uploadFile ? (
                     <div className="flex items-center justify-center gap-2">
                       <FileIconComponent mimeType={uploadFile.type} />
@@ -442,7 +444,7 @@ export function DocumentsManager() {
                       </p>
                     </>
                   )}
-                </div>
+                </button>
               </div>
 
               {/* Employee Select */}
