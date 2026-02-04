@@ -19,8 +19,26 @@ function mapPlanFromDb(plan: unknown): Tenant["plan"] {
   return "starter";
 }
 
+function readSettings(t: any): Record<string, unknown> {
+  return (t?.settings as Record<string, unknown>) ?? {};
+}
+
+function readString(v: unknown): string | undefined {
+  if (typeof v === "string" && v.trim()) return v;
+  return undefined;
+}
+
+function pickString(settings: Record<string, unknown>, keys: string[]): string | undefined {
+  for (const key of keys) {
+    const v = readString(settings[key]);
+    if (v) return v;
+  }
+  return undefined;
+}
+
 // Map DB tenant to client format
 function mapTenant(t: any): Tenant {
+  const settings = readSettings(t);
   return {
     id: t.id,
     name: t.name,
@@ -28,10 +46,13 @@ function mapTenant(t: any): Tenant {
     slug: t.slug,
     status: (t.status?.toLowerCase() ?? "pending") as TenantStatus,
     plan: mapPlanFromDb(t.plan),
-    email: t.email ?? "",
-    country: t.country ?? "SA",
-    defaultLocale: t.defaultLocale ?? "ar",
-    defaultTheme: t.defaultTheme ?? "shadcn",
+    email: pickString(settings, ["contactEmail", "companyEmail"]) ?? "",
+    phone: pickString(settings, ["contactPhone", "companyPhone"]),
+    address: pickString(settings, ["address"]),
+    city: pickString(settings, ["city"]),
+    country: pickString(settings, ["country"]) ?? "SA",
+    defaultLocale: (pickString(settings, ["defaultLocale"]) as Tenant["defaultLocale"]) ?? "ar",
+    defaultTheme: (pickString(settings, ["defaultTheme"]) as Tenant["defaultTheme"]) ?? "shadcn",
     timezone: t.timezone ?? "Asia/Riyadh",
     usersCount: t._count?.users ?? 0,
     employeesCount: t._count?.employees ?? 0,
@@ -113,6 +134,27 @@ export async function PUT(request: NextRequest, context: RouteContext) {
 
     const body = await request.json();
 
+    const existing = await prisma.tenant.findUnique({
+      where: { id },
+      select: { settings: true },
+    });
+    const currentSettings = readSettings(existing);
+
+    const incomingSettings =
+      body.settings && typeof body.settings === "object" ? (body.settings as Record<string, unknown>) : {};
+
+    const mergedSettings: Record<string, unknown> = {
+      ...currentSettings,
+      ...incomingSettings,
+      ...(body.email !== undefined && { contactEmail: body.email }),
+      ...(body.phone !== undefined && { contactPhone: body.phone }),
+      ...(body.address !== undefined && { address: body.address }),
+      ...(body.city !== undefined && { city: body.city }),
+      ...(body.country !== undefined && { country: body.country }),
+      ...(body.defaultLocale !== undefined && { defaultLocale: body.defaultLocale }),
+      ...(body.defaultTheme !== undefined && { defaultTheme: body.defaultTheme }),
+    };
+
     // Check slug uniqueness if changed
     if (body.slug) {
       const existing = await prisma.tenant.findFirst({
@@ -144,7 +186,7 @@ export async function PUT(request: NextRequest, context: RouteContext) {
         ...(body.planExpiresAt && { planExpiresAt: new Date(body.planExpiresAt) }),
         ...(body.maxEmployees !== undefined && { maxEmployees: body.maxEmployees }),
         ...(body.status && { status: body.status.toUpperCase() }),
-        ...(body.settings && { settings: body.settings }),
+        settings: mergedSettings,
       },
       include: {
         _count: {

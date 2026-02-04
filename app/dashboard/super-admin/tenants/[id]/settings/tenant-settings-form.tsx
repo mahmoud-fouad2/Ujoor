@@ -8,6 +8,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -20,6 +21,7 @@ import {
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import type { Tenant } from "@/lib/types/tenant";
+import { tenantsService } from "@/lib/api";
 
 interface TenantSettingsFormProps {
   tenant: Tenant;
@@ -42,14 +44,35 @@ export function TenantSettingsForm({ tenant }: TenantSettingsFormProps) {
     e.preventDefault();
     setIsLoading(true);
 
-    // TODO: Call API to update tenant
-    console.log("Updating tenant:", formData);
+    if (!formData.nameAr?.trim() && !formData.name?.trim()) {
+      toast.error("اسم الشركة مطلوب");
+      setIsLoading(false);
+      return;
+    }
 
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1000));
+    try {
+      const res = await tenantsService.update(tenant.id, {
+        name: formData.name?.trim() || formData.nameAr?.trim() || tenant.name,
+        nameAr: formData.nameAr?.trim() || formData.name?.trim() || tenant.nameAr,
+        email: formData.email?.trim() || "",
+        phone: formData.phone?.trim() || undefined,
+        plan: formData.plan,
+        defaultLocale: formData.defaultLocale,
+        defaultTheme: formData.defaultTheme,
+      });
+
+      if (!res.success) {
+        toast.error(res.error || "تعذر حفظ إعدادات الشركة");
+        return;
+      }
+
+      toast.success("تم حفظ إعدادات الشركة");
+      router.refresh();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "تعذر حفظ إعدادات الشركة");
+    }
 
     setIsLoading(false);
-    router.refresh();
   };
 
   return (

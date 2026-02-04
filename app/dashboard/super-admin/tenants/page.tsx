@@ -45,16 +45,23 @@ export default function TenantsPage() {
               <Input
                 placeholder="البحث بالاسم أو الـ slug..."
                 className="ps-9"
+                aria-label="البحث بالاسم أو الـ slug"
               />
             </div>
             <div className="flex gap-2">
-              <select className="rounded-md border border-input bg-background px-3 py-2 text-sm">
+              <select
+                className="rounded-md border border-input bg-background px-3 py-2 text-sm"
+                aria-label="تصفية حسب الحالة"
+              >
                 <option value="">جميع الحالات</option>
                 <option value="active">نشط</option>
                 <option value="pending">معلق</option>
                 <option value="suspended">موقوف</option>
               </select>
-              <select className="rounded-md border border-input bg-background px-3 py-2 text-sm">
+              <select
+                className="rounded-md border border-input bg-background px-3 py-2 text-sm"
+                aria-label="تصفية حسب الباقة"
+              >
                 <option value="">جميع الباقات</option>
                 <option value="starter">Starter</option>
                 <option value="business">Business</option>

@@ -8,6 +8,7 @@ import prisma from "@/lib/db";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import type { Tenant, TenantStatus } from "@/lib/types/tenant";
+import type { Prisma } from "@prisma/client";
 
 function mapPlanFromDb(plan: unknown): Tenant["plan"] {
   const v = String(plan ?? "").toUpperCase();
@@ -29,8 +30,26 @@ function mapPlanToDb(plan: unknown): "TRIAL" | "BASIC" | "PROFESSIONAL" | "ENTER
   return "TRIAL";
 }
 
+function readSettings(t: any): Record<string, unknown> {
+  return (t?.settings as Record<string, unknown>) ?? {};
+}
+
+function readString(v: unknown): string | undefined {
+  if (typeof v === "string" && v.trim()) return v;
+  return undefined;
+}
+
+function pickString(settings: Record<string, unknown>, keys: string[]): string | undefined {
+  for (const key of keys) {
+    const v = readString(settings[key]);
+    if (v) return v;
+  }
+  return undefined;
+}
+
 // Map DB tenant to client format
 function mapTenant(t: any): Tenant {
+  const settings = readSettings(t);
   return {
     id: t.id,
     name: t.name,
@@ -38,10 +57,13 @@ function mapTenant(t: any): Tenant {
     slug: t.slug,
     status: (t.status?.toLowerCase() ?? "pending") as TenantStatus,
     plan: mapPlanFromDb(t.plan),
-    email: t.email ?? "",
-    country: t.country ?? "SA",
-    defaultLocale: t.defaultLocale ?? "ar",
-    defaultTheme: t.defaultTheme ?? "shadcn",
+    email: pickString(settings, ["contactEmail", "companyEmail"]) ?? "",
+    phone: pickString(settings, ["contactPhone", "companyPhone"]),
+    address: pickString(settings, ["address"]),
+    city: pickString(settings, ["city"]),
+    country: pickString(settings, ["country"]) ?? "SA",
+    defaultLocale: (pickString(settings, ["defaultLocale"]) as Tenant["defaultLocale"]) ?? "ar",
+    defaultTheme: (pickString(settings, ["defaultTheme"]) as Tenant["defaultTheme"]) ?? "shadcn",
     timezone: t.timezone ?? "Asia/Riyadh",
     usersCount: t._count?.users ?? 0,
     employeesCount: t._count?.employees ?? 0,
@@ -153,6 +175,23 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
 
+    const incomingSettings: Record<string, unknown> =
+      body.settings && typeof body.settings === "object" ? body.settings : {};
+
+    const normalizedSettings: Prisma.InputJsonObject = {
+      ...incomingSettings,
+      ...(body.defaultLocale !== undefined && { defaultLocale: body.defaultLocale }),
+      ...(body.defaultTheme !== undefined && { defaultTheme: body.defaultTheme }),
+      ...(body.email !== undefined && { contactEmail: body.email }),
+      ...(body.phone !== undefined && { contactPhone: body.phone }),
+      ...(incomingSettings.companyEmail !== undefined && incomingSettings.contactEmail === undefined
+        ? { contactEmail: incomingSettings.companyEmail }
+        : {}),
+      ...(incomingSettings.companyPhone !== undefined && incomingSettings.contactPhone === undefined
+        ? { contactPhone: incomingSettings.companyPhone }
+        : {}),
+    } as Prisma.InputJsonObject;
+
     // Check if slug is unique
     const existingTenant = await prisma.tenant.findFirst({
       where: {
@@ -185,7 +224,7 @@ export async function POST(request: NextRequest) {
           : new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
         maxEmployees: body.maxEmployees || 10,
         status: "ACTIVE",
-        settings: body.settings || {},
+        settings: normalizedSettings,
       },
       include: {
         _count: {

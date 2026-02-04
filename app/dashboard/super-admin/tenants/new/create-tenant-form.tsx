@@ -75,6 +75,7 @@ export function CreateTenantForm() {
 
   // Auto-generate slug from English name
   const name = watch("name");
+  const slugPreview = watch("slug");
   const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     register("name").onChange(e);
@@ -99,12 +100,16 @@ export function CreateTenantForm() {
           nameAr: data.nameAr,
           slug: data.slug,
           plan: data.plan,
+          email: data.email,
+          phone: data.phone,
+          defaultLocale: data.defaultLocale,
+          defaultTheme: data.defaultTheme,
           // Prisma model stores settings as Json
           settings: {
             defaultLocale: data.defaultLocale,
             defaultTheme: data.defaultTheme,
-            companyEmail: data.email,
-            companyPhone: data.phone,
+            contactEmail: data.email,
+            contactPhone: data.phone,
             commercialRegister: data.commercialRegister,
             adminName: data.adminName,
             adminEmail: data.adminEmail,
@@ -168,7 +173,7 @@ export function CreateTenantForm() {
 
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-2">
-            <Label htmlFor="slug">الـ Subdomain (slug) *</Label>
+            <Label htmlFor="slug">مسار الشركة (slug) *</Label>
             <div className="flex items-center gap-2">
               <Input
                 id="slug"
@@ -176,8 +181,9 @@ export function CreateTenantForm() {
                 className="flex-1"
                 {...register("slug")}
               />
-              <span className="text-sm text-muted-foreground">.ujoors.com</span>
+              <span className="text-sm text-muted-foreground">/t/</span>
             </div>
+            <p className="text-xs text-muted-foreground">سيكون رابط الشركة: /t/{slugPreview || "company"}</p>
             {errors.slug && (
               <p className="text-sm text-destructive">{errors.slug.message}</p>
             )}
