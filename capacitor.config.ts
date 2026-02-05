@@ -1,6 +1,7 @@
 import type { CapacitorConfig } from "@capacitor/cli";
 
 const serverUrl = process.env.CAP_SERVER_URL;
+const isHttp = typeof serverUrl === "string" && /^http:\/\//i.test(serverUrl);
 
 const config: CapacitorConfig = {
   appId: "com.ujoor.app",
@@ -13,7 +14,7 @@ const config: CapacitorConfig = {
         server: {
           url: serverUrl,
           // Allow http:// for LAN testing. Use https in production.
-          cleartext: true,
+          cleartext: isHttp,
         },
       }
     : {}),

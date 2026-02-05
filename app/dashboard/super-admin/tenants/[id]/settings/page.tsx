@@ -78,7 +78,7 @@ function DeleteTenantDialog({
           <AlertDialogHeader>
             <AlertDialogTitle>تأكيد حذف الشركة</AlertDialogTitle>
             <AlertDialogDescription>
-              هذا الإجراء لا يمكن التراجع عنه. سيتم إلغاء الشركة "{tenant.nameAr}".
+              هذا الإجراء لا يمكن التراجع عنه. سيتم إلغاء الشركة &quot;{tenant.nameAr}&quot;.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

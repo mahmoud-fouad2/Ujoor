@@ -15,7 +15,8 @@ import { execSync, spawn } from 'child_process';
 import { existsSync } from 'fs';
 import { join } from 'path';
 
-const PRODUCTION_URL = 'https://ujoor.onrender.com';
+// For the Capacitor APK we want the dedicated mobile entry (login + attendance)
+const PRODUCTION_URL = 'https://ujoor.onrender.com/m';
 
 // قائمة المسارات المحتملة لـ JDK
 const JDK_PATHS = [

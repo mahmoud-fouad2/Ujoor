@@ -1,0 +1,50 @@
+import { NextRequest, NextResponse } from "next/server";
+
+import prisma from "@/lib/db";
+import { requireMobileAuthWithDevice } from "@/lib/mobile/auth";
+import { uploadFile } from "@/lib/r2-storage";
+
+export async function POST(request: NextRequest) {
+  const payloadOrRes = await requireMobileAuthWithDevice(request);
+  if (payloadOrRes instanceof NextResponse) return payloadOrRes;
+
+  if (!payloadOrRes.tenantId) {
+    return NextResponse.json({ error: "Tenant required" }, { status: 400 });
+  }
+
+  try {
+    const formData = await request.formData();
+    const file = formData.get("file");
+
+    if (!file || !(file instanceof File)) {
+      return NextResponse.json({ error: "Missing file" }, { status: 400 });
+    }
+
+    if (!file.type.startsWith("image/")) {
+      return NextResponse.json({ error: "Invalid file type" }, { status: 400 });
+    }
+
+    if (file.size > 3 * 1024 * 1024) {
+      return NextResponse.json({ error: "File too large" }, { status: 400 });
+    }
+
+    const bytes = await file.arrayBuffer();
+    const buffer = Buffer.from(bytes);
+
+    const result = await uploadFile(buffer, file.name, file.type, payloadOrRes.tenantId, "avatars");
+    if (!result.success || !result.url) {
+      return NextResponse.json({ error: result.error || "Upload failed" }, { status: 500 });
+    }
+
+    await prisma.user.update({
+      where: { id: payloadOrRes.userId },
+      data: { avatar: result.url },
+      select: { id: true },
+    });
+
+    return NextResponse.json({ data: { url: result.url } });
+  } catch (error) {
+    console.error("Mobile avatar upload error:", error);
+    return NextResponse.json({ error: "Failed to upload avatar" }, { status: 500 });
+  }
+}
