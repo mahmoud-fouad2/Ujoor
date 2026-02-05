@@ -307,7 +307,7 @@ export function TenantsTable() {
                       {busy?.id === tenant.id && busy?.action === "suspend" ? (
                         <span className="inline-flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" />جارٍ الإيقاف...</span>
                       ) : (
-                      إيقاف الشركة
+                        "إيقاف الشركة"
                       )}
                     </DropdownMenuItem>
                   ) : tenant.status === "suspended" ? (
@@ -323,7 +323,7 @@ export function TenantsTable() {
                       {busy?.id === tenant.id && busy?.action === "activate" ? (
                         <span className="inline-flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" />جارٍ التفعيل...</span>
                       ) : (
-                      تفعيل الشركة
+                        "تفعيل الشركة"
                       )}
                     </DropdownMenuItem>
                   ) : null}
