@@ -5,10 +5,11 @@ import prisma from "@/lib/db";
 import { logger } from "@/lib/logger";
 import { getMobileDeviceHeaders } from "@/lib/mobile/device";
 import { hashRefreshToken, revokeRefreshToken } from "@/lib/mobile/refresh-tokens";
+import { clearMobileRefreshCookie, getMobileRefreshCookie } from "@/lib/mobile/cookies";
 import { checkRateLimit, withRateLimitHeaders } from "@/lib/rate-limit";
 
 const schema = z.object({
-  refreshToken: z.string().min(10),
+  refreshToken: z.string().min(10).optional(),
 });
 
 export async function POST(request: NextRequest) {
@@ -37,23 +38,31 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const body = await request.json();
-    const parsed = schema.safeParse(body);
-    if (!parsed.success) {
-      return withRateLimitHeaders(
-        NextResponse.json({ error: "Invalid payload", issues: parsed.error.issues }, { status: 400 }),
-        { limit, remaining: limitInfo.remaining, resetAt: limitInfo.resetAt }
-      );
+    let bodyRefreshToken: string | null = null;
+    try {
+      const body = await request.json();
+      const parsed = schema.safeParse(body);
+      if (parsed.success && parsed.data.refreshToken) bodyRefreshToken = parsed.data.refreshToken;
+    } catch {
+      // Allow empty body (cookie-based logout).
+    }
+
+    const cookieRefreshToken = getMobileRefreshCookie(request);
+    const rawRefreshToken = bodyRefreshToken ?? cookieRefreshToken;
+    if (!rawRefreshToken) {
+      const res = NextResponse.json({ error: "Invalid payload" }, { status: 400 });
+      clearMobileRefreshCookie(res);
+      return withRateLimitHeaders(res, { limit, remaining: limitInfo.remaining, resetAt: limitInfo.resetAt });
     }
 
     const ok = await revokeRefreshToken(prisma, {
-      rawRefreshToken: parsed.data.refreshToken,
+      rawRefreshToken,
       deviceId: deviceHeaders.deviceId,
     });
 
     // best-effort audit log: only if token was valid (otherwise we don't know user)
     if (ok) {
-      const tokenHash = hashRefreshToken(parsed.data.refreshToken);
+      const tokenHash = hashRefreshToken(rawRefreshToken);
       const row = await prisma.mobileRefreshToken.findUnique({
         where: { tokenHash },
         select: { userId: true, user: { select: { tenantId: true } } },
@@ -71,11 +80,9 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    return withRateLimitHeaders(NextResponse.json({ data: { ok: true } }), {
-      limit,
-      remaining: limitInfo.remaining,
-      resetAt: limitInfo.resetAt,
-    });
+    const res = NextResponse.json({ data: { ok: true } });
+    clearMobileRefreshCookie(res);
+    return withRateLimitHeaders(res, { limit, remaining: limitInfo.remaining, resetAt: limitInfo.resetAt });
   } catch (error) {
     logger.error("Mobile logout error", undefined, error);
     return NextResponse.json({ error: "Failed to logout" }, { status: 500 });

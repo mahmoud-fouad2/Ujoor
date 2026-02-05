@@ -6,10 +6,11 @@ import { logger } from "@/lib/logger";
 import { getMobileDeviceHeaders } from "@/lib/mobile/device";
 import { rotateRefreshToken } from "@/lib/mobile/refresh-tokens";
 import { issueMobileAccessToken } from "@/lib/mobile/jwt";
+import { clearMobileRefreshCookie, getMobileRefreshCookie, setMobileRefreshCookie } from "@/lib/mobile/cookies";
 import { checkRateLimit, withRateLimitHeaders } from "@/lib/rate-limit";
 
 const schema = z.object({
-  refreshToken: z.string().min(10),
+  refreshToken: z.string().min(10).optional(),
 });
 
 export async function POST(request: NextRequest) {
@@ -38,11 +39,24 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const body = await request.json();
-    const parsed = schema.safeParse(body);
-    if (!parsed.success) {
+    let bodyRefreshToken: string | null = null;
+    try {
+      const body = await request.json();
+      const parsed = schema.safeParse(body);
+      if (parsed.success && parsed.data.refreshToken) {
+        bodyRefreshToken = parsed.data.refreshToken;
+      }
+    } catch {
+      // Allow empty body for cookie-based refresh.
+    }
+
+    const cookieRefreshToken = getMobileRefreshCookie(request);
+    const rawRefreshToken = bodyRefreshToken ?? cookieRefreshToken;
+    const fromCookie = !bodyRefreshToken && !!cookieRefreshToken;
+
+    if (!rawRefreshToken) {
       return withRateLimitHeaders(
-        NextResponse.json({ error: "Invalid payload", issues: parsed.error.issues }, { status: 400 }),
+        NextResponse.json({ error: "Invalid payload" }, { status: 400 }),
         { limit, remaining: limitInfo.remaining, resetAt: limitInfo.resetAt }
       );
     }
@@ -51,17 +65,17 @@ export async function POST(request: NextRequest) {
     const ipAddress = xff ? xff.split(",")[0]?.trim() : undefined;
 
     const rotated = await rotateRefreshToken(prisma, {
-      rawRefreshToken: parsed.data.refreshToken,
+      rawRefreshToken,
       deviceId: deviceHeaders.deviceId,
       userAgent: deviceHeaders.userAgent,
       ipAddress,
     });
 
     if (!rotated.ok) {
-      return withRateLimitHeaders(
-        NextResponse.json({ error: "Invalid refresh token" }, { status: 401 }),
-        { limit, remaining: limitInfo.remaining, resetAt: limitInfo.resetAt }
-      );
+      const res = NextResponse.json({ error: "Invalid refresh token" }, { status: 401 });
+      // If the client relied on cookie-based refresh, clear it to avoid infinite refresh loops.
+      if (fromCookie) clearMobileRefreshCookie(res);
+      return withRateLimitHeaders(res, { limit, remaining: limitInfo.remaining, resetAt: limitInfo.resetAt });
     }
 
     await prisma.mobileDevice.update({
@@ -126,15 +140,17 @@ export async function POST(request: NextRequest) {
       deviceId: deviceHeaders.deviceId,
     });
 
-    return withRateLimitHeaders(
-      NextResponse.json({
+    const res = NextResponse.json({
         data: {
           accessToken,
           refreshToken: rotated.refreshToken,
         },
-      }),
-      { limit, remaining: limitInfo.remaining, resetAt: limitInfo.resetAt }
-    );
+      });
+
+    // Rotate cookie alongside the DB refresh token rotation.
+    setMobileRefreshCookie(res, rotated.refreshToken, { expiresAt: rotated.expiresAt });
+
+    return withRateLimitHeaders(res, { limit, remaining: limitInfo.remaining, resetAt: limitInfo.resetAt });
   } catch (error) {
     logger.error("Mobile refresh error", undefined, error);
     return NextResponse.json({ error: "Failed to refresh" }, { status: 500 });

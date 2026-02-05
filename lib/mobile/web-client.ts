@@ -22,7 +22,7 @@ export type MobileUser = {
 
 export type MobileAuthState = {
   accessToken: string;
-  refreshToken: string;
+  refreshToken?: string;
   user: MobileUser;
 };
 
@@ -81,6 +81,7 @@ export function clearMobileAuth() {
 export async function mobileLogin(email: string, password: string): Promise<MobileAuthState> {
   const res = await fetch("/api/mobile/auth/login", {
     method: "POST",
+    credentials: "include",
     headers: {
       "content-type": "application/json",
       ...getMobileDeviceHeaders(),
@@ -94,22 +95,25 @@ export async function mobileLogin(email: string, password: string): Promise<Mobi
   }
 
   const data = json?.data as MobileAuthState | undefined;
-  if (!data?.accessToken || !data?.refreshToken || !data?.user) {
+  if (!data?.accessToken || !data?.user) {
     throw new Error("استجابة تسجيل الدخول غير صالحة");
   }
 
-  saveMobileAuth(data);
+  // For WebView clients, refresh token is also stored in an httpOnly cookie.
+  // To reduce risk, we avoid persisting refreshToken in localStorage.
+  saveMobileAuth({ accessToken: data.accessToken, user: data.user });
   return data;
 }
 
 async function refreshMobileToken(refreshToken: string): Promise<{ accessToken: string; refreshToken: string }> {
   const res = await fetch("/api/mobile/auth/refresh", {
     method: "POST",
+    credentials: "include",
     headers: {
       "content-type": "application/json",
       ...getMobileDeviceHeaders(),
     },
-    body: JSON.stringify({ refreshToken }),
+    body: JSON.stringify(refreshToken ? { refreshToken } : {}),
   });
 
   const json = await res.json().catch(() => ({}));
@@ -135,6 +139,7 @@ export async function mobileAuthFetch<T>(
 
   const res = await fetch(path, {
     ...init,
+    credentials: "include",
     headers: {
       ...(init?.headers || {}),
       authorization: `Bearer ${auth.accessToken}`,
@@ -142,13 +147,14 @@ export async function mobileAuthFetch<T>(
     },
   });
 
-  if (res.status === 401 && opts?.retry !== false && auth.refreshToken) {
-    const rotated = await refreshMobileToken(auth.refreshToken);
-    const nextAuth = { ...auth, ...rotated };
+  if (res.status === 401 && opts?.retry !== false) {
+    const rotated = await refreshMobileToken(auth.refreshToken || "");
+    const nextAuth = { ...auth, accessToken: rotated.accessToken };
     saveMobileAuth(nextAuth);
 
     const res2 = await fetch(path, {
       ...init,
+      credentials: "include",
       headers: {
         ...(init?.headers || {}),
         authorization: `Bearer ${rotated.accessToken}`,

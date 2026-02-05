@@ -1,0 +1,69 @@
+/**
+ * Select Tenant Page
+ * صفحة اختيار الشركة (Tenant)
+ */
+
+import type { Metadata } from "next";
+
+import { TenantAccess } from "@/components/tenant-access";
+import { marketingMetadata } from "@/lib/marketing/seo";
+import { getAppLocale } from "@/lib/i18n/locale";
+
+export async function generateMetadata(): Promise<Metadata> {
+  return marketingMetadata({
+    path: "/select-tenant",
+    titleAr: "اختيار الشركة | أجور",
+    titleEn: "Select Tenant | Ujoors",
+    descriptionAr: "اختر شركتك (Tenant) للدخول إلى لوحة التحكم.",
+    descriptionEn: "Select your tenant to continue to the dashboard.",
+  });
+}
+
+function safeNextPath(value: string | string[] | undefined): string | undefined {
+  if (!value || typeof value !== "string") return undefined;
+  if (!value.startsWith("/")) return undefined;
+  if (value.startsWith("//")) return undefined;
+  return value;
+}
+
+export default async function SelectTenantPage({
+  searchParams,
+}: {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const locale = await getAppLocale();
+  const isAr = locale === "ar";
+
+  const sp = searchParams ? await searchParams : undefined;
+  const nextPath = safeNextPath(sp?.next);
+
+  const demoTenants = [
+    { slug: "demo", labelAr: "Demo", labelEn: "Demo" },
+    { slug: "elite-tech", labelAr: "النخبة للتقنية", labelEn: "Elite Tech" },
+    { slug: "riyadh-trading", labelAr: "الرياض التجارية", labelEn: "Riyadh Trading" },
+    { slug: "future-co", labelAr: "شركة المستقبل", labelEn: "Future Co" },
+  ];
+
+  return (
+    <main className="container mx-auto max-w-3xl px-4 py-12">
+      <div className="rounded-2xl border bg-card p-6 shadow-sm">
+        <h1 className="text-2xl font-bold">{isAr ? "اختيار الشركة" : "Select tenant"}</h1>
+        <p className="mt-2 text-sm text-muted-foreground">
+          {isAr
+            ? "لازم تختار شركتك (Tenant) قبل الدخول للداشبورد على هذا الدومين."
+            : "You must select your tenant before entering the dashboard on this domain."}
+        </p>
+
+        <div className="mt-6">
+          <TenantAccess nextPath={nextPath} locale={locale} presets={demoTenants} />
+        </div>
+
+        <p className="mt-6 text-xs text-muted-foreground">
+          {isAr
+            ? "ملاحظة: للموبايل استخدم مدخل الجوال /m ولا تحتاج اختيار الشركة."
+            : "Note: For mobile use /m; tenant selection is not required."}
+        </p>
+      </div>
+    </main>
+  );
+}

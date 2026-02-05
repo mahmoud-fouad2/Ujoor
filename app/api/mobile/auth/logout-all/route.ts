@@ -4,6 +4,7 @@ import prisma from "@/lib/db";
 import { logger } from "@/lib/logger";
 import { requireMobileAuthWithDevice } from "@/lib/mobile/auth";
 import { revokeAllRefreshTokensForUser } from "@/lib/mobile/refresh-tokens";
+import { clearMobileRefreshCookie } from "@/lib/mobile/cookies";
 import { checkRateLimit, withRateLimitHeaders } from "@/lib/rate-limit";
 
 export async function POST(request: NextRequest) {
@@ -38,11 +39,9 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    return withRateLimitHeaders(NextResponse.json({ data: { ok: true, revoked: count } }), {
-      limit,
-      remaining: limitInfo.remaining,
-      resetAt: limitInfo.resetAt,
-    });
+    const res = NextResponse.json({ data: { ok: true, revoked: count } });
+    clearMobileRefreshCookie(res);
+    return withRateLimitHeaders(res, { limit, remaining: limitInfo.remaining, resetAt: limitInfo.resetAt });
   } catch (error) {
     logger.error("Mobile logout-all error", undefined, error);
     return NextResponse.json({ error: "Failed to logout" }, { status: 500 });

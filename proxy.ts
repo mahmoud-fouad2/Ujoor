@@ -136,8 +136,7 @@ export function proxy(request: NextRequest) {
     const isLocalDev = cleanHost === "localhost" || /^[0-9.]+$/.test(cleanHost);
     if (!isLocalDev) {
       const url = request.nextUrl.clone();
-      url.pathname = "/";
-      url.searchParams.set("tenantRequired", "1");
+      url.pathname = "/select-tenant";
       url.searchParams.set("next", pathname + (request.nextUrl.search ? request.nextUrl.search : ""));
       return NextResponse.redirect(url);
     }

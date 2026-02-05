@@ -7,6 +7,7 @@ import { logger } from "@/lib/logger";
 import { getMobileDeviceHeaders } from "@/lib/mobile/device";
 import { issueMobileAccessToken } from "@/lib/mobile/jwt";
 import { mintRefreshToken, upsertMobileDevice } from "@/lib/mobile/refresh-tokens";
+import { setMobileRefreshCookie } from "@/lib/mobile/cookies";
 import { checkRateLimit, withRateLimitHeaders } from "@/lib/rate-limit";
 
 const schema = z.object({
@@ -167,7 +168,7 @@ export async function POST(request: NextRequest) {
     const xff = request.headers.get("x-forwarded-for") ?? undefined;
     const ipAddress = xff ? xff.split(",")[0]?.trim() : undefined;
 
-    const { refreshToken } = await mintRefreshToken(prisma, {
+    const { refreshToken, expiresAt } = await mintRefreshToken(prisma, {
       userId: user.id,
       mobileDeviceId: device.id,
       userAgent: deviceHeaders.userAgent,
@@ -182,8 +183,7 @@ export async function POST(request: NextRequest) {
       deviceId: deviceHeaders.deviceId,
     });
 
-    return withRateLimitHeaders(
-      NextResponse.json({
+    const res = NextResponse.json({
         data: {
           accessToken,
           refreshToken,
@@ -200,9 +200,13 @@ export async function POST(request: NextRequest) {
             employeeId: user.employee?.id ?? null,
           },
         },
-      }),
-      { limit, remaining: limitInfo.remaining, resetAt: limitInfo.resetAt }
-    );
+      });
+
+    // More secure for WebView clients: keep refresh token in httpOnly cookie.
+    // Still return refreshToken in JSON for backward compatibility with native clients.
+    setMobileRefreshCookie(res, refreshToken, { expiresAt });
+
+    return withRateLimitHeaders(res, { limit, remaining: limitInfo.remaining, resetAt: limitInfo.resetAt });
   } catch (error) {
     logger.error("Mobile login error", undefined, error);
     return NextResponse.json({ error: "Failed to login" }, { status: 500 });
