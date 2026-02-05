@@ -10,6 +10,16 @@ import { authOptions } from "@/lib/auth";
 import type { Tenant, TenantStatus } from "@/lib/types/tenant";
 import type { Prisma } from "@prisma/client";
 
+const VALID_TENANT_STATUSES = new Set(["PENDING", "ACTIVE", "SUSPENDED", "CANCELLED"]);
+
+function normalizeTenantStatus(input: unknown): "PENDING" | "ACTIVE" | "SUSPENDED" | "CANCELLED" | undefined {
+  const v = String(input ?? "").trim();
+  if (!v) return undefined;
+  const upper = v.toUpperCase();
+  if (VALID_TENANT_STATUSES.has(upper)) return upper as any;
+  return undefined;
+}
+
 function mapPlanFromDb(plan: unknown): Tenant["plan"] {
   const v = String(plan ?? "").toUpperCase();
   if (v === "ENTERPRISE") return "enterprise";
@@ -101,7 +111,7 @@ export async function GET(request: NextRequest) {
 
     const where: any = {
       // Default: hide cancelled/deleted tenants unless explicitly requested.
-      status: { notIn: ["CANCELLED", "DELETED"] },
+      status: { not: "CANCELLED" },
     };
 
     if (search) {
@@ -114,11 +124,18 @@ export async function GET(request: NextRequest) {
     }
 
     if (status) {
-      where.status = status.toUpperCase();
+      const normalized = normalizeTenantStatus(status);
+      if (!normalized) {
+        return NextResponse.json(
+          { success: false, error: "Invalid status filter" },
+          { status: 400 }
+        );
+      }
+      where.status = normalized;
     }
 
     if (subscriptionPlan) {
-      where.plan = subscriptionPlan.toUpperCase();
+      where.plan = mapPlanToDb(subscriptionPlan);
     }
 
     const [tenants, total] = await Promise.all([
