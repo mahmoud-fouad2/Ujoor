@@ -10,6 +10,61 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 
+async function ensureDefaultFeatureComparison() {
+  const count = await prisma.planFeatureComparison.count();
+  if (count > 0) return;
+
+  await prisma.planFeatureComparison.createMany({
+    data: [
+      {
+        featureAr: "إدارة الموظفين",
+        featureEn: "Employee management",
+        inStarter: true,
+        inBusiness: true,
+        inEnterprise: true,
+        sortOrder: 1,
+        isActive: true,
+      },
+      {
+        featureAr: "الحضور والانصراف",
+        featureEn: "Time & attendance",
+        inStarter: true,
+        inBusiness: true,
+        inEnterprise: true,
+        sortOrder: 2,
+        isActive: true,
+      },
+      {
+        featureAr: "الإجازات",
+        featureEn: "Leave management",
+        inStarter: true,
+        inBusiness: true,
+        inEnterprise: true,
+        sortOrder: 3,
+        isActive: true,
+      },
+      {
+        featureAr: "الرواتب",
+        featureEn: "Payroll",
+        inStarter: false,
+        inBusiness: true,
+        inEnterprise: true,
+        sortOrder: 4,
+        isActive: true,
+      },
+      {
+        featureAr: "تكاملات مخصصة",
+        featureEn: "Custom integrations",
+        inStarter: false,
+        inBusiness: false,
+        inEnterprise: true,
+        sortOrder: 5,
+        isActive: true,
+      },
+    ],
+  });
+}
+
 // GET all feature comparisons
 export async function GET() {
   try {
@@ -17,6 +72,8 @@ export async function GET() {
     if (!session?.user || session.user.role !== "SUPER_ADMIN") {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    await ensureDefaultFeatureComparison();
 
     const features = await prisma.planFeatureComparison.findMany({
       where: { isActive: true },

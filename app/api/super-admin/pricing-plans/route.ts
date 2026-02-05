@@ -10,6 +10,67 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 
+async function ensureDefaultPricingPlans() {
+  const count = await prisma.pricingPlan.count();
+  if (count > 0) return;
+
+  await prisma.pricingPlan.createMany({
+    data: [
+      {
+        name: "Starter",
+        nameAr: "الأساسية",
+        slug: "starter",
+        priceMonthly: 499,
+        priceYearly: 4990,
+        currency: "SAR",
+        maxEmployees: 25,
+        employeesLabel: "حتى 25 موظف",
+        employeesLabelEn: "Up to 25 employees",
+        featuresAr: ["إدارة الموظفين", "الحضور والانصراف", "الإجازات", "التقارير الأساسية"],
+        featuresEn: ["Employee management", "Time & attendance", "Leave management", "Basic reports"],
+        planType: "BASIC",
+        isPopular: false,
+        isActive: true,
+        sortOrder: 1,
+      },
+      {
+        name: "Business",
+        nameAr: "الأعمال",
+        slug: "business",
+        priceMonthly: 999,
+        priceYearly: 9990,
+        currency: "SAR",
+        maxEmployees: 100,
+        employeesLabel: "حتى 100 موظف",
+        employeesLabelEn: "Up to 100 employees",
+        featuresAr: ["كل مميزات الأساسية", "إدارة الرواتب", "تصدير WPS", "دعم فني متقدم"],
+        featuresEn: ["Everything in Starter", "Payroll", "WPS export", "Priority support"],
+        planType: "PROFESSIONAL",
+        isPopular: true,
+        isActive: true,
+        sortOrder: 2,
+      },
+      {
+        name: "Enterprise",
+        nameAr: "المؤسسات",
+        slug: "enterprise",
+        priceMonthly: null,
+        priceYearly: null,
+        currency: "SAR",
+        maxEmployees: null,
+        employeesLabel: "غير محدود",
+        employeesLabelEn: "Unlimited",
+        featuresAr: ["كل مميزات الأعمال", "تكاملات مخصصة", "وصول API", "مدير حساب مخصص"],
+        featuresEn: ["Everything in Business", "Custom integrations", "API access", "Dedicated account manager"],
+        planType: "ENTERPRISE",
+        isPopular: false,
+        isActive: true,
+        sortOrder: 3,
+      },
+    ],
+  });
+}
+
 // GET all pricing plans
 export async function GET() {
   try {
@@ -17,6 +78,8 @@ export async function GET() {
     if (!session?.user || session.user.role !== "SUPER_ADMIN") {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    await ensureDefaultPricingPlans();
 
     const plans = await prisma.pricingPlan.findMany({
       orderBy: { sortOrder: "asc" },

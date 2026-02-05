@@ -99,7 +99,10 @@ export async function GET(request: NextRequest) {
     const status = searchParams.get("status");
     const subscriptionPlan = searchParams.get("subscriptionPlan");
 
-    const where: any = {};
+    const where: any = {
+      // Default: hide cancelled/deleted tenants unless explicitly requested.
+      status: { notIn: ["CANCELLED", "DELETED"] },
+    };
 
     if (search) {
       where.OR = [

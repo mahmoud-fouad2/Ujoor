@@ -18,7 +18,8 @@ import {
   CheckCircle2,
   Clock,
   XCircle,
-  AlertCircle
+  AlertCircle,
+  Loader2
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -42,6 +43,7 @@ import type { Tenant, TenantStatus } from "@/lib/types/tenant";
 import { buildTenantUrl } from "@/lib/tenant";
 import { tenantsService } from "@/lib/api";
 import { TableSkeleton } from "@/components/skeletons/table-skeleton";
+import { toast } from "sonner";
 
 const statusConfig: Record<TenantStatus, { label: string; variant: "default" | "secondary" | "destructive" | "outline"; icon: React.ReactNode }> = {
   active: { 
@@ -92,33 +94,91 @@ export function TenantsTable() {
   const [tenants, setTenants] = React.useState<Tenant[]>([]);
   const [isLoading, setIsLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
+  const [busy, setBusy] = React.useState<{ id: string; action: "suspend" | "activate" | "delete" } | null>(null);
+
+  const loadTenants = React.useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const res = await tenantsService.getAll();
+      if (res.success && res.data) {
+        setTenants(res.data);
+      } else {
+        setTenants([]);
+        setError(res.error || "فشل تحميل الشركات");
+      }
+    } catch (e) {
+      setTenants([]);
+      setError(e instanceof Error ? e.message : "فشل تحميل الشركات");
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
 
   React.useEffect(() => {
     let mounted = true;
     (async () => {
-      setIsLoading(true);
-      setError(null);
       try {
-        const res = await tenantsService.getAll();
+        await loadTenants();
         if (!mounted) return;
-        if (res.success && res.data) {
-          setTenants(res.data);
-        } else {
-          setTenants([]);
-          setError(res.error || "فشل تحميل الشركات");
-        }
       } catch (e) {
         if (!mounted) return;
         setTenants([]);
         setError(e instanceof Error ? e.message : "فشل تحميل الشركات");
-      } finally {
-        if (mounted) setIsLoading(false);
       }
     })();
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [loadTenants]);
+
+  async function handleDeleteTenant(tenant: Tenant) {
+    const ok = confirm(`هل أنت متأكد من حذف الشركة: ${tenant.nameAr}?\nسيتم إلغاؤها (Soft delete).`);
+    if (!ok) return;
+    setBusy({ id: tenant.id, action: "delete" });
+    try {
+      const res = await tenantsService.delete(tenant.id);
+      if (!res.success) {
+        toast.error(res.error || "تعذر حذف الشركة");
+        return;
+      }
+      toast.success("تم حذف الشركة");
+      await loadTenants();
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function handleSuspendTenant(tenant: Tenant) {
+    const reason = prompt("سبب الإيقاف (اختياري):", "Suspended by admin") ?? "";
+    setBusy({ id: tenant.id, action: "suspend" });
+    try {
+      const res = await tenantsService.suspend(tenant.id, reason.trim() || "Suspended by admin");
+      if (!res.success) {
+        toast.error(res.error || "تعذر إيقاف الشركة");
+        return;
+      }
+      toast.success("تم إيقاف الشركة");
+      await loadTenants();
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function handleActivateTenant(tenant: Tenant) {
+    setBusy({ id: tenant.id, action: "activate" });
+    try {
+      const res = await tenantsService.activate(tenant.id);
+      if (!res.success) {
+        toast.error(res.error || "تعذر تفعيل الشركة");
+        return;
+      }
+      toast.success("تم تفعيل الشركة");
+      await loadTenants();
+    } finally {
+      setBusy(null);
+    }
+  }
 
   if (isLoading) {
     return (
@@ -235,19 +295,52 @@ export function TenantsTable() {
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   {tenant.status === "active" ? (
-                    <DropdownMenuItem className="text-amber-600">
+                    <DropdownMenuItem
+                      className="text-amber-600"
+                      disabled={busy?.id === tenant.id}
+                      onSelect={(e) => {
+                        e.preventDefault();
+                        void handleSuspendTenant(tenant);
+                      }}
+                    >
                       <Pause className="me-2 h-4 w-4" />
+                      {busy?.id === tenant.id && busy?.action === "suspend" ? (
+                        <span className="inline-flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" />جارٍ الإيقاف...</span>
+                      ) : (
                       إيقاف الشركة
+                      )}
                     </DropdownMenuItem>
                   ) : tenant.status === "suspended" ? (
-                    <DropdownMenuItem className="text-green-600">
+                    <DropdownMenuItem
+                      className="text-green-600"
+                      disabled={busy?.id === tenant.id}
+                      onSelect={(e) => {
+                        e.preventDefault();
+                        void handleActivateTenant(tenant);
+                      }}
+                    >
                       <Play className="me-2 h-4 w-4" />
+                      {busy?.id === tenant.id && busy?.action === "activate" ? (
+                        <span className="inline-flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" />جارٍ التفعيل...</span>
+                      ) : (
                       تفعيل الشركة
+                      )}
                     </DropdownMenuItem>
                   ) : null}
-                  <DropdownMenuItem className="text-destructive">
+                  <DropdownMenuItem
+                    className="text-destructive"
+                    disabled={busy?.id === tenant.id}
+                    onSelect={(e) => {
+                      e.preventDefault();
+                      void handleDeleteTenant(tenant);
+                    }}
+                  >
                     <Trash2 className="me-2 h-4 w-4" />
-                    حذف الشركة
+                    {busy?.id === tenant.id && busy?.action === "delete" ? (
+                      <span className="inline-flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" />جارٍ الحذف...</span>
+                    ) : (
+                      "حذف الشركة"
+                    )}
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
