@@ -150,16 +150,23 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
 
-    // Soft delete - set status to TERMINATED
+    // Two-step delete:
+    // 1) First delete => soft terminate
+    // 2) Second delete (already terminated) => hard delete
+    if (existing.status === "TERMINATED") {
+      await prisma.employee.delete({ where: { id } });
+      return NextResponse.json({ success: true, mode: "hard" });
+    }
+
     await prisma.employee.update({
       where: { id },
-      data: { 
+      data: {
         status: "TERMINATED",
         terminationDate: new Date(),
       },
     });
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true, mode: "soft" });
   } catch (error) {
     console.error("Error deleting employee:", error);
     return NextResponse.json(

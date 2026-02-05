@@ -3,8 +3,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { 
   User, Mail, Phone, MapPin, Building2, Calendar, CreditCard,
-  Shield, Edit, Save, X, Camera, FileText, AlertCircle
+  Shield, Edit, Save, X, Camera, FileText, AlertCircle, Loader2
 } from 'lucide-react';
+import { useSession } from 'next-auth/react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -155,12 +156,14 @@ function mapProfileApiToEmployeeProfile(api: NonNullable<ProfileApiResponse['dat
 }
 
 export default function MyProfileManager() {
+  const { update: updateSession } = useSession();
   const [profile, setProfile] = useState<EmployeeProfile | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editedProfile, setEditedProfile] = useState<EmployeeProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isUploadingDoc, setIsUploadingDoc] = useState(false);
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const documentInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -237,6 +240,18 @@ export default function MyProfileManager() {
         throw new Error(userJson.error || 'Failed to update profile');
       }
 
+      // Refresh NextAuth session (sidebar avatar/name) if supported
+      try {
+        await updateSession({
+          avatar: userJson?.data?.avatar ?? editedProfile.avatar,
+          firstName: userJson?.data?.firstName,
+          lastName: userJson?.data?.lastName,
+          name: `${userJson?.data?.firstName ?? ''} ${userJson?.data?.lastName ?? ''}`.trim(),
+        } as any);
+      } catch {
+        // Ignore session update errors
+      }
+
       // Update employee-level fields when employee exists
       const hasEmployee = profile.employeeNumber !== '-' && !!profile.employeeNumber;
       if (hasEmployee) {
@@ -284,20 +299,47 @@ export default function MyProfileManager() {
     fileInputRef.current?.click();
   };
 
-  const onAvatarSelected: React.ChangeEventHandler<HTMLInputElement> = (e) => {
+  const onAvatarSelected: React.ChangeEventHandler<HTMLInputElement> = async (e) => {
     if (!editedProfile) return;
     const file = e.target.files?.[0];
     if (!file) return;
-    if (!file.type.startsWith('image/')) return;
-    if (file.size > 3 * 1024 * 1024) return;
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      const dataUrl = typeof reader.result === 'string' ? reader.result : null;
-      if (!dataUrl) return;
-      setEditedProfile((p) => (p ? { ...p, avatar: dataUrl } : p));
-    };
-    reader.readAsDataURL(file);
+    if (!file.type.startsWith('image/')) {
+      toast.error('الملف المختار ليس صورة');
+      return;
+    }
+    if (file.size > 3 * 1024 * 1024) {
+      toast.error('حجم الصورة كبير (الحد 3MB)');
+      return;
+    }
+
+    setIsUploadingAvatar(true);
+    try {
+      const formData = new FormData();
+      formData.set('file', file);
+
+      const res = await fetch('/api/profile/avatar', {
+        method: 'POST',
+        body: formData,
+      });
+      const json = await res.json();
+
+      if (!res.ok) {
+        throw new Error(json.error || 'فشل رفع الصورة');
+      }
+
+      const url = json?.data?.url as string | undefined;
+      if (!url) throw new Error('فشل رفع الصورة');
+
+      setEditedProfile((p) => (p ? { ...p, avatar: url } : p));
+      toast.success('تم تحديث الصورة');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'فشل رفع الصورة';
+      toast.error(message);
+    } finally {
+      setIsUploadingAvatar(false);
+      if (e.target) e.target.value = '';
+    }
   };
 
   const openDocumentPicker = () => {
@@ -408,7 +450,9 @@ export default function MyProfileManager() {
           <div className="flex flex-col items-center gap-4 sm:flex-row sm:gap-6">
             <div className="relative">
               <Avatar className="h-24 w-24">
-                <AvatarImage src={profile.avatar} />
+                <AvatarImage
+                  src={(isEditing ? (editedProfile?.avatar || profile.avatar) : profile.avatar) || undefined}
+                />
                 <AvatarFallback className="text-2xl">
                   {profile.firstName.charAt(0)}{profile.lastName.charAt(0)}
                 </AvatarFallback>
@@ -419,8 +463,9 @@ export default function MyProfileManager() {
                   variant="secondary" 
                   className="absolute bottom-0 start-0 h-8 w-8 rounded-full"
                   onClick={openAvatarPicker}
+                  disabled={isUploadingAvatar}
                 >
-                  <Camera className="h-4 w-4" />
+                  {isUploadingAvatar ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
                 </Button>
               )}
               <input

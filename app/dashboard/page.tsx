@@ -10,6 +10,7 @@ import { getAppLocale } from "@/lib/i18n/locale";
 import { getText } from "@/lib/i18n/text";
 import { requireAuth } from "@/lib/auth";
 import { getDashboardActivities, getDashboardCharts, getDashboardStats } from "@/lib/dashboard";
+import { redirect } from "next/navigation";
 
 export async function generateMetadata(): Promise<Metadata>{
   const locale = await getAppLocale();
@@ -24,6 +25,12 @@ export default async function Page() {
   const locale = await getAppLocale();
   const t = getText(locale);
   const user = await requireAuth();
+
+  // SUPER_ADMIN without tenant context should use platform dashboard.
+  if ((user as any)?.role === "SUPER_ADMIN" && !user.tenantId) {
+    const p = locale === "en" ? "/en" : "";
+    redirect(`${p}/dashboard/super-admin`);
+  }
 
   const [stats, charts, activities] = await Promise.all([
     getDashboardStats(user.tenantId),

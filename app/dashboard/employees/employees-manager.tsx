@@ -260,9 +260,14 @@ export function EmployeesManager() {
   const confirmDelete = async () => {
     if (employeeToDelete) {
       try {
+        const wasTerminated = employeeToDelete.status === "terminated";
         const res = await employeesService.delete(employeeToDelete.id);
         if (!res.success) throw new Error(res.error || "Failed to delete employee");
-        toast.success("تم حذف الموظف بنجاح");
+        toast.success(
+          wasTerminated
+            ? "تم حذف الموظف نهائياً"
+            : "تم إنهاء خدمة الموظف (يمكن الحذف النهائي لاحقاً)"
+        );
         await fetchEmployees();
       } catch (error) {
         console.error("Error deleting employee:", error);

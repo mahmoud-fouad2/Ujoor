@@ -22,14 +22,25 @@ export function EmployeeDeleteDialog({
   employee: Employee | null;
   onConfirm: () => void;
 }) {
+  const isTerminated = employee?.status === "terminated";
+
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>هل أنت متأكد؟</AlertDialogTitle>
           <AlertDialogDescription>
-            سيتم حذف الموظف &quot;{employee ? getEmployeeFullName(employee, "ar") : ""}&quot;
-            نهائياً.
+            {isTerminated ? (
+              <>
+                سيتم حذف الموظف &quot;{employee ? getEmployeeFullName(employee, "ar") : ""}&quot; نهائياً.
+                لا يمكن التراجع عن هذا الإجراء.
+              </>
+            ) : (
+              <>
+                سيتم إنهاء خدمة الموظف &quot;{employee ? getEmployeeFullName(employee, "ar") : ""}&quot;.
+                يمكنك الضغط على حذف مرة أخرى لاحقاً للحذف النهائي.
+              </>
+            )}
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
@@ -39,7 +50,7 @@ export function EmployeeDeleteDialog({
             className="bg-destructive text-destructive-foreground"
             disabled={!employee}
           >
-            حذف
+            {isTerminated ? "حذف نهائي" : "إنهاء الخدمة"}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

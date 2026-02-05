@@ -1,6 +1,7 @@
 "use client";
 
 import { ThemeProvider } from "next-themes";
+import { SessionProvider } from "next-auth/react";
 import { Toaster } from "./ui/sonner";
 import { LocaleTransitionOverlay } from "./locale-transition";
 import { RouteProgress } from "./route-progress";
@@ -15,14 +16,16 @@ export default function Providers({
   dir: "ltr" | "rtl";
 }) {
   return (
-    <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
-      <AppDirectionProvider dir={dir}>
-        {children}
-        <ConsoleNoiseGuard />
-        <RouteProgress />
-        <LocaleTransitionOverlay />
-        <Toaster />
-      </AppDirectionProvider>
-    </ThemeProvider>
+    <SessionProvider>
+      <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
+        <AppDirectionProvider dir={dir}>
+          {children}
+          <ConsoleNoiseGuard />
+          <RouteProgress />
+          <LocaleTransitionOverlay />
+          <Toaster />
+        </AppDirectionProvider>
+      </ThemeProvider>
+    </SessionProvider>
   );
 }

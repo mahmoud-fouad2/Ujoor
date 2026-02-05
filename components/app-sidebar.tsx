@@ -11,8 +11,9 @@ import {
   IconUsers,
 } from "@tabler/icons-react";
 import Link from "next/link";
-import { getSession } from "next-auth/react";
+import { useSession } from "next-auth/react";
 import { useClientLocale } from "@/lib/i18n/use-client-locale";
+import { usePathname } from "next/navigation";
 
 import { NavMain } from "@/components/nav-main"
 import { NavUser } from "@/components/nav-user"
@@ -39,11 +40,11 @@ function getCookieValue(cookieName: string): string | undefined {
   return decodeURIComponent(match.split("=").slice(1).join("="));
 }
 
-function getNav(locale: "ar" | "en", role?: string, hasTenant?: boolean): NavItem[] {
+function getNav(locale: "ar" | "en", role?: string, hasTenant?: boolean, inPlatformAdmin?: boolean): NavItem[] {
   const p = locale === "en" ? "/en" : "";
 
-  // SUPER_ADMIN without tenant context: show only platform admin area.
-  if (role === "SUPER_ADMIN" && !hasTenant) {
+  // SUPER_ADMIN: when inside platform admin area, show only platform items.
+  if (role === "SUPER_ADMIN" && inPlatformAdmin) {
     return [
       {
         title: locale === "ar" ? "لوحة تحكم السوبر أدمن" : "Super Admin",
@@ -71,6 +72,11 @@ function getNav(locale: "ar" | "en", role?: string, hasTenant?: boolean): NavIte
         icon: IconFolder,
       },
     ];
+  }
+
+  // SUPER_ADMIN without tenant context: also show platform-only.
+  if (role === "SUPER_ADMIN" && !hasTenant) {
+    return getNav(locale, role, hasTenant, true);
   }
 
   // When a tenant is selected (cookie/subdomain), hide platform-only pages.
@@ -139,32 +145,36 @@ function getNav(locale: "ar" | "en", role?: string, hasTenant?: boolean): NavIte
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const locale = useClientLocale("ar");
   const p = locale === "en" ? "/en" : "";
+  const pathname = usePathname();
+  const { data: session } = useSession();
   const [role, setRole] = React.useState<string | undefined>(undefined);
   const [hasTenant, setHasTenant] = React.useState<boolean>(false);
   const [user, setUser] = React.useState<{ name: string; email: string; avatar: string } | null>(null);
 
   React.useEffect(() => {
     let mounted = true;
-    (async () => {
-      const tenant = getCookieValue("ujoors_tenant");
-      if (mounted) setHasTenant(Boolean(tenant));
-      const session = await getSession();
-      if (mounted) {
-        const sUser = session?.user as any;
-        setRole(sUser?.role);
-        const name = sUser?.name || `${sUser?.firstName || ""} ${sUser?.lastName || ""}`.trim() || "User";
-        const email = sUser?.email || "";
-        const avatar = sUser?.avatar || "/images/avatars/1.png";
-        setUser({ name, email, avatar });
-      }
-    })();
+    const tenant = getCookieValue("ujoors_tenant");
+    if (mounted) setHasTenant(Boolean(tenant));
     return () => {
       mounted = false;
     };
   }, []);
 
-  const navItems = React.useMemo(() => getNav(locale, role, hasTenant), [locale, role, hasTenant]);
-  const homeUrl = role === "SUPER_ADMIN" && !hasTenant ? `${p}/dashboard/super-admin` : `${p}/dashboard`;
+  React.useEffect(() => {
+    const sUser = session?.user as any;
+    setRole(sUser?.role);
+    const name = sUser?.name || `${sUser?.firstName || ""} ${sUser?.lastName || ""}`.trim() || "User";
+    const email = sUser?.email || "";
+    const avatar = sUser?.avatar || "/images/avatars/1.png";
+    setUser(sUser ? { name, email, avatar } : null);
+  }, [session]);
+
+  const inPlatformAdmin = pathname.includes("/dashboard/super-admin");
+  const navItems = React.useMemo(
+    () => getNav(locale, role, hasTenant, inPlatformAdmin),
+    [locale, role, hasTenant, inPlatformAdmin]
+  );
+  const homeUrl = role === "SUPER_ADMIN" && inPlatformAdmin ? `${p}/dashboard/super-admin` : `${p}/dashboard`;
 
   return (
     <Sidebar collapsible="icon" {...props}>
