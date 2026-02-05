@@ -7,7 +7,7 @@
 
 import Link from "next/link";
 import * as React from "react";
-import { ArrowRight, Building2, Settings } from "lucide-react";
+import { ArrowRight, Settings, Loader2 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,6 +28,81 @@ import { tenantsService } from "@/lib/api";
 import { TenantAdminCredentialsCard } from "./tenant-admin-credentials-card";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
+
+// Delete Tenant Dialog Component with controlled open state
+function DeleteTenantDialog({
+  tenant,
+  busyAction,
+  onDelete,
+}: {
+  tenant: Tenant;
+  busyAction: string | null;
+  onDelete: () => Promise<void>;
+}) {
+  const [open, setOpen] = React.useState(false);
+  const [deleting, setDeleting] = React.useState(false);
+
+  async function handleDelete() {
+    setDeleting(true);
+    try {
+      await onDelete();
+      // Don't close - the redirect will happen
+    } catch {
+      setDeleting(false);
+      setOpen(false);
+    }
+  }
+
+  return (
+    <div className="flex items-center justify-between rounded-lg border border-destructive/20 bg-destructive/5 p-4">
+      <div>
+        <p className="font-medium text-destructive">حذف الشركة</p>
+        <p className="text-sm text-muted-foreground">
+          حذف الشركة نهائيًا - لا يمكن التراجع عن هذا الإجراء
+        </p>
+      </div>
+      <AlertDialog open={open} onOpenChange={setOpen}>
+        <AlertDialogTrigger asChild>
+          <Button variant="destructive" disabled={busyAction !== null || deleting}>
+            {deleting ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                جارٍ الحذف...
+              </>
+            ) : (
+              "حذف"
+            )}
+          </Button>
+        </AlertDialogTrigger>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>تأكيد حذف الشركة</AlertDialogTitle>
+            <AlertDialogDescription>
+              هذا الإجراء لا يمكن التراجع عنه. سيتم إلغاء الشركة "{tenant.nameAr}".
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>إلغاء</AlertDialogCancel>
+            <Button
+              variant="destructive"
+              onClick={handleDelete}
+              disabled={deleting}
+            >
+              {deleting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  جارٍ الحذف...
+                </>
+              ) : (
+                "تأكيد الحذف"
+              )}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  );
+}
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -260,42 +335,11 @@ export default function TenantSettingsPage({ params }: PageProps) {
             )}
           </div>
           
-          <div className="flex items-center justify-between rounded-lg border border-destructive/20 bg-destructive/5 p-4">
-            <div>
-              <p className="font-medium text-destructive">حذف الشركة</p>
-              <p className="text-sm text-muted-foreground">
-                حذف الشركة نهائيًا - لا يمكن التراجع عن هذا الإجراء
-              </p>
-            </div>
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button variant="destructive" disabled={busyAction !== null}>
-                  {busyAction === "delete" ? "جارٍ الحذف..." : "حذف"}
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>تأكيد حذف الشركة</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    هذا الإجراء لا يمكن التراجع عنه. سيتم إلغاء الشركة (Soft delete).
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel disabled={busyAction === "delete"}>إلغاء</AlertDialogCancel>
-                  <AlertDialogAction
-                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                    onClick={async (e) => {
-                      e.preventDefault();
-                      await doDelete();
-                    }}
-                    disabled={busyAction !== null}
-                  >
-                    {busyAction === "delete" ? "جارٍ الحذف..." : "تأكيد الحذف"}
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          </div>
+          <DeleteTenantDialog 
+            tenant={tenant} 
+            busyAction={busyAction} 
+            onDelete={doDelete} 
+          />
         </CardContent>
       </Card>
     </div>
