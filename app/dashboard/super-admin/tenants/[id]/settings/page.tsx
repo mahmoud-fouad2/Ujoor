@@ -269,7 +269,9 @@ export default function TenantSettingsPage({ params }: PageProps) {
             </div>
             <AlertDialog>
               <AlertDialogTrigger asChild>
-                <Button variant="destructive" disabled={busyAction !== null}>حذف</Button>
+                <Button variant="destructive" disabled={busyAction !== null}>
+                  {busyAction === "delete" ? "جارٍ الحذف..." : "حذف"}
+                </Button>
               </AlertDialogTrigger>
               <AlertDialogContent>
                 <AlertDialogHeader>
@@ -279,13 +281,16 @@ export default function TenantSettingsPage({ params }: PageProps) {
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
-                  <AlertDialogCancel>إلغاء</AlertDialogCancel>
+                  <AlertDialogCancel disabled={busyAction === "delete"}>إلغاء</AlertDialogCancel>
                   <AlertDialogAction
                     className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                    onClick={() => void doDelete()}
+                    onClick={async (e) => {
+                      e.preventDefault();
+                      await doDelete();
+                    }}
                     disabled={busyAction !== null}
                   >
-                    تأكيد الحذف
+                    {busyAction === "delete" ? "جارٍ الحذف..." : "تأكيد الحذف"}
                   </AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>

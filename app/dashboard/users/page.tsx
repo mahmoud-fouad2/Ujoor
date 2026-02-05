@@ -28,9 +28,29 @@ export default async function Page() {
 
   const user = await requireRole(["TENANT_ADMIN", "HR_MANAGER", "SUPER_ADMIN"] as UserRole[]);
 
-  const where = user.tenantId ? { tenantId: user.tenantId } : undefined;
+  // Super Admin without tenant context should go to super-admin dashboard
+  if (!user.tenantId) {
+    return (
+      <div className="flex flex-col items-center justify-center gap-4 py-20 text-center">
+        <h1 className="text-2xl font-bold">
+          {locale === "ar" ? "لا توجد شركة محددة" : "No tenant selected"}
+        </h1>
+        <p className="text-muted-foreground max-w-md">
+          {locale === "ar"
+            ? "أنت مسجل دخول كـ Super Admin. لعرض المستخدمين، يرجى اختيار شركة أولاً من لوحة تحكم السوبر أدمن."
+            : "You are logged in as Super Admin. To view users, please select a tenant first from the Super Admin dashboard."}
+        </p>
+        <Button asChild>
+          <Link href="/dashboard/super-admin/tenants">
+            {locale === "ar" ? "الذهاب إلى الشركات" : "Go to Tenants"}
+          </Link>
+        </Button>
+      </div>
+    );
+  }
+
   const users = await prisma.user.findMany({
-    where,
+    where: { tenantId: user.tenantId },
     orderBy: { createdAt: "desc" },
     select: {
       id: true,
