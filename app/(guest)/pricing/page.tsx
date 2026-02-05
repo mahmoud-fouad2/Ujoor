@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { marketingMetadata } from "@/lib/marketing/seo";
 import { getAppLocale } from "@/lib/i18n/locale";
+import { prisma } from "@/lib/db";
 
 export async function generateMetadata(): Promise<Metadata> {
   return marketingMetadata({
@@ -21,53 +22,84 @@ export async function generateMetadata(): Promise<Metadata> {
   });
 }
 
-const plans = [
+// Fallback plans if database is empty
+const fallbackPlans = [
   {
     name: "Starter",
     nameAr: "الأساسية",
-    priceAr: "499",
-    priceEn: "499",
-    employeesAr: "حتى 25 موظف",
-    employeesEn: "Up to 25 employees",
+    priceMonthly: 499,
+    currency: "SAR",
+    employeesLabel: "حتى 25 موظف",
+    employeesLabelEn: "Up to 25 employees",
     featuresAr: ["إدارة الموظفين", "الحضور والانصراف", "الإجازات", "التقارير الأساسية"],
     featuresEn: ["Employee management", "Time & attendance", "Leave management", "Basic reports"],
+    isPopular: false,
   },
   {
     name: "Business",
     nameAr: "الأعمال",
-    priceAr: "999",
-    priceEn: "999",
-    employeesAr: "حتى 100 موظف",
-    employeesEn: "Up to 100 employees",
+    priceMonthly: 999,
+    currency: "SAR",
+    employeesLabel: "حتى 100 موظف",
+    employeesLabelEn: "Up to 100 employees",
     featuresAr: ["كل مميزات الأساسية", "إدارة الرواتب", "تصدير WPS", "دعم فني متقدم"],
     featuresEn: ["Everything in Starter", "Payroll", "WPS export", "Priority support"],
-    popular: true,
+    isPopular: true,
   },
   {
     name: "Enterprise",
     nameAr: "المؤسسات",
-    priceAr: "تواصل معنا",
-    priceEn: "Contact us",
-    employeesAr: "غير محدود",
-    employeesEn: "Unlimited",
+    priceMonthly: null,
+    currency: "SAR",
+    employeesLabel: "غير محدود",
+    employeesLabelEn: "Unlimited",
     featuresAr: ["كل مميزات الأعمال", "تكاملات مخصصة", "وصول API", "مدير حساب مخصص"],
     featuresEn: ["Everything in Business", "Custom integrations", "API access", "Dedicated account manager"],
+    isPopular: false,
   },
 ];
 
-const comparison = [
-  { featureAr: "إدارة الموظفين", featureEn: "Employee management", starter: true, business: true, enterprise: true },
-  { featureAr: "الحضور والانصراف", featureEn: "Time & attendance", starter: true, business: true, enterprise: true },
-  { featureAr: "الرواتب", featureEn: "Payroll", starter: false, business: true, enterprise: true },
-  { featureAr: "تصدير WPS", featureEn: "WPS export", starter: false, business: true, enterprise: true },
-  { featureAr: "صلاحيات وأدوار", featureEn: "Roles & permissions", starter: true, business: true, enterprise: true },
-  { featureAr: "تكاملات مخصصة", featureEn: "Custom integrations", starter: false, business: false, enterprise: true },
+const fallbackComparison = [
+  { featureAr: "إدارة الموظفين", featureEn: "Employee management", inStarter: true, inBusiness: true, inEnterprise: true },
+  { featureAr: "الحضور والانصراف", featureEn: "Time & attendance", inStarter: true, inBusiness: true, inEnterprise: true },
+  { featureAr: "الرواتب", featureEn: "Payroll", inStarter: false, inBusiness: true, inEnterprise: true },
+  { featureAr: "تصدير WPS", featureEn: "WPS export", inStarter: false, inBusiness: true, inEnterprise: true },
+  { featureAr: "صلاحيات وأدوار", featureEn: "Roles & permissions", inStarter: true, inBusiness: true, inEnterprise: true },
+  { featureAr: "تكاملات مخصصة", featureEn: "Custom integrations", inStarter: false, inBusiness: false, inEnterprise: true },
 ];
+
+async function getPricingData() {
+  try {
+    const [dbPlans, dbComparison] = await Promise.all([
+      prisma.pricingPlan.findMany({
+        where: { isActive: true },
+        orderBy: { sortOrder: "asc" },
+      }),
+      prisma.planFeatureComparison.findMany({
+        where: { isActive: true },
+        orderBy: { sortOrder: "asc" },
+      }),
+    ]);
+
+    return {
+      plans: dbPlans.length > 0 ? dbPlans : fallbackPlans,
+      comparison: dbComparison.length > 0 ? dbComparison : fallbackComparison,
+    };
+  } catch {
+    // Return fallback data if database fails
+    return {
+      plans: fallbackPlans,
+      comparison: fallbackComparison,
+    };
+  }
+}
 
 export default async function PricingPage() {
   const locale = await getAppLocale();
   const isAr = locale === "ar";
   const p = locale === "en" ? "/en" : "";
+  
+  const { plans, comparison } = await getPricingData();
 
   return (
     <main className="bg-background">
@@ -82,41 +114,50 @@ export default async function PricingPage() {
         </div>
 
         <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {plans.map((plan) => (
-            <Card key={plan.name} className={plan.popular ? "border-primary shadow-lg" : ""}>
-              {plan.popular ? (
-                <div className="bg-primary px-4 py-1 text-center text-sm font-medium text-primary-foreground">
-                  {isAr ? "الأكثر طلبًا" : "Most popular"}
-                </div>
-              ) : null}
-              <CardHeader className="text-center">
-                <CardTitle className="text-2xl">{isAr ? plan.nameAr : plan.name}</CardTitle>
-                <CardDescription>{isAr ? plan.name : plan.nameAr}</CardDescription>
-                <div className="mt-4">
-                  <span className="text-4xl font-bold">{isAr ? plan.priceAr : plan.priceEn}</span>
-                  {(isAr ? plan.priceAr : plan.priceEn) !== (isAr ? "تواصل معنا" : "Contact us") ? (
-                    <span className="text-muted-foreground">{isAr ? " ريال/شهر" : " SAR / month"}</span>
-                  ) : null}
-                </div>
-                <p className="text-sm text-muted-foreground">{isAr ? plan.employeesAr : plan.employeesEn}</p>
-              </CardHeader>
-              <CardContent>
-                <ul className="space-y-3">
-                  {(isAr ? plan.featuresAr : plan.featuresEn).map((f) => (
-                    <li key={f} className="flex items-center gap-2">
-                      <CheckCircle2 className="h-4 w-4 text-primary" />
-                      <span className="text-sm">{f}</span>
-                    </li>
-                  ))}
-                </ul>
-                <Link href={`${p}/request-demo`} className="mt-6 block">
-                  <Button className="w-full" variant={plan.popular ? "default" : "outline"}>
-                    {isAr ? "طلب اشتراك" : "Request subscription"}
-                  </Button>
-                </Link>
-              </CardContent>
-            </Card>
-          ))}
+          {plans.map((plan) => {
+            const price = plan.priceMonthly ? Number(plan.priceMonthly) : null;
+            const priceText = price != null ? String(price) : (isAr ? "تواصل معنا" : "Contact us");
+            const employeesText = isAr ? plan.employeesLabel : plan.employeesLabelEn;
+            const features = (isAr ? plan.featuresAr : plan.featuresEn) as string[];
+            
+            return (
+              <Card key={plan.name} className={plan.isPopular ? "border-primary shadow-lg" : ""}>
+                {plan.isPopular ? (
+                  <div className="bg-primary px-4 py-1 text-center text-sm font-medium text-primary-foreground">
+                    {isAr ? "الأكثر طلبًا" : "Most popular"}
+                  </div>
+                ) : null}
+                <CardHeader className="text-center">
+                  <CardTitle className="text-2xl">{isAr ? plan.nameAr : plan.name}</CardTitle>
+                  <CardDescription>{isAr ? plan.name : plan.nameAr}</CardDescription>
+                  <div className="mt-4">
+                    <span className="text-4xl font-bold">{priceText}</span>
+                    {price != null ? (
+                      <span className="text-muted-foreground">
+                        {isAr ? ` ريال/شهر` : ` ${plan.currency} / month`}
+                      </span>
+                    ) : null}
+                  </div>
+                  <p className="text-sm text-muted-foreground">{employeesText}</p>
+                </CardHeader>
+                <CardContent>
+                  <ul className="space-y-3">
+                    {features.map((f) => (
+                      <li key={f} className="flex items-center gap-2">
+                        <CheckCircle2 className="h-4 w-4 text-primary" />
+                        <span className="text-sm">{f}</span>
+                      </li>
+                    ))}
+                  </ul>
+                  <Link href={`${p}/request-demo`} className="mt-6 block">
+                    <Button className="w-full" variant={plan.isPopular ? "default" : "outline"}>
+                      {isAr ? "طلب اشتراك" : "Request subscription"}
+                    </Button>
+                  </Link>
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
       </section>
 
@@ -143,9 +184,9 @@ export default async function PricingPage() {
                 {comparison.map((row) => (
                   <TableRow key={row.featureEn}>
                     <TableCell className="font-medium">{isAr ? row.featureAr : row.featureEn}</TableCell>
-                    <TableCell className="text-center">{row.starter ? "✓" : "—"}</TableCell>
-                    <TableCell className="text-center">{row.business ? "✓" : "—"}</TableCell>
-                    <TableCell className="text-center">{row.enterprise ? "✓" : "—"}</TableCell>
+                    <TableCell className="text-center">{row.inStarter ? "✓" : "—"}</TableCell>
+                    <TableCell className="text-center">{row.inBusiness ? "✓" : "—"}</TableCell>
+                    <TableCell className="text-center">{row.inEnterprise ? "✓" : "—"}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>

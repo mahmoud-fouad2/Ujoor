@@ -13,6 +13,7 @@
     "android:open": "cap open android",
     "android:apk:debug": "cd android && gradlew.bat assembleDebug",
     "android:apk:release": "cd android && gradlew.bat assembleRelease",
+    "android:build": "node scripts/build-apk.mjs",
     "lint": "eslint .",
     "test": "vitest run",
     "test:watch": "vitest",

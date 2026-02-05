@@ -51,14 +51,24 @@ function getNav(locale: "ar" | "en", role?: string, hasTenant?: boolean): NavIte
         icon: IconDashboard,
       },
       {
-        title: locale === "ar" ? "طلبات الاشتراك (Super Admin)" : "Subscription Requests (Super Admin)",
+        title: locale === "ar" ? "طلبات الاشتراك" : "Subscription Requests",
         url: `${p}/dashboard/super-admin/requests`,
         icon: IconListDetails,
       },
       {
-        title: locale === "ar" ? "الشركات (Super Admin)" : "Tenants (Super Admin)",
+        title: locale === "ar" ? "الشركات" : "Tenants",
         url: `${p}/dashboard/super-admin/tenants`,
         icon: IconUsers,
+      },
+      {
+        title: locale === "ar" ? "الأسعار والباقات" : "Pricing & Plans",
+        url: `${p}/dashboard/super-admin/pricing`,
+        icon: IconChartBar,
+      },
+      {
+        title: locale === "ar" ? "إعدادات المنصة" : "Platform Settings",
+        url: `${p}/dashboard/super-admin/settings`,
+        icon: IconFolder,
       },
     ];
   }

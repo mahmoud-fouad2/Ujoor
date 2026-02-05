@@ -2019,3 +2019,106 @@ enum LoanStatus {
   REJECTED
   CANCELLED
 }
+
+// =============================================
+// PLATFORM SETTINGS (Super Admin)
+// =============================================
+
+model PlatformSettings {
+  id                String   @id @default(cuid())
+  
+  // General
+  platformName      String   @default("أجور")
+  platformNameEn    String   @default("Ujoors")
+  supportEmail      String   @default("support@ujoor.com")
+  supportPhone      String?
+  
+  // Trial Settings
+  trialDays         Int      @default(14)
+  trialMaxEmployees Int      @default(10)
+  
+  // Appearance
+  primaryColor      String   @default("#0284c7")
+  logoUrl           String?
+  faviconUrl        String?
+  
+  // Social Links
+  twitterUrl        String?
+  linkedinUrl       String?
+  facebookUrl       String?
+  
+  // Legal
+  termsUrl          String?
+  privacyUrl        String?
+  
+  // Maintenance
+  maintenanceMode   Boolean  @default(false)
+  maintenanceMsg    String?
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+// =============================================
+// PRICING PLANS (Super Admin)
+// =============================================
+
+model PricingPlan {
+  id              String   @id @default(cuid())
+  
+  // Basic Info
+  name            String   // "Starter", "Business", "Enterprise"
+  nameAr          String   // "الأساسية", "الأعمال", "المؤسسات"
+  slug            String   @unique // "starter", "business", "enterprise"
+  
+  // Pricing
+  priceMonthly    Decimal? @db.Decimal(10, 2) // null = "Contact us"
+  priceYearly     Decimal? @db.Decimal(10, 2)
+  currency        String   @default("SAR")
+  
+  // Limits
+  maxEmployees    Int?     // null = unlimited
+  employeesLabel  String?  // "حتى 25 موظف"
+  employeesLabelEn String? // "Up to 25 employees"
+  
+  // Features (JSON array)
+  featuresAr      Json     @default("[]")
+  featuresEn      Json     @default("[]")
+  
+  // Plan Type Mapping
+  planType        TenantPlan @default(TRIAL)
+  
+  // Display
+  isPopular       Boolean  @default(false)
+  isActive        Boolean  @default(true)
+  sortOrder       Int      @default(0)
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  @@index([isActive, sortOrder])
+}
+
+// =============================================
+// PLAN FEATURE COMPARISON (Super Admin)
+// =============================================
+
+model PlanFeatureComparison {
+  id              String   @id @default(cuid())
+  
+  featureAr       String   // "إدارة الموظفين"
+  featureEn       String   // "Employee management"
+  
+  // Which plans have this feature
+  inStarter       Boolean  @default(false)
+  inBusiness      Boolean  @default(false)
+  inEnterprise    Boolean  @default(false)
+  
+  sortOrder       Int      @default(0)
+  isActive        Boolean  @default(true)
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  @@index([isActive, sortOrder])
+}

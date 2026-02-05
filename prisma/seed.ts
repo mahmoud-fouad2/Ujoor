@@ -240,6 +240,121 @@ async function main() {
     }
   }
 
+  // ============================================
+  // 3. Seed Pricing Plans
+  // ============================================
+  const pricingPlans = [
+    {
+      name: "Starter",
+      nameAr: "الأساسية",
+      slug: "starter",
+      priceMonthly: 499,
+      priceYearly: 4990,
+      currency: "SAR",
+      maxEmployees: 25,
+      employeesLabel: "حتى 25 موظف",
+      employeesLabelEn: "Up to 25 employees",
+      featuresAr: ["إدارة الموظفين", "الحضور والانصراف", "الإجازات", "التقارير الأساسية"],
+      featuresEn: ["Employee management", "Time & attendance", "Leave management", "Basic reports"],
+      planType: "BASIC" as const,
+      isPopular: false,
+      sortOrder: 1,
+    },
+    {
+      name: "Business",
+      nameAr: "الأعمال",
+      slug: "business",
+      priceMonthly: 999,
+      priceYearly: 9990,
+      currency: "SAR",
+      maxEmployees: 100,
+      employeesLabel: "حتى 100 موظف",
+      employeesLabelEn: "Up to 100 employees",
+      featuresAr: ["كل مميزات الأساسية", "إدارة الرواتب", "تصدير WPS", "دعم فني متقدم"],
+      featuresEn: ["Everything in Starter", "Payroll", "WPS export", "Priority support"],
+      planType: "PROFESSIONAL" as const,
+      isPopular: true,
+      sortOrder: 2,
+    },
+    {
+      name: "Enterprise",
+      nameAr: "المؤسسات",
+      slug: "enterprise",
+      priceMonthly: null,
+      priceYearly: null,
+      currency: "SAR",
+      maxEmployees: null,
+      employeesLabel: "غير محدود",
+      employeesLabelEn: "Unlimited",
+      featuresAr: ["كل مميزات الأعمال", "تكاملات مخصصة", "وصول API", "مدير حساب مخصص"],
+      featuresEn: ["Everything in Business", "Custom integrations", "API access", "Dedicated account manager"],
+      planType: "ENTERPRISE" as const,
+      isPopular: false,
+      sortOrder: 3,
+    },
+  ];
+
+  for (const plan of pricingPlans) {
+    const existing = await prisma.pricingPlan.findUnique({
+      where: { slug: plan.slug },
+    });
+
+    if (!existing) {
+      await prisma.pricingPlan.create({
+        data: plan,
+      });
+      console.log(`✅ Pricing plan created: ${plan.name}`);
+    } else {
+      console.log(`ℹ️  Pricing plan already exists: ${plan.name}`);
+    }
+  }
+
+  // ============================================
+  // 4. Seed Feature Comparison
+  // ============================================
+  const features = [
+    { featureAr: "إدارة الموظفين", featureEn: "Employee management", inStarter: true, inBusiness: true, inEnterprise: true, sortOrder: 1 },
+    { featureAr: "الحضور والانصراف", featureEn: "Time & attendance", inStarter: true, inBusiness: true, inEnterprise: true, sortOrder: 2 },
+    { featureAr: "إدارة الإجازات", featureEn: "Leave management", inStarter: true, inBusiness: true, inEnterprise: true, sortOrder: 3 },
+    { featureAr: "الرواتب", featureEn: "Payroll", inStarter: false, inBusiness: true, inEnterprise: true, sortOrder: 4 },
+    { featureAr: "تصدير WPS", featureEn: "WPS export", inStarter: false, inBusiness: true, inEnterprise: true, sortOrder: 5 },
+    { featureAr: "صلاحيات وأدوار", featureEn: "Roles & permissions", inStarter: true, inBusiness: true, inEnterprise: true, sortOrder: 6 },
+    { featureAr: "التقارير المتقدمة", featureEn: "Advanced reports", inStarter: false, inBusiness: true, inEnterprise: true, sortOrder: 7 },
+    { featureAr: "تكاملات مخصصة", featureEn: "Custom integrations", inStarter: false, inBusiness: false, inEnterprise: true, sortOrder: 8 },
+    { featureAr: "وصول API", featureEn: "API access", inStarter: false, inBusiness: false, inEnterprise: true, sortOrder: 9 },
+    { featureAr: "مدير حساب مخصص", featureEn: "Dedicated account manager", inStarter: false, inBusiness: false, inEnterprise: true, sortOrder: 10 },
+  ];
+
+  const existingFeatures = await prisma.planFeatureComparison.count();
+  if (existingFeatures === 0) {
+    await prisma.planFeatureComparison.createMany({
+      data: features,
+    });
+    console.log(`✅ Feature comparison seeded: ${features.length} features`);
+  } else {
+    console.log(`ℹ️  Feature comparison already exists`);
+  }
+
+  // ============================================
+  // 5. Seed Platform Settings
+  // ============================================
+  const existingSettings = await prisma.platformSettings.findFirst();
+  if (!existingSettings) {
+    await prisma.platformSettings.create({
+      data: {
+        platformName: "أجور",
+        platformNameEn: "Ujoors",
+        supportEmail: "support@ujoor.com",
+        trialDays: 14,
+        trialMaxEmployees: 10,
+        primaryColor: "#0284c7",
+      },
+    });
+    console.log(`✅ Platform settings created`);
+  } else {
+    console.log(`ℹ️  Platform settings already exists`);
+  }
+
   console.log("\n🎉 Seed completed successfully!");
 }
 
