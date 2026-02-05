@@ -18,9 +18,9 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { TenantAccess } from "@/components/tenant-access";
 import { marketingMetadata } from "@/lib/marketing/seo";
 import { getAppLocale } from "@/lib/i18n/locale";
+import { redirect } from "next/navigation";
 
 export async function generateMetadata(): Promise<Metadata> {
   return marketingMetadata({
@@ -107,39 +107,21 @@ export default async function LandingPage({
   const isAr = locale === "ar";
   const p = locale === "en" ? "/en" : "";
 
-  const demoTenants = [
-    { slug: "demo", labelAr: "Demo", labelEn: "Demo" },
-    { slug: "elite-tech", labelAr: "النخبة للتقنية", labelEn: "Elite Tech" },
-    { slug: "riyadh-trading", labelAr: "الرياض التجارية", labelEn: "Riyadh Trading" },
-    { slug: "future-co", labelAr: "شركة المستقبل", labelEn: "Future Co" },
-  ];
-
   const sp = searchParams ? await searchParams : undefined;
   const tenantRequired = sp?.tenantRequired === "1";
   const nextPathRaw = sp?.next;
   const nextPath = typeof nextPathRaw === "string" ? nextPathRaw : undefined;
 
+  if (tenantRequired) {
+    const params = new URLSearchParams();
+    if (nextPath) params.set("next", nextPath);
+    redirect(`/select-tenant${params.toString() ? `?${params.toString()}` : ""}`);
+  }
+
   return (
     <main className="min-h-[calc(100vh-8rem)] bg-background">
       {/* Hero */}
       <section className="container mx-auto px-4 py-16 sm:py-20">
-        {tenantRequired ? (
-          <div className="mx-auto mb-8 max-w-2xl rounded-xl border bg-muted/40 p-4 text-start">
-            <p className="mb-3 text-sm text-muted-foreground">
-              {isAr ? (
-                <>
-                  لازم تختار شركتك (Tenant) قبل الدخول للداشبورد على هذا الدومين. اختر من الديمو بالأسفل أو اكتب الـ slug.
-                </>
-              ) : (
-                <>
-                  You need to select your tenant before entering the dashboard on this domain. Pick a demo below or type the slug.
-                </>
-              )}
-            </p>
-            <TenantAccess nextPath={nextPath} locale={locale} presets={demoTenants} />
-          </div>
-        ) : null}
-
         <div className="grid items-center gap-10 lg:grid-cols-2">
           <div className="text-center lg:text-start">
             <div className="mx-auto inline-flex items-center gap-2 rounded-full border bg-background/70 px-4 py-1 text-xs text-muted-foreground shadow-sm lg:mx-0">

@@ -37,12 +37,8 @@ export function TenantAccess({
   const [error, setError] = React.useState<string | null>(null);
 
   const buildTenantUrl = (slug: string) => {
-    const params = new URLSearchParams();
-    const next = safeNextPath(nextPath);
-    if (next) params.set("next", next);
-
-    const qs = params.toString();
-    return `/t/${slug}${qs ? `?${qs}` : ""}`;
+    const next = safeNextPath(nextPath) ?? "/dashboard";
+    return `/t/${slug}${next}`;
   };
 
   const onSubmit = (e: React.FormEvent) => {

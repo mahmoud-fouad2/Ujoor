@@ -53,20 +53,52 @@ export function proxy(request: NextRequest) {
   // Allow selecting tenant on non-subdomain hosts via path: /t/<tenantSlug>[/nextPath]
   // Useful for Render default domain without custom DNS.
   if (pathname === "/t" || pathname.startsWith("/t/")) {
+    // Bare /t should go to the selection page
+    if (pathname === "/t" || pathname === "/t/") {
+      const url = request.nextUrl.clone();
+      url.pathname = "/select-tenant";
+      // Preserve any next query (safeNextPath validation happens on the page)
+      return NextResponse.redirect(url);
+    }
+
     const rest = pathname.slice("/t".length); // "" | "/slug" | "/slug/anything"
     const parts = rest.split("/").filter(Boolean);
     const slug = parts[0] ?? "";
     if (slug && isValidTenantSlug(slug)) {
       const nextPathFromQuery = safeNextPath(request.nextUrl.searchParams.get("next"));
       const nextPathFromPath = parts.length > 1 ? `/${parts.slice(1).join("/")}` : null;
-      const nextPath = nextPathFromQuery ?? nextPathFromPath ?? "/dashboard";
 
-      const url = new URL(nextPath, request.url);
-      const res = NextResponse.redirect(url);
+      // If caller used the old style (/t/<slug>?next=/dashboard/...) redirect to canonical
+      // URL that keeps the tenant in the path for shareable links on Render.
+      if (nextPathFromQuery) {
+        const canonical = request.nextUrl.clone();
+        canonical.pathname = `/t/${slug}${nextPathFromQuery}`;
+        canonical.searchParams.delete("next");
+
+        const res = NextResponse.redirect(canonical);
+        res.cookies.set("ujoors_tenant", slug, { path: "/", sameSite: "lax" });
+        res.headers.set("x-tenant-slug", slug);
+        return res;
+      }
+
+      // Rewrite internally while keeping the /t/<slug>/... URL in the browser.
+      const targetPath = nextPathFromPath ?? "/dashboard";
+      const url = request.nextUrl.clone();
+      url.pathname = targetPath;
+
+      const nextHeaders = new Headers(request.headers);
+      nextHeaders.set("x-tenant-slug", slug);
+
+      const res = NextResponse.rewrite(url, { request: { headers: nextHeaders } });
       res.cookies.set("ujoors_tenant", slug, { path: "/", sameSite: "lax" });
       res.headers.set("x-tenant-slug", slug);
       return res;
     }
+
+    // Invalid slug: send to selection UI
+    const fallback = request.nextUrl.clone();
+    fallback.pathname = "/select-tenant";
+    return NextResponse.redirect(fallback);
   }
 
   // Locale prefixes: keep Arabic default, support /en (and /ar) for clean URLs.
