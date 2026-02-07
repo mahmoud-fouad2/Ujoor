@@ -1,14 +1,25 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import MobileBottomNav from "@/components/mobile/mobile-bottom-nav";
 
 export const metadata: Metadata = {
-  title: "Ujoor Mobile",
+  title: "Ujoor",
+  description: "Ujoor HR Mobile",
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  themeColor: "#f8fafc",
 };
 
 export default function MobileLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-dvh bg-muted/20">
-      <div className="mx-auto w-full max-w-md px-4 pb-24 pt-4">{children}</div>
+    <div className="min-h-dvh bg-[#f8fafc]">
+      <main className="mx-auto w-full max-w-[430px] px-5 pb-24 pt-[max(env(safe-area-inset-top),12px)]">
+        {children}
+      </main>
       <MobileBottomNav />
     </div>
   );

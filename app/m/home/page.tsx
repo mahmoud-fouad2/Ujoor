@@ -1,75 +1,108 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { MapPin, Sparkles } from "lucide-react";
+import { useRouter } from "next/navigation";
+import {
+  ArrowDownToLine,
+  ArrowUpFromLine,
+  CalendarCheck,
+  ClipboardList,
+  Clock,
+  FileText,
+  Loader2,
+  MapPin,
+  Plane,
+} from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
 import MobileHeader from "@/components/mobile/mobile-header";
-import { formatArabicDate, formatTimeHHMM, getCurrentPositionSafe, greeting } from "@/components/mobile/mobile-utils";
+import {
+  formatTimeHHMM,
+  formatArabicDate,
+  formatDayName,
+  greeting,
+  getInitials,
+  getCurrentPositionSafe,
+} from "@/components/mobile/mobile-utils";
 import {
   loadMobileAuth,
   mobileAuthFetch,
   mobileChallenge,
-  mobileLogoutAll,
 } from "@/lib/mobile/web-client";
 
 type TodayStatus = {
-  data: {
-    date: string;
-    status: "NONE" | "CHECKED_IN" | "CHECKED_OUT";
-    canCheckIn: boolean;
-    canCheckOut: boolean;
-    record: any;
-  };
+  status: "NONE" | "CHECKED_IN" | "CHECKED_OUT";
+  canCheckIn: boolean;
+  canCheckOut: boolean;
+  record?: {
+    checkInTime?: string | null;
+    checkOutTime?: string | null;
+  } | null;
 };
+
+const quickActions = [
+  { label: "تصحيح حضور", href: "/m/attendance", icon: CalendarCheck, color: "from-blue-500 to-blue-600" },
+  { label: "طلب إجازة", href: "/m/requests", icon: Plane, color: "from-emerald-500 to-emerald-600" },
+  { label: "الطلبات", href: "/m/requests", icon: FileText, color: "from-amber-500 to-amber-600" },
+  { label: "السجل", href: "/m/attendance", icon: ClipboardList, color: "from-violet-500 to-violet-600" },
+];
 
 export default function MobileHomePage() {
   const router = useRouter();
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [today, setToday] = useState<TodayStatus | null>(null);
-  const [now, setNow] = useState(() => new Date());
 
-  const auth = useMemo(() => loadMobileAuth(), []);
-  const displayName =
-    ((auth?.user?.firstName || "") + (auth?.user?.lastName ? ` ${auth.user.lastName}` : "")).trim() ||
-    auth?.user?.email ||
-    "";
-  const tenantName = auth?.user?.tenant?.nameAr || auth?.user?.tenant?.name || "";
-  const dateText = formatArabicDate(now, "ar");
-
-  async function load() {
-    setError(null);
-    try {
-      const res = await mobileAuthFetch<TodayStatus>("/api/mobile/attendance/today");
-      setToday(res);
-    } catch (e: any) {
-      setError(e?.message || "فشل تحميل الحالة");
-    }
-  }
+  /* ───── Auth ───── */
+  const auth = useMemo(() => {
+    if (typeof window === "undefined") return null;
+    return loadMobileAuth();
+  }, []);
 
   useEffect(() => {
-    if (!auth?.accessToken) {
-      router.replace("/m/login");
-      return;
-    }
-    void load();
-    const id = window.setInterval(() => setNow(new Date()), 30_000);
-    return () => window.clearInterval(id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [router]);
+    if (!auth) router.replace("/m/login");
+  }, [auth, router]);
 
-  async function submit(type: "check-in" | "check-out") {
-    setBusy(true);
-    setError(null);
+  /* ───── Clock ───── */
+  const [now, setNow] = useState(new Date());
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 30_000);
+    return () => clearInterval(id);
+  }, []);
+
+  /* ───── Attendance Status ───── */
+  const [today, setToday] = useState<TodayStatus | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [actionBusy, setActionBusy] = useState(false);
+  const [gpsStatus, setGpsStatus] = useState<"idle" | "locating" | "ok" | "fail">("idle");
+  const didFetch = useRef(false);
+
+  const fetchToday = useCallback(async () => {
     try {
+      const res = await mobileAuthFetch<{ data: TodayStatus }>("/api/mobile/attendance/today");
+      setToday(res.data);
+    } catch {
+      /* ignore */
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!didFetch.current && auth) {
+      didFetch.current = true;
+      fetchToday();
+    }
+  }, [auth, fetchToday]);
+
+  /* ───── Check-in / Check-out ───── */
+  async function handleAttendance(type: "check-in" | "check-out") {
+    setActionBusy(true);
+    setGpsStatus("locating");
+    try {
+      const pos = await getCurrentPositionSafe({ timeoutMs: 8000 });
+      setGpsStatus(pos ? "ok" : "fail");
+
       const nonce = await mobileChallenge();
 
-      const pos = await getCurrentPositionSafe({ timeoutMs: 9000, highAccuracy: true });
       await mobileAuthFetch("/api/mobile/attendance", {
         method: "POST",
         headers: {
@@ -83,141 +116,183 @@ export default function MobileHomePage() {
           accuracy: pos?.accuracy,
         }),
       });
-      await load();
-    } catch (e: any) {
-      setError(e?.message || "فشل تسجيل البصمة");
+
+      await fetchToday();
+    } catch (err: any) {
+      alert(err?.message || "فشلت العملية");
     } finally {
-      setBusy(false);
+      setActionBusy(false);
+      setTimeout(() => setGpsStatus("idle"), 3000);
     }
   }
 
-  async function logout() {
-    setBusy(true);
-    try {
-      await mobileLogoutAll();
-      router.replace("/m/login");
-    } finally {
-      setBusy(false);
-    }
-  }
+  /* ───── Derived ───── */
+  const user = auth?.user;
+  const displayName = user?.firstName || "مستخدم";
+  const dateText = formatArabicDate(now);
+  const dayName = formatDayName(now);
 
-  const status = today?.data?.status;
-  const checkInTime = today?.data?.record?.checkInTime ? new Date(today.data.record.checkInTime) : null;
-  const checkOutTime = today?.data?.record?.checkOutTime ? new Date(today.data.record.checkOutTime) : null;
-  const timeNow = formatTimeHHMM(now, "ar");
+  if (!auth) return null;
 
   return (
-    <div className="space-y-4" dir="rtl">
-      <MobileHeader dateText={dateText} />
+    <div className="space-y-5 pb-4" dir="rtl">
+      <MobileHeader
+        dateText={dateText}
+        avatarUrl={user?.avatar}
+        initials={getInitials(user?.firstName, user?.lastName)}
+      />
 
-      <div className="space-y-1">
-        <div className="text-sm text-muted-foreground text-start">{greeting("ar", now)}</div>
-        <div className="text-2xl font-semibold text-start truncate">{displayName}</div>
+      {/* ── Greeting ── */}
+      <div className="space-y-0.5 pt-1">
+        <h1 className="text-[22px] font-bold text-slate-800">
+          {greeting("ar", now)}، {displayName} 👋
+        </h1>
+        <p className="text-[13px] text-slate-400">{dayName}</p>
       </div>
 
-      <Card className="overflow-hidden border-0 shadow-sm">
-        <div className="bg-gradient-to-br from-slate-950 via-indigo-950 to-slate-950 p-4 text-white">
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
-              <div className="inline-flex size-9 items-center justify-center rounded-2xl bg-white/10">
-                <Sparkles className="size-5" />
-              </div>
-              <div className="min-w-0">
-                <div className="text-sm/5 text-white/80 truncate">{tenantName}</div>
-                <div className="text-base font-medium truncate">الحضور</div>
-              </div>
-            </div>
+      {/* ── Attendance Card ── */}
+      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-800 via-slate-900 to-slate-950 p-5 text-white shadow-xl shadow-slate-900/20">
+        {/* Decorative orb */}
+        <div className="pointer-events-none absolute -left-10 -top-10 size-40 rounded-full bg-primary/15 blur-3xl" />
+        <div className="pointer-events-none absolute -bottom-6 -right-6 size-32 rounded-full bg-cyan-400/10 blur-3xl" />
 
-            <div className="flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-sm">
-              <span className="truncate">Riyadh</span>
-              <MapPin className="size-4" />
-            </div>
-          </div>
-
-          <div className="mt-4 flex items-end justify-between gap-3">
-            <div className="text-5xl font-semibold tabular-nums tracking-tight">{timeNow}</div>
-            <div className="text-sm text-white/70">
-              {checkInTime ? (
-                <div className="text-start">دخول: {formatTimeHHMM(checkInTime, "ar")}</div>
-              ) : (
-                <div className="text-start">دخول: -</div>
-              )}
-              {checkOutTime ? (
-                <div className="text-start">خروج: {formatTimeHHMM(checkOutTime, "ar")}</div>
-              ) : (
-                <div className="text-start">خروج: -</div>
-              )}
-            </div>
-          </div>
-
-          <div className="mt-4">
-            <Button
-              className="w-full bg-white/15 text-white hover:bg-white/20"
-              variant="secondary"
-              disabled={busy || (!today?.data?.canCheckIn && !today?.data?.canCheckOut)}
-              onClick={() => void submit(today?.data?.canCheckOut ? "check-out" : "check-in")}
-            >
-              {today?.data?.canCheckOut
-                ? "تسجيل الانصراف"
-                : "تسجيل الحضور"}
-            </Button>
-            <div className="mt-2 grid grid-cols-2 gap-2">
-              <Button disabled={busy || !today?.data?.canCheckIn} onClick={() => void submit("check-in")}>
-                بصمة دخول
-              </Button>
-              <Button variant="secondary" disabled={busy || !today?.data?.canCheckOut} onClick={() => void submit("check-out")}>
-                بصمة خروج
-              </Button>
-            </div>
-          </div>
-
-          <div className="mt-3 text-center text-sm text-white/80">
-            الحالة اليوم: <span className="font-medium">{status || "..."}</span>
-          </div>
-
-          {error ? <p className="mt-2 text-sm text-red-200 text-center">{error}</p> : null}
+        {/* Status Chip */}
+        <div className="mb-4 inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 text-[11px] font-semibold backdrop-blur">
+          <span
+            className={
+              "inline-block size-1.5 rounded-full " +
+              (today?.status === "CHECKED_IN" ? "bg-emerald-400 animate-pulse" : today?.status === "CHECKED_OUT" ? "bg-sky-400" : "bg-slate-400")
+            }
+          />
+          {today?.status === "CHECKED_IN" ? "في العمل" : today?.status === "CHECKED_OUT" ? "انتهى الدوام" : "لم يبدأ بعد"}
         </div>
-      </Card>
 
-      <div className="grid grid-cols-3 gap-2">
-        <Link href="/m/attendance" className="rounded-xl border bg-background p-3 text-start shadow-sm">
-          <div className="text-sm font-medium">سجل الحضور</div>
-          <div className="text-xs text-muted-foreground mt-1">عرض آخر الأيام</div>
-        </Link>
-        <Link href="/m/requests" className="rounded-xl border bg-background p-3 text-start shadow-sm">
-          <div className="text-sm font-medium">طلباتك</div>
-          <div className="text-xs text-muted-foreground mt-1">تذاكر + طلبات</div>
-        </Link>
-        <Link href="/m/settings" className="rounded-xl border bg-background p-3 text-start shadow-sm">
-          <div className="text-sm font-medium">الإعدادات</div>
-          <div className="text-xs text-muted-foreground mt-1">ملفك</div>
-        </Link>
+        {/* Clock */}
+        <div className="mb-5 flex items-end gap-2">
+          <span className="text-[42px] font-extrabold tabular-nums leading-none tracking-tight">
+            {formatTimeHHMM(now)}
+          </span>
+          <Clock className="mb-1 size-5 text-white/40" />
+        </div>
+
+        {/* Check-in / Check-out times */}
+        <div className="mb-5 grid grid-cols-2 gap-3">
+          <TimeChip
+            label="تسجيل الحضور"
+            time={today?.record?.checkInTime}
+            icon={<ArrowDownToLine className="size-3.5 text-emerald-400" />}
+          />
+          <TimeChip
+            label="تسجيل الانصراف"
+            time={today?.record?.checkOutTime}
+            icon={<ArrowUpFromLine className="size-3.5 text-sky-400" />}
+          />
+        </div>
+
+        {/* GPS status */}
+        {gpsStatus !== "idle" && (
+          <div className="mb-3 flex items-center gap-1.5 text-[11px] text-white/50">
+            <MapPin className="size-3" />
+            {gpsStatus === "locating" && "جاري تحديد الموقع…"}
+            {gpsStatus === "ok" && "تم تحديد الموقع ✓"}
+            {gpsStatus === "fail" && "تعذر تحديد الموقع"}
+          </div>
+        )}
+
+        {/* CTA Button */}
+        {loading ? (
+          <div className="flex items-center justify-center py-3">
+            <Loader2 className="size-6 animate-spin text-white/40" />
+          </div>
+        ) : today?.canCheckIn ? (
+          <Button
+            onClick={() => handleAttendance("check-in")}
+            disabled={actionBusy}
+            className="h-12 w-full rounded-2xl bg-emerald-500 text-[15px] font-bold shadow-lg shadow-emerald-500/30 hover:bg-emerald-600"
+          >
+            {actionBusy ? <Loader2 className="size-5 animate-spin" /> : "تسجيل الحضور"}
+          </Button>
+        ) : today?.canCheckOut ? (
+          <Button
+            onClick={() => handleAttendance("check-out")}
+            disabled={actionBusy}
+            className="h-12 w-full rounded-2xl bg-sky-500 text-[15px] font-bold shadow-lg shadow-sky-500/30 hover:bg-sky-600"
+          >
+            {actionBusy ? <Loader2 className="size-5 animate-spin" /> : "تسجيل الانصراف"}
+          </Button>
+        ) : (
+          <div className="rounded-2xl bg-white/5 py-3 text-center text-sm text-white/40">
+            لا يوجد إجراء متاح حالياً
+          </div>
+        )}
       </div>
 
-      <Card className="shadow-sm">
-        <CardHeader className="py-4">
-          <CardTitle className="text-start text-base">إجراءات سريعة</CardTitle>
-        </CardHeader>
-        <CardContent className="grid grid-cols-2 gap-2">
-          <Button asChild variant="outline" className="justify-start">
-            <Link href="/m/requests?new=ticket">طلب جديد</Link>
-          </Button>
-          <Button asChild variant="outline" className="justify-start">
-            <Link href="/m/requests">عرض الطلبات</Link>
-          </Button>
-        </CardContent>
-      </Card>
-
-      <Separator />
-
-      <div className="flex items-center justify-between">
-        <Button asChild variant="link" className="px-0">
-          <Link href="/m/settings">الإعدادات</Link>
-        </Button>
-        <Button onClick={() => void logout()} variant="ghost" disabled={busy}>
-          تسجيل الخروج
-        </Button>
+      {/* ── Quick Actions ── */}
+      <div>
+        <h2 className="mb-3 text-[15px] font-bold text-slate-700">خدمات سريعة</h2>
+        <div className="grid grid-cols-4 gap-3">
+          {quickActions.map((action) => (
+            <Link
+              key={action.label}
+              href={action.href}
+              className="flex flex-col items-center gap-2 rounded-2xl bg-white p-3 shadow-sm ring-1 ring-slate-100 transition active:scale-95"
+            >
+              <div className={`flex size-10 items-center justify-center rounded-xl bg-gradient-to-br ${action.color} shadow-sm`}>
+                <action.icon className="size-5 text-white" strokeWidth={2} />
+              </div>
+              <span className="text-center text-[11px] font-semibold leading-tight text-slate-600">
+                {action.label}
+              </span>
+            </Link>
+          ))}
+        </div>
       </div>
+
+      {/* ── Today Summary ── */}
+      {today?.record && (
+        <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-100">
+          <h3 className="mb-2 text-[13px] font-bold text-slate-600">ملخص اليوم</h3>
+          <div className="space-y-2 text-[13px] text-slate-500">
+            {today.record.checkInTime && (
+              <div className="flex justify-between">
+                <span>وقت الحضور</span>
+                <span className="tabular-nums font-medium text-slate-700">
+                  {formatTimeHHMM(new Date(today.record.checkInTime))}
+                </span>
+              </div>
+            )}
+            {today.record.checkOutTime && (
+              <div className="flex justify-between">
+                <span>وقت الانصراف</span>
+                <span className="tabular-nums font-medium text-slate-700">
+                  {formatTimeHHMM(new Date(today.record.checkOutTime))}
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ─── Sub-components ─── */
+
+function TimeChip({
+  label,
+  time,
+  icon,
+}: {
+  label: string;
+  time?: string | null;
+  icon: React.ReactNode;
+}) {
+  return (
+    <div className="rounded-2xl bg-white/5 px-3 py-2.5 backdrop-blur">
+      <div className="flex items-center gap-1.5 text-[11px] text-white/50">{icon}{label}</div>
+      <p className="mt-1 text-[16px] font-bold tabular-nums">
+        {time ? formatTimeHHMM(new Date(time)) : "--:--"}
+      </p>
     </div>
   );
 }

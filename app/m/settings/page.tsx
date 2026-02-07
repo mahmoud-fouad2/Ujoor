@@ -1,158 +1,180 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Separator } from "@/components/ui/separator";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
+  Building2,
+  Camera,
+  ChevronRight,
+  Hash,
+  Loader2,
+  LogOut,
+  Mail,
+  Shield,
+  User,
+} from "lucide-react";
+
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
+import {
+  clearMobileAuth,
   loadMobileAuth,
   mobileAuthFetch,
   mobileLogoutAll,
-  saveMobileAuth,
 } from "@/lib/mobile/web-client";
+import { getInitials } from "@/components/mobile/mobile-utils";
 
-type MeResponse = {
-  data: {
-    id: string;
-    email: string;
-    firstName: string | null;
-    lastName: string | null;
-    avatar: string | null;
-    tenant?: { id: string; slug: string; name: string; nameAr: string | null } | null;
-    employee?: { id: string; employeeNumber: string | null; firstName: string | null; lastName: string | null } | null;
-  };
+type Profile = {
+  id: string;
+  email: string;
+  firstName: string | null;
+  lastName: string | null;
+  avatar: string | null;
+  role: string;
+  tenant?: { name: string; nameAr: string | null } | null;
+  employee?: { employeeNumber: string | null; firstName: string; lastName: string } | null;
 };
 
 export default function MobileSettingsPage() {
   const router = useRouter();
-  const auth = useMemo(() => loadMobileAuth(), []);
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [avatarBusy, setAvatarBusy] = useState(false);
+  const [logoutBusy, setLogoutBusy] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const didFetch = useRef(false);
 
-  const [me, setMe] = useState<MeResponse | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  async function loadMe() {
-    setError(null);
+  const fetchProfile = useCallback(async () => {
     try {
-      const res = await mobileAuthFetch<MeResponse>("/api/mobile/me");
-      setMe(res);
-    } catch (e: any) {
-      setError(e?.message || "فشل تحميل البيانات");
+      const res = await mobileAuthFetch<{ data: Profile }>("/api/mobile/me");
+      setProfile(res.data);
+    } catch {
+      /* ignore */
+    } finally {
+      setLoading(false);
     }
-  }
+  }, []);
 
   useEffect(() => {
-    if (!auth?.accessToken) {
-      router.replace("/m/login");
-      return;
+    if (!didFetch.current) {
+      didFetch.current = true;
+      const auth = loadMobileAuth();
+      if (!auth) {
+        router.replace("/m/login");
+        return;
+      }
+      fetchProfile();
     }
-    void loadMe();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [router]);
+  }, [router, fetchProfile]);
 
-  async function uploadAvatar(file: File) {
-    setBusy(true);
-    setError(null);
-
+  /* ── Avatar Upload ── */
+  async function onAvatarChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setAvatarBusy(true);
     try {
-      const formData = new FormData();
-      formData.append("file", file);
-
+      const form = new FormData();
+      form.append("file", file);
       const res = await mobileAuthFetch<{ data: { url: string } }>("/api/mobile/me/avatar", {
         method: "POST",
-        body: formData,
+        body: form,
       });
-
-      const url = res?.data?.url;
-      if (url && auth) {
-        saveMobileAuth({ ...auth, user: { ...auth.user, avatar: url } });
+      if (res.data?.url) {
+        setProfile((p) => (p ? { ...p, avatar: res.data.url } : p));
       }
-
-      await loadMe();
-    } catch (e: any) {
-      setError(e?.message || "فشل رفع الصورة");
+    } catch {
+      alert("فشل رفع الصورة");
     } finally {
-      setBusy(false);
+      setAvatarBusy(false);
     }
   }
 
-  async function logout() {
-    setBusy(true);
+  /* ── Logout ── */
+  async function handleLogout() {
+    setLogoutBusy(true);
     try {
       await mobileLogoutAll();
-      router.replace("/m/login");
-    } finally {
-      setBusy(false);
+    } catch {
+      clearMobileAuth();
     }
+    router.replace("/m/login");
   }
 
-  const displayName =
-    (me?.data?.firstName || "") + (me?.data?.lastName ? ` ${me.data.lastName}` : "");
+  if (loading) {
+    return (
+      <div className="flex min-h-[60dvh] items-center justify-center" dir="rtl">
+        <Loader2 className="size-7 animate-spin text-slate-300" />
+      </div>
+    );
+  }
+
+  const initials = getInitials(profile?.firstName, profile?.lastName);
+  const fullName = [profile?.firstName, profile?.lastName].filter(Boolean).join(" ") || "مستخدم";
+  const companyName = profile?.tenant?.nameAr || profile?.tenant?.name || "—";
 
   return (
-    <div className="space-y-4">
-      <Card className="shadow-sm">
-        <CardHeader>
-          <CardTitle className="text-center">الإعدادات</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-center gap-3">
-            <Avatar className="size-14">
-              <AvatarImage src={me?.data?.avatar || auth?.user?.avatar || ""} alt={displayName || "avatar"} />
-              <AvatarFallback>U</AvatarFallback>
-            </Avatar>
+    <div className="space-y-5 pb-4" dir="rtl">
+      {/* Header */}
+      <div className="flex items-center gap-3 pt-3">
+        <button type="button" onClick={() => router.back()} className="flex size-9 items-center justify-center rounded-xl bg-white shadow-sm ring-1 ring-slate-100">
+          <ChevronRight className="size-5 text-slate-400" />
+        </button>
+        <h1 className="text-lg font-bold text-slate-800">الملف الشخصي</h1>
+      </div>
 
-            <div className="min-w-0">
-              <div className="font-medium truncate">{displayName || me?.data?.email || ""}</div>
-              <div className="text-xs text-muted-foreground truncate">
-                {me?.data?.tenant?.nameAr || me?.data?.tenant?.name || ""}
-              </div>
-            </div>
-          </div>
+      {/* Avatar + Name Card */}
+      <div className="flex flex-col items-center rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-100">
+        <div className="relative">
+          <Avatar className="size-24 ring-4 ring-primary/10">
+            <AvatarImage src={profile?.avatar || ""} />
+            <AvatarFallback className="bg-primary/10 text-2xl font-bold text-primary">
+              {initials}
+            </AvatarFallback>
+          </Avatar>
+          <button
+            type="button"
+            onClick={() => fileRef.current?.click()}
+            disabled={avatarBusy}
+            className="absolute -bottom-1 -left-1 flex size-8 items-center justify-center rounded-full bg-primary text-white shadow-md shadow-primary/30 transition active:scale-90"
+          >
+            {avatarBusy ? <Loader2 className="size-3.5 animate-spin" /> : <Camera className="size-3.5" />}
+          </button>
+          <input ref={fileRef} type="file" accept="image/*" onChange={onAvatarChange} className="hidden" />
+        </div>
+        <h2 className="mt-4 text-[17px] font-bold text-slate-800">{fullName}</h2>
+        <p className="mt-0.5 text-[13px] text-slate-400">{profile?.email}</p>
+      </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="avatar">تغيير الصورة</Label>
-            <Input
-              id="avatar"
-              type="file"
-              accept="image/*"
-              disabled={busy}
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (file) void uploadAvatar(file);
-              }}
-            />
-            <p className="text-xs text-muted-foreground">حد أقصى 3MB</p>
-          </div>
+      {/* Info list */}
+      <div className="space-y-2">
+        <InfoRow icon={<Building2 className="size-[18px] text-slate-400" />} label="الشركة" value={companyName} />
+        <InfoRow icon={<Hash className="size-[18px] text-slate-400" />} label="الرقم الوظيفي" value={profile?.employee?.employeeNumber || "—"} />
+        <InfoRow icon={<Shield className="size-[18px] text-slate-400" />} label="الدور" value={profile?.role || "—"} />
+        <InfoRow icon={<Mail className="size-[18px] text-slate-400" />} label="البريد" value={profile?.email || "—"} />
+      </div>
 
-          <Separator />
+      {/* Logout */}
+      <Button
+        variant="outline"
+        className="h-12 w-full gap-2 rounded-2xl border-red-100 text-[14px] font-semibold text-red-500 hover:bg-red-50 hover:text-red-600"
+        disabled={logoutBusy}
+        onClick={handleLogout}
+      >
+        {logoutBusy ? <Loader2 className="size-4 animate-spin" /> : <LogOut className="size-4" />}
+        تسجيل الخروج
+      </Button>
+    </div>
+  );
+}
 
-          <div className="space-y-1 text-sm">
-            <div>
-              البريد: <span className="font-medium" dir="ltr">{me?.data?.email || ""}</span>
-            </div>
-            <div>
-              رقم الموظف: <span className="font-medium">{me?.data?.employee?.employeeNumber || "-"}</span>
-            </div>
-          </div>
-
-          {error ? <p className="text-sm text-destructive">{error}</p> : null}
-
-          <div className="flex gap-2">
-            <Button variant="secondary" className="w-full" onClick={() => router.push("/m/home")} disabled={busy}>
-              رجوع
-            </Button>
-            <Button variant="ghost" className="w-full" onClick={() => void logout()} disabled={busy}>
-              تسجيل الخروج
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+function InfoRow({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
+  return (
+    <div className="flex items-center gap-3 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-100">
+      {icon}
+      <div className="flex-1 min-w-0">
+        <p className="text-[11px] text-slate-400">{label}</p>
+        <p className="truncate text-[14px] font-semibold text-slate-700">{value}</p>
+      </div>
     </div>
   );
 }

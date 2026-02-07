@@ -4,41 +4,50 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { CalendarCheck, ClipboardList, Home, User } from "lucide-react";
 
-const items = [
+const tabs = [
   { href: "/m/home", label: "الرئيسية", Icon: Home },
   { href: "/m/attendance", label: "الحضور", Icon: CalendarCheck },
   { href: "/m/requests", label: "الطلبات", Icon: ClipboardList },
   { href: "/m/settings", label: "الملف الشخصي", Icon: User },
 ] as const;
 
-function isActive(pathname: string, href: string) {
-  if (pathname === href) return true;
-  return pathname.startsWith(href + "/");
-}
-
 export default function MobileBottomNav() {
   const pathname = usePathname() || "/";
-
-  if (pathname === "/m/login") return null;
+  if (pathname === "/m" || pathname === "/m/login") return null;
 
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-50 mx-auto w-full max-w-md border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
-      <div className="grid grid-cols-4 gap-1 px-2 pb-[max(env(safe-area-inset-bottom),8px)] pt-2">
-        {items.map(({ href, label, Icon }) => {
-          const active = isActive(pathname, href);
+    <nav className="fixed inset-x-0 bottom-0 z-50 mx-auto w-full max-w-[430px] border-t border-slate-100 bg-white/95 backdrop-blur-xl supports-[backdrop-filter]:bg-white/80">
+      <div className="grid grid-cols-4 pb-[max(env(safe-area-inset-bottom),6px)] pt-1">
+        {tabs.map(({ href, label, Icon }) => {
+          const active = pathname === href || pathname.startsWith(href + "/");
           return (
             <Link
               key={href}
               href={href}
-              className={
-                "flex flex-col items-center justify-center gap-1 rounded-md px-2 py-2 text-xs transition-colors " +
-                (active
-                  ? "text-primary"
-                  : "text-muted-foreground hover:text-foreground")
-              }
+              className="flex flex-col items-center justify-center gap-[3px] py-1.5"
             >
-              <Icon className={(active ? "text-primary" : "") + " size-5"} />
-              <span className="leading-none">{label}</span>
+              <div
+                className={
+                  "flex size-8 items-center justify-center rounded-2xl transition-all duration-200 " +
+                  (active ? "bg-primary/10 scale-110" : "")
+                }
+              >
+                <Icon
+                  className={
+                    "size-[21px] transition-colors " +
+                    (active ? "text-primary" : "text-slate-300")
+                  }
+                  strokeWidth={active ? 2.3 : 1.7}
+                />
+              </div>
+              <span
+                className={
+                  "text-[10px] leading-none transition-colors " +
+                  (active ? "font-bold text-primary" : "font-medium text-slate-300")
+                }
+              >
+                {label}
+              </span>
             </Link>
           );
         })}
