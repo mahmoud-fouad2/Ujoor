@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { toast } from "sonner";
+import dynamic from "next/dynamic";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,6 +12,13 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+
+const LocationPickerMap = dynamic(() => import("@/components/maps/location-picker-map"), {
+  ssr: false,
+  loading: () => (
+    <div className="h-[280px] w-full rounded-md border bg-muted/30" />
+  ),
+});
 
 type Locale = "ar" | "en";
 
@@ -35,6 +43,13 @@ type WorkLocation = {
 
 function t(locale: Locale, ar: string, en: string) {
   return locale === "ar" ? ar : en;
+}
+
+function toNullableNumber(value: string): number | null {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const num = Number(trimmed);
+  return Number.isFinite(num) ? num : null;
 }
 
 export default function AttendanceSettingsClient({ locale }: { locale: Locale }) {
@@ -81,7 +96,7 @@ export default function AttendanceSettingsClient({ locale }: { locale: Locale })
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [locale]);
 
   React.useEffect(() => {
     void loadAll();
@@ -362,6 +377,54 @@ export default function AttendanceSettingsClient({ locale }: { locale: Locale })
                     }
                     placeholder={t(locale, "الرياض - شارع ...", "Riyadh - ...")}
                     dir={isRtl ? "rtl" : "ltr"}
+                  />
+                </div>
+
+                <div className="grid gap-2">
+                  <div className="flex items-center justify-between gap-2 rtl:flex-row-reverse">
+                    <Label className="text-start">{t(locale, "حدد الموقع من الخريطة", "Pick on map")}</Label>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        if (!("geolocation" in navigator)) {
+                          toast.error(t(locale, "المتصفح لا يدعم تحديد الموقع.", "Geolocation is not supported."));
+                          return;
+                        }
+                        navigator.geolocation.getCurrentPosition(
+                          (pos) => {
+                            const lat = pos.coords.latitude;
+                            const lng = pos.coords.longitude;
+                            setForm((s) => ({
+                              ...s,
+                              lat: lat.toFixed(6),
+                              lng: lng.toFixed(6),
+                            }));
+                          },
+                          () => {
+                            toast.error(t(locale, "تعذر الحصول على موقعك.", "Failed to get your location."));
+                          },
+                          { enableHighAccuracy: true, timeout: 10000 }
+                        );
+                      }}
+                    >
+                      {t(locale, "استخدم موقعي", "Use my location")}
+                    </Button>
+                  </div>
+
+                  <LocationPickerMap
+                    locale={locale}
+                    lat={toNullableNumber(form.lat)}
+                    lng={toNullableNumber(form.lng)}
+                    radiusMeters={Number(form.radiusMeters || 0)}
+                    onChange={(lat, lng) =>
+                      setForm((s) => ({
+                        ...s,
+                        lat: lat.toFixed(6),
+                        lng: lng.toFixed(6),
+                      }))
+                    }
                   />
                 </div>
 
