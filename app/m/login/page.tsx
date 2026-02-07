@@ -2,12 +2,22 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { motion } from "framer-motion";
 import { Fingerprint, Loader2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { mobileLogin } from "@/lib/mobile/web-client";
+
+const fadeUp = {
+  hidden: { opacity: 0, y: 20 },
+  visible: (i: number) => ({
+    opacity: 1,
+    y: 0,
+    transition: { delay: i * 0.1, duration: 0.45, ease: [0.25, 0.46, 0.45, 0.94] as const },
+  }),
+};
 
 export default function MobileLoginPage() {
   const router = useRouter();
@@ -44,7 +54,13 @@ export default function MobileLoginPage() {
   return (
     <div className="flex min-h-[85dvh] flex-col items-center justify-center" dir="rtl">
       {/* Brand */}
-      <div className="mb-10 flex flex-col items-center gap-3">
+      <motion.div
+        className="mb-10 flex flex-col items-center gap-3"
+        custom={0}
+        initial="hidden"
+        animate="visible"
+        variants={fadeUp}
+      >
         <div className="flex size-[72px] items-center justify-center rounded-3xl bg-gradient-to-br from-primary to-primary/80 shadow-lg shadow-primary/25">
           <Fingerprint className="size-9 text-white" />
         </div>
@@ -52,10 +68,16 @@ export default function MobileLoginPage() {
           <h1 className="text-[28px] font-bold tracking-tight text-slate-900">Ujoor</h1>
           <p className="mt-0.5 text-[13px] text-slate-400">نظام إدارة الموارد البشرية</p>
         </div>
-      </div>
+      </motion.div>
 
       {/* Form */}
-      <div className="w-full rounded-3xl bg-white p-6 shadow-[0_2px_20px_-4px_rgba(0,0,0,0.06)]">
+      <motion.div
+        className="w-full rounded-3xl bg-white p-6 shadow-[0_2px_20px_-4px_rgba(0,0,0,0.06)]"
+        custom={1}
+        initial="hidden"
+        animate="visible"
+        variants={fadeUp}
+      >
         <h2 className="mb-6 text-center text-lg font-semibold text-slate-800">تسجيل الدخول</h2>
 
         <form onSubmit={onSubmit} className="space-y-5">
@@ -91,13 +113,17 @@ export default function MobileLoginPage() {
           </div>
 
           {error && (
-            <div className="rounded-xl bg-red-50 px-4 py-3 text-[13px] leading-relaxed text-red-600">
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              className="overflow-hidden rounded-xl bg-red-50 px-4 py-3 text-[13px] leading-relaxed text-red-600"
+            >
               {error}
-            </div>
+            </motion.div>
           )}
 
           <Button
-            className="h-12 w-full rounded-xl text-[15px] font-semibold shadow-sm shadow-primary/20"
+            className="h-12 w-full rounded-xl text-[15px] font-semibold shadow-sm shadow-primary/20 transition-transform active:scale-[0.98]"
             disabled={!canSubmit || busy}
             type="submit"
           >
@@ -111,11 +137,17 @@ export default function MobileLoginPage() {
             )}
           </Button>
         </form>
-      </div>
+      </motion.div>
 
-      <p className="mt-8 text-center text-[11px] text-slate-300">
+      <motion.p
+        className="mt-8 text-center text-[11px] text-slate-300"
+        custom={2}
+        initial="hidden"
+        animate="visible"
+        variants={fadeUp}
+      >
         Ujoor © {new Date().getFullYear()}
-      </p>
+      </motion.p>
     </div>
   );
 }

@@ -4,14 +4,15 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   CalendarCheck,
-  ChevronDown,
   ChevronRight,
   FileText,
   Loader2,
   Plane,
   Plus,
+  RefreshCw,
   Send,
   TicketCheck,
+  WifiOff,
   X,
 } from "lucide-react";
 
@@ -19,6 +20,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { loadMobileAuth, mobileAuthFetch } from "@/lib/mobile/web-client";
+import { RequestsSkeleton } from "@/components/mobile/mobile-skeletons";
+import { AnimatedPage, AnimatedItem } from "@/components/mobile/mobile-animations";
 
 type Req = {
   id: string;
@@ -46,16 +49,18 @@ export default function MobileRequestsPage() {
   const router = useRouter();
   const [items, setItems] = useState<Req[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const didFetch = useRef(false);
 
   const fetchList = useCallback(async () => {
     try {
       setLoading(true);
+      setError(false);
       const res = await mobileAuthFetch<{ data: { items: Req[] } }>("/api/mobile/my-requests");
       setItems(res.data.items);
     } catch {
-      /* ignore */
+      setError(true);
     } finally {
       setLoading(false);
     }
@@ -73,58 +78,81 @@ export default function MobileRequestsPage() {
     }
   }, [router, fetchList]);
 
-  return (
-    <div className="space-y-4 pb-4" dir="rtl">
-      {/* Header */}
-      <div className="flex items-center justify-between pt-3">
-        <div className="flex items-center gap-3">
-          <button type="button" onClick={() => router.back()} className="flex size-9 items-center justify-center rounded-xl bg-white shadow-sm ring-1 ring-slate-100">
-            <ChevronRight className="size-5 text-slate-400" />
-          </button>
-          <div>
-            <h1 className="text-lg font-bold text-slate-800">الطلبات</h1>
-            <p className="text-[12px] text-slate-400">{items.length} طلب</p>
-          </div>
-        </div>
-        <Button
-          size="sm"
-          className="h-9 gap-1.5 rounded-xl text-[13px] font-semibold shadow-sm shadow-primary/20"
-          onClick={() => setShowForm(true)}
-        >
-          <Plus className="size-4" />
-          طلب جديد
+  /* Skeleton */
+  if (loading && items.length === 0) return <RequestsSkeleton />;
+
+  /* Error */
+  if (error && items.length === 0) {
+    return (
+      <div className="flex min-h-[60dvh] flex-col items-center justify-center gap-4" dir="rtl">
+        <WifiOff className="size-12 text-slate-200" />
+        <p className="text-sm text-slate-400">تعذر تحميل الطلبات</p>
+        <Button variant="outline" size="sm" className="gap-2 rounded-xl" onClick={fetchList}>
+          <RefreshCw className="size-4" />
+          إعادة المحاولة
         </Button>
       </div>
+    );
+  }
+
+  return (
+    <AnimatedPage className="space-y-4 pb-4" dir="rtl">
+      {/* Header */}
+      <AnimatedItem>
+        <div className="flex items-center justify-between pt-3">
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => router.back()}
+              className="flex size-9 items-center justify-center rounded-xl bg-white shadow-sm ring-1 ring-slate-100 transition-transform active:scale-90"
+            >
+              <ChevronRight className="size-5 text-slate-400" />
+            </button>
+            <div>
+              <h1 className="text-lg font-bold text-slate-800">الطلبات</h1>
+              <p className="text-[12px] text-slate-400">{items.length} طلب</p>
+            </div>
+          </div>
+          <Button
+            size="sm"
+            className="h-9 gap-1.5 rounded-xl text-[13px] font-semibold shadow-sm shadow-primary/20 transition-transform active:scale-95"
+            onClick={() => setShowForm(true)}
+          >
+            <Plus className="size-4" />
+            طلب جديد
+          </Button>
+        </div>
+      </AnimatedItem>
 
       {/* Create Form */}
       {showForm && (
-        <CreateTicketForm
-          onClose={() => setShowForm(false)}
-          onCreated={() => {
-            setShowForm(false);
-            fetchList();
-          }}
-        />
+        <AnimatedItem>
+          <CreateTicketForm
+            onClose={() => setShowForm(false)}
+            onCreated={() => {
+              setShowForm(false);
+              fetchList();
+            }}
+          />
+        </AnimatedItem>
       )}
 
       {/* List */}
-      {loading ? (
-        <div className="flex items-center justify-center py-20">
-          <Loader2 className="size-7 animate-spin text-slate-300" />
-        </div>
-      ) : items.length === 0 ? (
-        <div className="flex flex-col items-center py-20 text-center">
-          <FileText className="mb-3 size-12 text-slate-200" />
-          <p className="text-sm text-slate-400">لا يوجد طلبات</p>
-        </div>
+      {items.length === 0 ? (
+        <AnimatedItem>
+          <div className="flex flex-col items-center py-20 text-center">
+            <FileText className="mb-3 size-12 text-slate-200" />
+            <p className="text-sm text-slate-400">لا يوجد طلبات</p>
+          </div>
+        </AnimatedItem>
       ) : (
-        <div className="space-y-2.5">
-          {items.map((r) => (
-            <RequestCard key={r.id} item={r} />
-          ))}
-        </div>
+        items.map((r) => (
+          <AnimatedItem key={r.id}>
+            <RequestCard item={r} />
+          </AnimatedItem>
+        ))
       )}
-    </div>
+    </AnimatedPage>
   );
 }
 
@@ -137,12 +165,12 @@ function RequestCard({ item }: { item: Req }) {
   const dateStr = date.toLocaleDateString("ar-EG", { day: "numeric", month: "short" });
 
   return (
-    <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-100">
+    <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-100 transition-transform active:scale-[0.99]">
       <div className="flex items-start gap-3">
         <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/5">
           <Icon className="size-5 text-primary/70" />
         </div>
-        <div className="flex-1 min-w-0">
+        <div className="min-w-0 flex-1">
           <p className="truncate text-[13px] font-bold text-slate-700">{item.title}</p>
           <p className="mt-0.5 text-[11px] text-slate-400">{dateStr}</p>
         </div>
@@ -186,7 +214,11 @@ function CreateTicketForm({ onClose, onCreated }: { onClose: () => void; onCreat
     <div className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-slate-100">
       <div className="mb-4 flex items-center justify-between">
         <h2 className="text-[15px] font-bold text-slate-700">تذكرة دعم جديدة</h2>
-        <button type="button" onClick={onClose} className="rounded-lg p-1 text-slate-300 hover:text-slate-500">
+        <button
+          type="button"
+          onClick={onClose}
+          className="rounded-lg p-1.5 text-slate-300 transition-colors hover:text-slate-500"
+        >
           <X className="size-5" />
         </button>
       </div>
@@ -224,7 +256,7 @@ function CreateTicketForm({ onClose, onCreated }: { onClose: () => void; onCreat
                 type="button"
                 onClick={() => setPriority(p)}
                 className={
-                  "rounded-xl py-2 text-[12px] font-semibold transition " +
+                  "rounded-xl py-2 text-[12px] font-semibold transition-all active:scale-95 " +
                   (priority === p
                     ? "bg-primary text-white shadow-sm shadow-primary/20"
                     : "bg-slate-50 text-slate-500 ring-1 ring-slate-100")
@@ -243,7 +275,7 @@ function CreateTicketForm({ onClose, onCreated }: { onClose: () => void; onCreat
         <Button
           type="submit"
           disabled={busy || title.trim().length < 3 || description.trim().length < 3}
-          className="h-11 w-full gap-2 rounded-xl text-[14px] font-semibold shadow-sm shadow-primary/20"
+          className="h-11 w-full gap-2 rounded-xl text-[14px] font-semibold shadow-sm shadow-primary/20 transition-transform active:scale-[0.98]"
         >
           {busy ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
           إرسال
