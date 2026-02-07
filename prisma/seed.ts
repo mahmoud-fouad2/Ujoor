@@ -5,6 +5,8 @@
  * Run with: npx prisma db seed
  */
 
+import "dotenv/config";
+
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { hash } from "bcryptjs";
