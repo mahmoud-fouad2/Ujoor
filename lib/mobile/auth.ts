@@ -43,3 +43,24 @@ export async function requireMobileAuthWithDevice(
 
   return payloadOrRes;
 }
+
+export async function requireMobileEmployeeAuthWithDevice(
+  request: NextRequest
+): Promise<(MobileTokenPayload & { deviceId: string; tenantId: string; employeeId: string }) | NextResponse> {
+  const payloadOrRes = await requireMobileAuthWithDevice(request);
+  if (payloadOrRes instanceof NextResponse) return payloadOrRes;
+
+  if (!payloadOrRes.tenantId) {
+    return NextResponse.json({ error: "Tenant required" }, { status: 400 });
+  }
+
+  if (!payloadOrRes.employeeId) {
+    return NextResponse.json({ error: "هذا التطبيق مخصص للموظفين فقط" }, { status: 403 });
+  }
+
+  return {
+    ...payloadOrRes,
+    tenantId: payloadOrRes.tenantId,
+    employeeId: payloadOrRes.employeeId,
+  };
+}

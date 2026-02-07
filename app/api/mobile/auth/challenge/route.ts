@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import prisma from "@/lib/db";
 import { logger } from "@/lib/logger";
-import { requireMobileAuthWithDevice } from "@/lib/mobile/auth";
+import { requireMobileEmployeeAuthWithDevice } from "@/lib/mobile/auth";
 import { createChallenge } from "@/lib/mobile/challenge";
 import { checkRateLimit, withRateLimitHeaders } from "@/lib/rate-limit";
 
@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const payloadOrRes = await requireMobileAuthWithDevice(request);
+    const payloadOrRes = await requireMobileEmployeeAuthWithDevice(request);
     if (payloadOrRes instanceof NextResponse)
       return withRateLimitHeaders(payloadOrRes, { limit, remaining: limitInfo.remaining, resetAt: limitInfo.resetAt });
 

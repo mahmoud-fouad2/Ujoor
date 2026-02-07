@@ -1,16 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import prisma from "@/lib/db";
-import { requireMobileAuthWithDevice } from "@/lib/mobile/auth";
+import { requireMobileEmployeeAuthWithDevice } from "@/lib/mobile/auth";
 import { uploadFile } from "@/lib/r2-storage";
 
 export async function POST(request: NextRequest) {
-  const payloadOrRes = await requireMobileAuthWithDevice(request);
+  const payloadOrRes = await requireMobileEmployeeAuthWithDevice(request);
   if (payloadOrRes instanceof NextResponse) return payloadOrRes;
-
-  if (!payloadOrRes.tenantId) {
-    return NextResponse.json({ error: "Tenant required" }, { status: 400 });
-  }
 
   try {
     const formData = await request.formData();

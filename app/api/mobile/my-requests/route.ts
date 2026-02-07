@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import prisma from "@/lib/db";
-import { requireMobileAuthWithDevice } from "@/lib/mobile/auth";
+import { requireMobileEmployeeAuthWithDevice } from "@/lib/mobile/auth";
 import type { RequestStatus, SelfServiceRequest, SelfServiceRequestType } from "@/lib/types/self-service";
 
 function employeeDisplayName(employee: {
@@ -72,40 +72,30 @@ const createSchema = z
   .strict();
 
 export async function GET(request: NextRequest) {
-  const payloadOrRes = await requireMobileAuthWithDevice(request);
+  const payloadOrRes = await requireMobileEmployeeAuthWithDevice(request);
   if (payloadOrRes instanceof NextResponse) return payloadOrRes;
-
-  if (!payloadOrRes.tenantId) {
-    return NextResponse.json({ error: "Tenant required" }, { status: 400 });
-  }
 
   try {
     const tenantId = payloadOrRes.tenantId;
     const userId = payloadOrRes.userId;
 
-    const employee = payloadOrRes.employeeId
-      ? await prisma.employee.findFirst({
-          where: { tenantId, id: payloadOrRes.employeeId },
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            firstNameAr: true,
-            lastNameAr: true,
-          },
-        })
-      : null;
-
-    const employeeId = employee?.id;
-
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { firstName: true, lastName: true },
+    const employee = await prisma.employee.findFirst({
+      where: { tenantId, id: payloadOrRes.employeeId },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        firstNameAr: true,
+        lastNameAr: true,
+      },
     });
 
-    const employeeName = employee
-      ? employeeDisplayName(employee)
-      : `${user?.firstName ?? ""} ${user?.lastName ?? ""}`.trim();
+    if (!employee) {
+      return NextResponse.json({ error: "Employee context required" }, { status: 400 });
+    }
+
+    const employeeId = employee.id;
+    const employeeName = employeeDisplayName(employee);
 
     const [leaveRequests, attendanceRequests, enrollments, tickets] = await Promise.all([
       employeeId
@@ -250,12 +240,8 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const payloadOrRes = await requireMobileAuthWithDevice(request);
+  const payloadOrRes = await requireMobileEmployeeAuthWithDevice(request);
   if (payloadOrRes instanceof NextResponse) return payloadOrRes;
-
-  if (!payloadOrRes.tenantId) {
-    return NextResponse.json({ error: "Tenant required" }, { status: 400 });
-  }
 
   try {
     const raw = await request.json();
@@ -288,21 +274,21 @@ export async function POST(request: NextRequest) {
       include: { _count: { select: { messages: true } } },
     });
 
-    const employee = payloadOrRes.employeeId
-      ? await prisma.employee.findFirst({
-          where: { tenantId: payloadOrRes.tenantId, id: payloadOrRes.employeeId },
-          select: { firstName: true, lastName: true, firstNameAr: true, lastNameAr: true, id: true },
-        })
-      : null;
+    const employee = await prisma.employee.findFirst({
+      where: { tenantId: payloadOrRes.tenantId, id: payloadOrRes.employeeId },
+      select: { firstName: true, lastName: true, firstNameAr: true, lastNameAr: true, id: true },
+    });
 
-    const employeeName = employee
-      ? employeeDisplayName(employee)
-      : "";
+    if (!employee) {
+      return NextResponse.json({ error: "Employee context required" }, { status: 400 });
+    }
+
+    const employeeName = employeeDisplayName(employee);
 
     const responseItem: SelfServiceRequest = {
       id: `ticket:${created.id}`,
       type: "ticket",
-      employeeId: employee?.id ?? `user:${payloadOrRes.userId}`,
+      employeeId: employee.id,
       employeeName,
       title: created.subject,
       description: created.category ?? undefined,

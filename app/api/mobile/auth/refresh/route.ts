@@ -122,6 +122,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    if (!user.employee?.id) {
+      return withRateLimitHeaders(
+        NextResponse.json({ error: "هذا التطبيق مخصص للموظفين فقط" }, { status: 403 }),
+        { limit, remaining: limitInfo.remaining, resetAt: limitInfo.resetAt }
+      );
+    }
+
     await prisma.auditLog.create({
       data: {
         tenantId: user.tenantId,
@@ -136,7 +143,7 @@ export async function POST(request: NextRequest) {
       userId: user.id,
       tenantId: user.tenantId,
       role: user.role,
-      employeeId: user.employee?.id ?? null,
+      employeeId: user.employee.id,
       deviceId: deviceHeaders.deviceId,
     });
 

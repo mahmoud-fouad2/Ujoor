@@ -1,21 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import prisma from "@/lib/db";
-import { requireMobileAuthWithDevice } from "@/lib/mobile/auth";
+import { requireMobileEmployeeAuthWithDevice } from "@/lib/mobile/auth";
 import { submitAttendance } from "@/lib/attendance/submit-attendance";
 import { consumeChallenge } from "@/lib/mobile/challenge";
 
 export async function GET(request: NextRequest) {
-  const payloadOrRes = await requireMobileAuthWithDevice(request);
+  const payloadOrRes = await requireMobileEmployeeAuthWithDevice(request);
   if (payloadOrRes instanceof NextResponse) return payloadOrRes;
-
-  if (!payloadOrRes.tenantId) {
-    return NextResponse.json({ error: "Tenant required" }, { status: 400 });
-  }
-
-  if (!payloadOrRes.employeeId) {
-    return NextResponse.json({ error: "Employee context required" }, { status: 400 });
-  }
 
   try {
     const { searchParams } = new URL(request.url);
@@ -69,16 +61,8 @@ const schema = z.object({
 });
 
 export async function POST(request: NextRequest) {
-  const payloadOrRes = await requireMobileAuthWithDevice(request);
+  const payloadOrRes = await requireMobileEmployeeAuthWithDevice(request);
   if (payloadOrRes instanceof NextResponse) return payloadOrRes;
-
-  if (!payloadOrRes.tenantId) {
-    return NextResponse.json({ error: "Tenant required" }, { status: 400 });
-  }
-
-  if (!payloadOrRes.employeeId) {
-    return NextResponse.json({ error: "Employee context required" }, { status: 400 });
-  }
 
   try {
     const nonce = request.headers.get("x-mobile-challenge") ?? "";

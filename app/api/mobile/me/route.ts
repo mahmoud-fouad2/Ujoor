@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/db";
-import { requireMobileAuthWithDevice } from "@/lib/mobile/auth";
+import { requireMobileEmployeeAuthWithDevice } from "@/lib/mobile/auth";
 
 export async function GET(request: NextRequest) {
-  const payloadOrRes = await requireMobileAuthWithDevice(request);
+  const payloadOrRes = await requireMobileEmployeeAuthWithDevice(request);
   if (payloadOrRes instanceof NextResponse) return payloadOrRes;
 
   try {
